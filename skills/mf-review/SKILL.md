@@ -9,7 +9,7 @@ Rationalize the mutual fund book toward the target structure and flag structural
 
 ## Target structure (by risk profile)
 
-Use the user's saved risk profile (from get-started). If none exists, run that profiling first. The core principle: 4–6 funds, one per category, each from a DIFFERENT AMC (fund house), no overlapping mandates.
+Read the user's risk profile from `portfolio-profile.md` in the working folder (written by get-started). If the file doesn't exist, run that profiling first. The core principle: 4–6 funds, one per category, each from a DIFFERENT AMC (fund house), no overlapping mandates.
 
 | Category | Conservative | Balanced | Aggressive |
 |---|---|---|---|

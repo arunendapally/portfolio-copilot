@@ -5,6 +5,8 @@ description: Run the pre-open or intraday portfolio briefing. Use when the user 
 
 # Daily Briefing
 
+Read `portfolio-profile.md` (thresholds, brokers) and the latest `portfolio-snapshots/` entry (comparison baseline) from the working folder first, if they exist. Front-load all broker login prompts in one message; daily session expiry is normal — say so, don't apologize for it.
+
 Fast, timestamped market-and-portfolio readout. Target: readable in 5 minutes, structured for voice.
 
 ## Mode 1 — Briefing ("daily briefing", "mid-day check", "afternoon check")

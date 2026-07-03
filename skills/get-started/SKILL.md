@@ -18,9 +18,9 @@ Ask, in one friendly message (not a form):
 
 Derive and confirm: risk profile, return target (default 10% XIRR — explain: "the annualized return on your actual cash flows, like a bank interest rate but for investments"), and cash buffer target (5–10%).
 
-## Step 2 — Save the profile
+## Step 2 — Save the profile to a file
 
-Record the profile (risk level, targets, broker IDs like Kotak UCC) in project memory / conversation context so every other skill uses it. Tell the user: "I'll remember this — say 'update my profile' anytime to change it."
+Write the profile to `portfolio-profile.md` in the user's working/connected folder (ask where to keep it if no folder is connected). Include: risk level, return target, cash buffer target, brokers and their IDs (e.g., Kotak UCC), and any custom thresholds. This file is the single source of truth — EVERY other skill must read it at the start of a run if it exists, and scheduled tasks work without re-embedding the profile in prompts. On "update my profile", edit this file so the change propagates everywhere. Tell the user where it's saved.
 
 ## Step 3 — Connect and run first check
 

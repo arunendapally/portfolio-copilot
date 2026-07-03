@@ -9,7 +9,7 @@ Ensure every material position has correct, active GTT protection and no orphan 
 
 ## Step 1 — Pull current state
 
-Call `kite:get_gtts` and `kite:get_holdings` in parallel. Get LTPs for held stocks via `kite:get_ltp` (batch carefully; avoid quote/ohlc tools for 5+ instruments).
+Call `kite:get_gtts` and `kite:get_holdings` in parallel. `get_gtts` payloads can exceed 50K characters: immediately reduce to {symbol, type, trigger(s), qty, status, cancellation reason} and work only from the reduced table — never re-print the raw blob. If truncated, state how many GTTs were captured and reconcile the largest holdings individually. Get LTPs for held stocks via `kite:get_ltp` (batch carefully; avoid quote/ohlc tools for 5+ instruments).
 
 ## Step 2 — Classify every GTT and holding
 

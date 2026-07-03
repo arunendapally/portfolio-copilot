@@ -5,7 +5,7 @@ description: Run the portfolio risk and safety checklist across all brokers. Use
 
 # Risk Check
 
-Evaluate the consolidated portfolio against hard risk limits. Requires live data — if holdings were not pulled this session, run the session-open pulls first.
+Evaluate the consolidated portfolio against hard risk limits. Requires live data — if holdings were not pulled this session, run the session-open pulls first. Read `portfolio-profile.md` for the user's thresholds if it exists, and use `portfolio-snapshots/` history for week-over-week deltas (drawdown from peak, weight drift) instead of relying on memory.
 
 ## Thresholds (defaults — user-overridable)
 
@@ -25,7 +25,7 @@ The values below are defaults. If the user has stated different targets — in t
 ## Steps
 
 1. Compute weights per stock, sector, and AMC from consolidated (all-broker) values. Compute cash buffer including broker cash and liquid/arbitrage funds.
-2. Compute XIRR from actual cash flows where available (SIP dates from unit accumulation, equity trade dates from `kite:get_trades` / order history). State the method and its limitations; never present an approximation as exact XIRR.
+2. **XIRR — only with a real data path.** XIRR needs dated cash flows; no live tool exposes full history. Follow this order: (a) pull whatever `kite:get_trades`/order history covers and say which period it spans; (b) ask for a tradebook export and/or CAMS/KFintech CAS upload (via the import-statements skill) for the rest; (c) compute XIRR programmatically in Python from the combined dated flows — never estimate it mentally. If the user declines to provide history, SKIP the XIRR row entirely and report simple absolute/annualized return clearly labeled as such — do not call anything XIRR without cash-flow data.
 3. Benchmark: compare against Nifty 50 TRI over the same period (web search for current values).
 4. Stress note: state portfolio impact of a 10% Nifty drop and a 20% drop in the largest sector.
 

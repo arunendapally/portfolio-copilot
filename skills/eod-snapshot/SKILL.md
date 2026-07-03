@@ -24,6 +24,10 @@ Post-close (after 3:30 PM IST) portfolio wrap-up. If run before close, state cle
 4. Cash status line
 5. Tomorrow's setup: 2–3 sentences
 
+## Snapshot write
+
+Write the day's snapshot to `portfolio-snapshots/YYYY-MM-DD.json` (same schema as session-open Step 4) so tomorrow's runs have a baseline.
+
 ## Rules
 
 - Analysis only — no order placement in this skill.
