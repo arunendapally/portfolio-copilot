@@ -14,7 +14,7 @@ Ask, in one friendly message (not a form):
 1. What are you investing for, and roughly how many years away is it?
 2. If your portfolio dropped 20% in a month, would you sell, hold, or buy more? (maps to conservative / balanced / aggressive)
 3. Roughly how much do you invest per month, and is there a lump sum sitting idle?
-4. Which broker(s) do you use? (Zerodha and Kotak Neo connect directly; others are view-only via statements)
+4. Which broker(s) do you use? Zerodha and Kotak Neo connect live; some others (INDmoney, Upstox, Groww) have MCP connectors you can add; ANY other broker (ICICI Direct, HDFC Securities, Angel One, ...) works by uploading a holdings export or CAS statement - offer the import-statements skill.
 
 Derive and confirm: risk profile, return target (default 10% XIRR — explain: "the annualized return on your actual cash flows, like a bank interest rate but for investments"), and cash buffer target (5–10%).
 

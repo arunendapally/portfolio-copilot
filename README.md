@@ -28,6 +28,7 @@ Say **"get started"**. The plugin builds your investor profile (goals, risk comf
 | Say | Get |
 |---|---|
 | "get started" | Profile setup, broker connection, first portfolio check |
+| "import my holdings" | Use ANY broker without an MCP - upload a holdings export or CAS statement |
 | "daily briefing" | 5-minute morning readout: markets, your P&L, alerts, one-line verdict |
 | "open session" / "portfolio check" | Full multi-broker snapshot with coverage gaps |
 | "audit GTTs" | Stop-loss order health check — finds unprotected positions and orphan orders |
@@ -49,7 +50,7 @@ Say **"get started"**. The plugin builds your investor profile (goals, risk comf
 | 1st Friday monthly | "monthly rebalance" | 20 min |
 | Every quarter | "quarterly review" | 30 min |
 
-These can also run automatically on a schedule — just ask.
+These can also run automatically: in Claude Cowork, say "run my daily briefing every weekday at 9:15 AM" and it becomes a scheduled task — your portfolio gets checked whether you remember or not. Long-term portfolios sprawl past 20 holdings (yearly buys, IPO allotments, old SIPs); scheduled monitoring is how they stay safe without eating your time.
 
 ## Built-in guardrails
 
@@ -66,7 +67,17 @@ These can also run automatically on a schedule — just ask.
 
 It does not monitor your portfolio in the background — data is pulled only when you run a skill (or a scheduled task runs one for you). It cannot watch prices 24/7, catch a crash in real time, or refresh itself between sessions. For routine coverage, set up scheduled runs of "daily briefing" and "EOD analysis"; for everything else, GTT orders at your broker are the always-on protection layer — which is exactly why the gtt-audit skill exists.
 
-## Bundled MCP servers (`.mcp.json`)
+## Broker support
+
+| Your broker | How it connects |
+|---|---|
+| Zerodha | Live — official Kite MCP, bundled with this plugin |
+| Kotak Neo | Live — official MCP, bundled with this plugin |
+| INDmoney | Live — add their official MCP connector |
+| Upstox, Groww, Angel One, 5paisa | Live — community MCP servers exist; add as connectors |
+| ICICI Direct, HDFC Securities, or any other | Statement upload — say "import my holdings" and upload your holdings export (CSV/XLSX) or CAMS/KFintech CAS. All analysis skills work; order placement needs a live connection |
+
+### Bundled MCP servers (`.mcp.json`)
 
 - **Kite (Zerodha)** — `npx mcp-remote https://mcp.kite.trade/sse`. Login via browser link each session.
 - **Kotak Neo** — `npx mcp-remote https://neo.kotaksecurities.com/mcp-server/mcp`. Login via your UCC + QR scan in the Kotak Neo app.
@@ -81,7 +92,7 @@ Defaults: XIRR ≥10%, cash buffer 5–10%, single stock ≤15%, sector ≤30%, 
 
 ## Components
 
-9 skills, 1 agent (fundamentals-analyst), 1 safety hook, 2 bundled broker MCP servers.
+10 skills, 1 agent (fundamentals-analyst), 1 safety hook, 2 bundled broker MCP servers.
 
 ## License
 
