@@ -15,7 +15,7 @@ In Claude Code or Claude Cowork:
 /plugin install portfolio-copilot@portfolio-copilot-marketplace
 ```
 
-Or download [`portfolio-copilot.plugin`](https://github.com/arunendapally/portfolio-copilot/releases) and open it in the Claude desktop app.
+Or download [`portfolio-copilot.plugin`](https://github.com/arunendapally/portfolio-copilot/raw/main/portfolio-copilot.plugin) and open it in the Claude desktop app.
 
 After installing, say **"get started"** in a new chat.
 
