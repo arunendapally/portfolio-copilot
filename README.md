@@ -84,6 +84,12 @@ It does not monitor your portfolio in the background — data is pulled only whe
 
 Connectors (Settings UI), `claude_desktop_config.json` entries, and this plugin's `.mcp.json` are all MCP connections underneath — keep only one copy of each server to avoid duplicate tools. Other brokers (e.g., IBKR for US stocks) can be added as separate connectors; skills use them if present.
 
+## Using with other AI tools
+
+The skills are plain markdown and MIT-licensed — you can copy any `skills/*/SKILL.md` into GitHub Copilot custom instructions, a ChatGPT project, or any system prompt, and the workflow logic (audit steps, thresholds, risk rules) carries over. MCP is an open standard, so the same Zerodha/Kotak Neo servers also work in other MCP-capable clients (VS Code Copilot, Cursor, ChatGPT desktop).
+
+**What does NOT carry over: the safety hook.** In Claude, "no order without explicit confirmation" is enforced by a gate that runs before the tool executes. In any other tool, that rule is only text in a prompt — long conversations can drift past it. If you port these skills elsewhere and connect a live broker, you are trading with a written rule instead of an enforced one. Be careful, or keep order placement out of the ported setup entirely.
+
 ## Customization
 
 Your targets are set conversationally: the "get started" profile captures risk level and return target (default 10% XIRR), and any skill honors updated values ("my XIRR target is 12%"). To change hard defaults permanently, edit the thresholds table in `skills/risk-check/SKILL.md` or the model allocations in `skills/mf-review/SKILL.md` and reinstall.
