@@ -1,0 +1,14 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": "place_gtt_order|modify_gtt_order|delete_gtt_order|place_order|modify_order|cancel_order",
+      "hooks": [
+        {
+          "type": "prompt",
+          "prompt": "This tool call places, modifies, or deletes a live broker order (real money). Review the conversation: (1) Were the EXACT details of THIS specific order — instrument, trigger price(s), quantity, transaction type, product — shown to the user? (2) Did the user give explicit confirmation for THIS order (or this clearly enumerated group of orders) AFTER seeing those details? A general instruction like 'fix my GTTs' or a blanket 'yes' given before details were shown does NOT count. If both conditions are met, approve. Otherwise block and instruct: present the exact order details and ask for confirmation first.",
+          "timeout": 30
+        }
+      ]
+    }
+  ]
+}

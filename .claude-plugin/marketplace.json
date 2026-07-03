@@ -1,0 +1,13 @@
+{
+  "name": "portfolio-copilot-marketplace",
+  "owner": {
+    "name": "Arun Kumar"
+  },
+  "plugins": [
+    {
+      "name": "portfolio-copilot",
+      "source": "./",
+      "description": "Portfolio management for busy, non-expert Indian retail investors. Plain-language briefings, rebalancing, risk alerts, and analysis across Zerodha and Kotak Neo - with a safety hook so nothing trades without confirmation. Not investment advice."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "kite": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.kite.trade/sse"]
+    },
+    "kotak-neo": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://neo.kotaksecurities.com/mcp-server/mcp"]
+    }
+  }
+}
