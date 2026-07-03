@@ -6,6 +6,19 @@ Portfolio management for busy people who aren't investing experts. Connects to y
 
 **You stay in control**: nothing is ever bought or sold without you seeing the exact order and saying yes (enforced by a built-in safety hook, not just a promise).
 
+## Install
+
+In Claude Code or Claude Cowork:
+
+```
+/plugin marketplace add arunendapally/portfolio-copilot
+/plugin install portfolio-copilot@portfolio-copilot-marketplace
+```
+
+Or download [`portfolio-copilot.plugin`](https://github.com/arunendapally/portfolio-copilot/releases) and open it in the Claude desktop app.
+
+After installing, say **"get started"** in a new chat.
+
 ## Start here
 
 Say **"get started"**. The plugin builds your investor profile (goals, risk comfort, monthly investment), connects your broker, and runs your first portfolio check.
