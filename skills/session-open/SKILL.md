@@ -32,7 +32,7 @@ Kotak Neo: `kotak-neo:get_holdings` (returns equities, ETFs, and MF folios in on
 Known Kotak feed limits — state them instead of implying parity with Zerodha: no day-change field (label day P&L as Zerodha-only), and MF rows lack folio-level dates (mark Kotak SIP inference as low-confidence).
 
 Notes:
-- There is no `get_mf_sips` tool — infer SIP patterns from unit accumulation across folios.
+- Broker APIs expose holdings but not SIP schedules — infer active SIPs from regular unit accumulation across folios, and mark the inference as such.
 - `kite:get_ltp` is reliable; avoid `kite:get_quotes`/`kite:get_ohlc` with 5+ instruments (timeouts).
 
 ## Step 3 — Compute and report
