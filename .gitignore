@@ -1,0 +1,11 @@
+# Personal data written by the plugin at runtime - never commit
+portfolio-profile.md
+portfolio-snapshots/
+decisions.md
+
+# Session/tool artifacts
+.claude/
+
+# OS junk
+.DS_Store
+Thumbs.db
