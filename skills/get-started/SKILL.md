@@ -20,7 +20,7 @@ Derive and confirm: risk profile, return target (default 10% XIRR — explain: "
 
 ## Step 2 — Save the profile to a file
 
-Write the profile to `portfolio-profile.md` in the user's working/connected folder (ask where to keep it if no folder is connected). Include: risk level, return target, cash buffer target, brokers and their IDs (e.g., Kotak UCC), and any custom thresholds. This file is the single source of truth — EVERY other skill must read it at the start of a run if it exists, and scheduled tasks work without re-embedding the profile in prompts. On "update my profile", edit this file so the change propagates everywhere. Tell the user where it's saved.
+Write the profile to `portfolio-profile.md` in the user's working/connected folder (ask where to keep it if no folder is connected). Include: risk level, return target, cash buffer target, brokers and their IDs (e.g., Kotak UCC), any custom thresholds, and — as the user forms them — a per-symbol verdict table (hold / add / reduce / exit, with a one-line reason). The verdict table is what powers the trade audit guardrail in session-open and daily-briefing. This file is the single source of truth — EVERY other skill must read it at the start of a run if it exists, and scheduled tasks work without re-embedding the profile in prompts. On "update my profile", edit this file so the change propagates everywhere. Tell the user where it's saved.
 
 ## Step 3 — Connect and run first check
 

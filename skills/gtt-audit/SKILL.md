@@ -9,7 +9,7 @@ Ensure every material position has correct, active GTT protection and no orphan 
 
 ## Step 1 — Pull current state
 
-Call `kite:get_gtts` and `kite:get_holdings` in parallel. `get_gtts` payloads can exceed 50K characters: immediately reduce to {symbol, type, trigger(s), qty, status, cancellation reason} and work only from the reduced table — never re-print the raw blob. If truncated, state how many GTTs were captured and reconcile the largest holdings individually. Get LTPs for held stocks via `kite:get_ltp` (batch carefully; avoid quote/ohlc tools for 5+ instruments).
+Call `kite:get_gtts` and `kite:get_holdings` in parallel. `get_gtts` payloads can exceed 50K characters: immediately reduce to {symbol, type, trigger(s), qty, status, cancellation reason} and work only from the reduced table — never re-print the raw blob. If truncated, or for portfolios with 30+ GTTs, save the raw response to a temp file immediately and parse it programmatically (Python) instead of processing it in-context — then work from the parsed table. Get LTPs for held stocks via `kite:get_ltp` (batch carefully; avoid quote/ohlc tools for 5+ instruments).
 
 ## Step 2 — Classify every GTT and holding
 
@@ -27,6 +27,10 @@ Check for, in priority order:
 Output one table: `Stock | Current GTT | LTP | Suggested Action | Reason`. Include rows with "OK — no change" only in a count, not the table.
 
 For each suggested new or modified GTT, prefer two-leg (SL + target) structures and state exact trigger prices, quantities, and order type.
+
+## Auto-created bracket GTTs (critical correctness rule)
+
+Kite buy orders can auto-place an OCO bracket GTT at execution time (visible as `gttp` in the order's `meta`, e.g., a -8%/+15% pair). Consequence: a symbol traded today may ALREADY have a fresh GTT you don't know about. Therefore, before modifying or creating any GTT for a symbol that had an order today, re-fetch `get_gtts` and check for MULTIPLE GTTs on that symbol. Never assume one GTT per symbol. If two GTTs jointly cover more shares than held (double coverage), flag it — whichever triggers first would cause a rejected or partial order — and propose consolidation.
 
 ## Execution rule (mandatory)
 

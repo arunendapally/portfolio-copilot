@@ -14,6 +14,7 @@ Fast, timestamped market-and-portfolio readout. Target: readable in 5 minutes, s
 1. **Macro (parallel web searches)**: US overnight close, Asian session, GIFT Nifty (pre-open) or live Nifty (intraday), Brent crude, USD/INR, today's earnings/events calendar (BSE), any Fed/RBI items.
 2. **Portfolio (parallel MCP pulls)**: `kite:get_holdings`, `kite:get_margins`, `kite:get_gtts`. Kotak Neo only if the user asks (QR auth friction).
 3. **Compute**: day P&L so far, cash % vs 5–10% target, GTTs within 2% of their trigger (list stock, trigger, LTP, distance).
+4. **Trade audit**: pull today's orders/trades and diff every executed trade — including ones placed directly in the broker app — against standing per-symbol verdicts, the cash-buffer floor, and concentration caps (see session-open Step 3.5). Flag contradictions unprompted.
 4. **Timestamp every data point** (HH:MM IST). Flag anything older than 4 hours as stale.
 
 Output order: one-sentence verdict first (e.g., "Risk-off open likely, cash at X%, no GTTs near trigger") → macro table → P&L line → GTT proximity alerts → today's events.
@@ -26,6 +27,7 @@ Only for entries the user has already planned. For each:
 2. Search for breaking news on the stock (earnings, regulatory, corporate action) — reject the entry if material adverse news exists, with the source.
 3. Confirm or reject each trade with a one-line data-backed reason.
 4. Draft the GTT/order with entry, SL, and target levels and stated basis.
+5. **Decision journal**: append each confirmed entry to `decisions.md` in the working folder — date, symbol, thesis (one line), entry, SL, target, and the basis for each level. Capture this at the moment of intent, not after the fact. If a user later asks to move a target with no price-action basis (e.g., to hit a round profit number), point back to the journaled level and ask what changed.
 
 Execution follows the standard rule: exact details shown → explicit per-order confirmation → then place via MCP. (The plugin's PreToolUse hook enforces this.)
 
