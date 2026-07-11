@@ -62,4 +62,5 @@ If XIRR is below target sustained or drawdown >10% from peak, present corrective
 ## Rules
 
 - Recommendations must include stop-loss and target levels where applicable.
-- Neve
+- Never auto-execute anything; this skill is analysis only.
+- Wealth-preservation framing: balance growth assets with stable blue chips, sized to the user's saved risk profile.

@@ -12,12 +12,22 @@ Fast, timestamped market-and-portfolio readout. Target: readable in 5 minutes, s
 ## Mode 1 — Briefing ("daily briefing", "mid-day check", "afternoon check")
 
 1. **Macro (parallel web searches)**: US overnight close, Asian session, GIFT Nifty (pre-open) or live Nifty (intraday), Brent crude, USD/INR, today's earnings/events calendar (BSE), any Fed/RBI items.
-2. **Portfolio (parallel MCP pulls)**: `kite:get_holdings`, `kite:get_margins`, `kite:get_gtts`. Kotak Neo only if the user asks (QR auth friction).
+2. **Portfolio (parallel MCP pulls, ALL asset classes)**: equities AND mutual funds together — never equities only. `kite:get_holdings`, `kite:get_mf_holdings`, `kite:get_margins`, `kite:get_gtts`; Kotak holdings (includes MF folios) when connected; any other connected broker's positions. Convert non-INR accounts to INR at the day's exchange rate and state the rate used.
 3. **Compute**: day P&L so far, cash % vs 5–10% target, GTTs within 2% of their trigger (list stock, trigger, LTP, distance).
 4. **Trade audit**: pull today's orders/trades and diff every executed trade — including ones placed directly in the broker app — against standing per-symbol verdicts, the cash-buffer floor, and concentration caps (see session-open Step 3.5). Flag contradictions unprompted.
 4. **Timestamp every data point** (HH:MM IST). Flag anything older than 4 hours as stale.
 
 Output order: one-sentence verdict first (e.g., "Risk-off open likely, cash at X%, no GTTs near trigger") → macro table → P&L line → GTT proximity alerts → today's events.
+
+## Scheduled / non-interactive runs
+
+When run by a scheduled task with the user absent: do NOT stall on broker logins. Present the login link(s) for expired sessions, then deliver what needs no auth — the macro read plus last-known portfolio context from the latest `portfolio-snapshots/` entry (clearly dated as such) — and state plainly which parts are held pending re-login. A partial briefing on time beats a complete briefing never.
+
+## Close-out (every briefing)
+
+1. Save the full readout as a dated file: `PortfolioReviews/YYYY-MM-DD-daily-briefing.md` in the working folder (create the folder if missing). Complete content, not a summary — this is the durable per-day record.
+2. Append a dated one-paragraph entry to `progress.md`: what was pulled, consolidated total, what changed since the last run.
+3. If a standing verdict was contradicted by a live trade or a review-date item came due, note it in `progress.md` — never silently edit the user's verdicts.
 
 ## Mode 2 — Execute entries ("execute entries")
 

@@ -39,7 +39,7 @@ Notes:
 
 Produce, in order:
 
-1. **Consolidated snapshot table**: per broker — market value, day change, total P&L. Grand total in ₹ (convert USD at current rate, state the rate used).
+1. **Consolidated snapshot table**: per broker — market value, day change, total P&L, covering equities AND mutual funds. Grand total in ₹ — convert any non-INR account at the day's exchange rate and state the rate used.
 2. **Top movers**: top 3 gainers/losers by ₹ P&L.
 3. **Cash buffer status**: available cash as % of portfolio vs the 5–10% target. Below 5% is a flag; below 1% is critical and must be stated first among alerts.
 4. **GTT coverage gaps**: holdings above ₹50K with no active GTT protection, and any GTTs cancelled since last session (cancellation reason is in the GTT object — corporate actions silently cancel GTTs).

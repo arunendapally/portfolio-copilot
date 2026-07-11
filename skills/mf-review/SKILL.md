@@ -45,4 +45,5 @@ Output:
 ## Rules
 
 - Never draft redemption or SIP-change orders — MF actions are recommendations only; the user executes on Coin/Kotak.
-- Verify fund data against at lea
+- Verify fund data against at least one live source before recommending a stop; state the source and date.
+- Do not recommend exiting a fund based on short-term (<1Y) underperformance alone.

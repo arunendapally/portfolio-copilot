@@ -54,6 +54,8 @@ These can also run automatically: in Claude Cowork, say "run my daily briefing e
 
 ## Built-in guardrails
 
+0. **Analysis output audit**: a SubagentStop hook checks every fundamentals-analyst result — numbers without source quotes and vintage, or any buy/sell directive language, get blocked and regenerated
+0. **Always-on house rules**: a SessionStart hook injects `context/house-rules.md` into every session, so the core guardrails below apply even when no skill has loaded
 1. **No auto-trading**: every order shown in full and confirmed by you, enforced by a PreToolUse hook on all order tools
 2. **No stale data**: recommendations only from live, timestamped pulls; data gaps stated plainly rather than papered over
 3. **Cash buffer first**: maintains a 5–10% cash cushion before any new deployment
@@ -90,6 +92,10 @@ The skills are plain markdown and MIT-licensed — you can copy any `skills/*/SK
 
 **What does NOT carry over: the safety hook.** In Claude, "no order without explicit confirmation" is enforced by a gate that runs before the tool executes. In any other tool, that rule is only text in a prompt — long conversations can drift past it. If you port these skills elsewhere and connect a live broker, you are trading with a written rule instead of an enforced one. Be careful, or keep order placement out of the ported setup entirely.
 
+## Records the plugin keeps for you
+
+Briefings and EOD runs write durable records into your working folder: a full dated review in `PortfolioReviews/`, a one-paragraph running log in `progress.md`, and machine-readable baselines in `portfolio-snapshots/`. Scheduled runs with expired broker sessions degrade gracefully: you get the macro read and last-known context on time, with login links for the rest. These files are personal — keep them out of any public repo (the bundled .gitignore covers them).
+
 ## Customization
 
 Your targets are set conversationally: the "get started" profile captures risk level and return target (default 10% XIRR), and any skill honors updated values ("my XIRR target is 12%"). To change hard defaults permanently, edit the thresholds table in `skills/risk-check/SKILL.md` or the model allocations in `skills/mf-review/SKILL.md` and reinstall.
@@ -98,7 +104,7 @@ Defaults: XIRR ≥10%, cash buffer 5–10%, single stock ≤15%, sector ≤30%, 
 
 ## Components
 
-10 skills, 1 agent (fundamentals-analyst), 1 safety hook, 2 bundled broker MCP servers.
+10 skills, 1 agent (fundamentals-analyst), 3 hooks (order gate, always-on house rules, analysis output audit), 2 bundled broker MCP servers.
 
 ## License
 

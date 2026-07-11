@@ -1,6 +1,6 @@
 {
   "name": "portfolio-copilot",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Portfolio management for busy, non-expert Indian retail investors. Plain-language daily briefings, rebalancing, risk alerts, and analysis. Live via Zerodha/Kotak Neo MCPs, or ANY broker via statement upload. Safety hook: nothing trades without confirmation. Not investment advice.",
   "author": {
     "name": "Arun Kumar"

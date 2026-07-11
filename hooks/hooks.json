@@ -5,7 +5,31 @@
       "hooks": [
         {
           "type": "prompt",
-          "prompt": "This tool call places, modifies, or deletes a live broker order (real money). Review the conversation: (1) Were the EXACT details of THIS specific order — instrument, trigger price(s), quantity, transaction type, product — shown to the user? (2) Did the user give explicit confirmation for THIS order (or this clearly enumerated group of orders) AFTER seeing those details? A general instruction like 'fix my GTTs' or a blanket 'yes' given before details were shown does NOT count. If both conditions are met, approve. Otherwise block and instruct: present the exact order details and ask for confirmation first.",
+          "prompt": "This tool call places, modifies, or deletes a live broker order (real money). Review the conversation: (1) Were the EXACT details of THIS specific order \u2014 instrument, trigger price(s), quantity, transaction type, product \u2014 shown to the user? (2) Did the user give explicit confirmation for THIS order (or this clearly enumerated group of orders) AFTER seeing those details? A general instruction like 'fix my GTTs' or a blanket 'yes' given before details were shown does NOT count. If both conditions are met, approve. Otherwise block and instruct: present the exact order details and ask for confirmation first.",
+          "timeout": 30
+        }
+      ]
+    }
+  ],
+  "SessionStart": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "cat ${CLAUDE_PLUGIN_ROOT}/context/house-rules.md",
+          "timeout": 10
+        }
+      ]
+    }
+  ],
+  "SubagentStop": [
+    {
+      "matcher": "fundamentals-analyst",
+      "hooks": [
+        {
+          "type": "prompt",
+          "prompt": "This is output from the fundamentals-analyst agent, whose contract requires: (1) every reported number (CAGR, ROE, P/E, CMP, debt figures) is followed by a bracketed verbatim source quote AND a stated data period/vintage, or is replaced by 'not found in sources'; (2) no buy/sell directive language anywhere (no 'buy', 'sell', 'add', 'exit now', 'accumulate' as advice - assessment words only); (3) a Sources section with URLs and access dates exists. Check the output against all three. If any check fails, block and state which numbers lack quotes/vintage or which directive phrases appeared, so the agent regenerates compliantly. If all pass, approve.",
           "timeout": 30
         }
       ]

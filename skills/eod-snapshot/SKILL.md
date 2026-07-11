@@ -26,7 +26,7 @@ Post-close (after 3:30 PM IST) portfolio wrap-up. If run before close, state cle
 
 ## Snapshot write
 
-Write the day's snapshot to `portfolio-snapshots/YYYY-MM-DD.json` (same schema as session-open Step 4) so tomorrow's runs have a baseline.
+Write the day's snapshot to `portfolio-snapshots/YYYY-MM-DD.json` (same schema as session-open Step 4) so tomorrow's runs have a baseline. Also save the full readout as `PortfolioReviews/YYYY-MM-DD-eod.md` and append a one-paragraph dated entry to `progress.md`.
 
 ## Rules
 

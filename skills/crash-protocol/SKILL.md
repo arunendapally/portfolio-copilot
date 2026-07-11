@@ -37,4 +37,5 @@ Only if classification supports it:
 
 - Never recommend market orders in a fast market — limit/GTT only, with stated levels.
 - All executions still require per-order confirmation (hook-enforced).
-- If the fall is near clos
+- If the fall is near close, default to "assess overnight" — weekend/overnight analysis beats intraday reaction.
+- Do not average down a position whose thesis broke; falling price alone is not a buy signal.
