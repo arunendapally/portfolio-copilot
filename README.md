@@ -6,6 +6,8 @@ Portfolio management for busy people who aren't investing experts. Connects to y
 
 **You stay in control**: nothing is ever bought or sold without you seeing the exact order and saying yes (enforced by a built-in safety hook, not just a promise).
 
+Why it exists, how it's built, and the design decisions behind the safety hook: [How I Manage My Stock Portfolio in 5 Minutes a Day With AI](https://arunendapally.com/posts/portfolio-copilot-claude-plugin/).
+
 ## Install
 
 In Claude Code or Claude Cowork:
