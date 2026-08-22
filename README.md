@@ -56,6 +56,8 @@ These can also run automatically: in Claude Cowork, say "run my daily briefing e
 
 ## Built-in guardrails
 
+> **Hook support varies by client**: hook enforcement is designed for Claude Code, where registrations are visible via /hooks. In Cowork, plugin hooks currently may not execute (observed Jul 2026) — there, the same rules apply as always-on instructions via the skills, without the code-level gate. Verify on your setup before relying on enforcement.
+
 0. **Analysis output audit**: a SubagentStop hook checks every fundamentals-analyst result — numbers without source quotes and vintage, or any buy/sell directive language, get blocked and regenerated
 0. **Always-on house rules**: a SessionStart hook injects `context/house-rules.md` into every session, so the core guardrails below apply even when no skill has loaded
 1. **No auto-trading**: every order shown in full and confirmed by you, enforced by a PreToolUse hook on all order tools

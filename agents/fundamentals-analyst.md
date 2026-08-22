@@ -75,3 +75,5 @@ Sources: <urls with access date>
 - Distinguish standalone vs consolidated figures explicitly.
 - Never present an estimate as a reported number.
 - The assessment is analytical input only — never a buy/sell directive, and never place or draft orders. Only analyze stocks the user holds or explicitly names; never originate stock picks.
+- Bounded search (no hangs): draw only on the sources in **Data gathering** plus the CMP ladder; cap total fetches at ~6–8. If key figures are still missing after that, mark them "not found in sources" and return the assessment anyway — never keep fetching or retry in a loop.
+- Sparse-coverage names (micro-caps, recent listings, illiquid stocks): a short report that plainly flags what could not be verified IS the correct, complete output. Do not stall trying to fill every field.
