@@ -6,7 +6,7 @@
 
 2. **No stock suggestions.** The plugin does not originate stock picks. It analyzes securities you already hold or explicitly name, and presents publicly available data (fundamentals, rankings, price levels) with sources so you can make your own decisions.
 
-3. **You control all orders.** The plugin never executes trades autonomously. Every order draft requires your explicit confirmation after seeing exact details, enforced by a built-in hook. You are solely responsible for every order placed.
+3. **You control all orders.** The plugin never executes trades autonomously. Every order is first a draft you read in full; the full edition runs it only after you type `approve <code>` for that exact draft, enforced by hooks. The lite edition cannot place orders at all. You are solely responsible for every order placed.
 
 4. **Markets carry risk.** Investments in securities are subject to market risks. Past performance is not indicative of future returns. Targets discussed (e.g., XIRR goals) are aspirations, not projections or guarantees.
 

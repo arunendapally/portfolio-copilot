@@ -1,7 +1,13 @@
 # Personal data written by the plugin at runtime - never commit
+portfolio-copilot/
 portfolio-profile.md
 portfolio-snapshots/
 decisions.md
+
+# Build and eval outputs
+dist/
+evals/runs/
+__pycache__/
 
 # Session/tool artifacts
 .claude/

@@ -1,0 +1,131 @@
+'use strict';
+// US9 and constitution budgets: plugin shape, hook matchers, policy lint (eval T9),
+// no proxies, no personal data, skill and size budgets.
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.join(__dirname, '..');
+const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+const json = (p) => JSON.parse(read(p));
+
+// Every order-tool name seen in the field log (feedback.md, Jul-Oct 2026) plus core's own.
+const ORDER_TOOL_NAMES = [
+  'place_gtt_order', 'modify_gtt_order', 'delete_gtt_order', 'place_order', 'modify_order', 'cancel_order',
+  'mcp__kite__place_gtt_order', 'mcp__kite__delete_gtt_order', 'mcp__kite__place_order', 'mcp__kite__cancel_order',
+  'mcp__plugin_portfolio-copilot_kite__place_gtt_order', 'mcp__plugin_portfolio-copilot_kite__modify_gtt_order',
+  'mcp__remote-devices__kite__place_gtt_order', 'mcp__remote-devices__plugin_portfolio-copilot_kite__delete_gtt_order',
+  'mcp__plugin_portfolio-copilot_portfolio-core__execute_draft',
+];
+const NOT_ORDER_TOOLS = ['mcp__kite__get_gtts', 'mcp__kite__get_orders', 'mcp__kite__get_order_history', 'mcp__plugin_portfolio-copilot_portfolio-core__draft_gtt_plan', 'Bash', 'mcp__kotak-neo__get_order_book'];
+
+test('hooks.json has the documented {"hooks": {...}} shape and only command hooks guard orders', () => {
+  const h = json('hooks/hooks.json');
+  assert.ok(h.hooks && typeof h.hooks === 'object', 'missing top-level "hooks"');
+  for (const ev of ['SessionStart', 'UserPromptSubmit', 'PreToolUse']) assert.ok(Array.isArray(h.hooks[ev]), `${ev} missing`);
+  for (const g of h.hooks.PreToolUse) for (const x of g.hooks) assert.strictEqual(x.type, 'command');
+  for (const ev of Object.values(h.hooks)) for (const g of ev) for (const x of g.hooks) {
+    if (x.type === 'command') {
+      const m = x.command.match(/hooks\/([\w-]+\.js)/);
+      assert.ok(m && fs.existsSync(path.join(ROOT, 'hooks', m[1])), `hook script missing: ${x.command}`);
+    }
+  }
+});
+
+test('PreToolUse matcher covers every known order tool name and nothing else', () => {
+  const re = new RegExp(`^(?:${json('hooks/hooks.json').hooks.PreToolUse[0].matcher})$`);
+  for (const n of ORDER_TOOL_NAMES) assert.ok(re.test(n), `not gated: ${n}`);
+  for (const n of NOT_ORDER_TOOLS) assert.ok(!re.test(n), `gated by mistake: ${n}`);
+});
+
+test('gate script recognises the same names as the matcher', () => {
+  const { ORDER_RE } = require('../hooks/order-gate');
+  for (const n of ORDER_TOOL_NAMES.filter((x) => !x.endsWith('execute_draft'))) assert.ok(ORDER_RE.test(n), n);
+});
+
+test('.mcp.json ships only portfolio-core, no local proxies', () => {
+  const m = json('.mcp.json');
+  assert.deepStrictEqual(Object.keys(m.mcpServers), ['portfolio-core']);
+  assert.doesNotMatch(read('.mcp.json'), /mcp-remote|npx/);
+});
+
+test('core has zero runtime dependencies', () => {
+  const pkg = json('package.json');
+  assert.ok(!pkg.dependencies || !Object.keys(pkg.dependencies).length);
+  const files = [];
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).forEach((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : files.push(path.join(d, e.name))));
+  walk(path.join(ROOT, 'core'));
+  walk(path.join(ROOT, 'hooks'));
+  const builtins = new Set(require('module').builtinModules);
+  for (const f of files.filter((x) => x.endsWith('.js'))) {
+    for (const m of fs.readFileSync(f, 'utf8').matchAll(/require\('([^']+)'\)/g)) {
+      const name = m[1].replace(/^node:/, '');
+      assert.ok(name.startsWith('.') || builtins.has(name), `${path.relative(ROOT, f)} requires ${m[1]}`);
+    }
+  }
+});
+
+test('at most 6 skills, each under 60 lines, with frontmatter', () => {
+  const skills = fs.readdirSync(path.join(ROOT, 'skills'));
+  assert.ok(skills.length <= 6, `${skills.length} skills`);
+  for (const s of skills) {
+    const body = read(`skills/${s}/SKILL.md`);
+    assert.match(body, new RegExp(`^---\\nname: ${s}\\ndescription: .+\\n---`), `${s} frontmatter`);
+    assert.ok(body.split('\n').length < 60, `${s} is ${body.split('\n').length} lines`);
+  }
+});
+
+test('old trigger phrases still route to a skill', () => {
+  const all = fs.readdirSync(path.join(ROOT, 'skills')).map((s) => read(`skills/${s}/SKILL.md`).split('\n')[2]).join('\n').toLowerCase();
+  for (const phrase of ['daily briefing', 'open session', 'eod analysis', 'audit gtts', 'review my mfs', 'risk check', 'monthly rebalance', 'crash mode', 'analyze <stock>', 'import my holdings', 'get started', 'macro brief']) {
+    assert.ok(all.includes(phrase), `no skill handles "${phrase}"`);
+  }
+});
+
+// Eval T9: no instruction contradicts the 30-Sep GTT policy.
+test('T9 policy lint: no skill or agent asks for tight or trailing stops', () => {
+  const banned = [/trail(ed|ing)? (the )?(sl|stop)/i, /stop[- ]loss on every/i, /propose trailed/i, /tighten(ing)? (stops?|sls?) (in|during) a fall/i, /above ₹50K with no/i, /prefer two-leg/i];
+  const files = [...fs.readdirSync(path.join(ROOT, 'skills')).map((s) => `skills/${s}/SKILL.md`), 'agents/fundamentals-analyst.md', 'context/house-rules.md'];
+  for (const f of files) for (const re of banned) assert.doesNotMatch(read(f), re, `${f} contradicts the GTT policy (${re})`);
+  assert.match(read('skills/gtt/SKILL.md'), /crash test/i);
+  assert.match(read('skills/crash/SKILL.md'), /Never tighten/);
+});
+
+test('house rules: 8 numbered rules, consistent with constitution I-III', () => {
+  const r = read('context/house-rules.md');
+  assert.strictEqual((r.match(/^\d\. /gm) || []).length, 8);
+  assert.match(r, /approve <code>/);
+  assert.match(r, /Never suggest securities to buy/);
+  assert.match(r, /Do not re-read them from disk/);
+});
+
+test('repo contains no personal data', () => {
+  const ignored = read('.gitignore');
+  for (const p of ['portfolio-copilot/', 'portfolio-profile.md', 'portfolio-snapshots/', 'dist/']) assert.ok(ignored.includes(p), `${p} not ignored`);
+  const fixtures = fs.readdirSync(path.join(__dirname, 'fixtures')).map((f) => fs.readFileSync(path.join(__dirname, 'fixtures', f), 'utf8')).join('\n');
+  assert.doesNotMatch(fixtures, /JIR116|arun|@gmail/i);
+});
+
+test('editions/lite is generated from the current source and is lite', () => {
+  const { liteFiles, diffLite } = require('../scripts/build');
+  const files = liteFiles();
+  assert.deepStrictEqual(diffLite(files), [], 'run: node scripts/build.js');
+  assert.strictEqual(JSON.parse(files.get('.mcp.json')).mcpServers['portfolio-core'].env.PORTFOLIO_EDITION, 'lite');
+  assert.strictEqual(JSON.parse(files.get('.claude-plugin/plugin.json')).name, 'portfolio-copilot-lite');
+});
+
+test('zip writer output is a valid archive', () => {
+  const { zip } = require('../scripts/build');
+  const z = zip(new Map([['a.txt', Buffer.from('hello')]]));
+  assert.strictEqual(z.readUInt32LE(0), 0x04034b50);
+  assert.strictEqual(z.readUInt32LE(z.length - 22), 0x06054b50);
+});
+
+test('plugin manifest and marketplace list both editions at the same version', () => {
+  const p = json('.claude-plugin/plugin.json');
+  const m = json('.claude-plugin/marketplace.json');
+  assert.strictEqual(p.version, json('package.json').version);
+  const names = m.plugins.map((x) => x.name);
+  assert.ok(names.includes('portfolio-copilot') && names.includes('portfolio-copilot-lite'));
+});

@@ -1,7 +1,7 @@
 {
   "name": "portfolio-copilot",
-  "version": "0.4.1",
-  "description": "Portfolio management for busy, non-expert Indian retail investors. Plain-language daily briefings, rebalancing, risk alerts, and analysis. Live via Zerodha/Kotak Neo MCPs, or ANY broker via statement upload. Safety hook: nothing trades without confirmation. Not investment advice.",
+  "version": "0.5.0",
+  "description": "Analysis-and-drafting copilot for DIY Indian investors. Live Zerodha/Kotak Neo via one owned connection each, IBKR or any broker via import. Deterministic checks, GTT policy audits with crash test, basket drafts. Orders run only from drafts you approve by code. Not investment advice.",
   "author": {
     "name": "Arun Kumar"
   },
@@ -11,7 +11,6 @@
     "kotak-neo",
     "gtt",
     "mutual-funds",
-    "sip",
     "rebalancing",
     "risk"
   ],

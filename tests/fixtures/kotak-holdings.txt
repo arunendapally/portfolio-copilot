@@ -1,0 +1,4 @@
+Symbol,Instrument Type,Shares Owned,Average Price,LTP,Market Value
+GOLDBEES,ETF,100,60,80,8000
+"Kotak Arbitrage Fund - Direct Growth",MF,1000,30,35,35000
+"Nippon India Large Cap Fund",MF,200,50,60,12000

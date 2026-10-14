@@ -1,40 +1,18 @@
 ---
 name: get-started
-description: Onboard a new user to portfolio management. Use when the user says "get started", "set up my portfolio", "help me manage my investments", "I'm new to this", or installs the plugin and asks what it can do. Builds their investor profile, connects their broker, and runs their first portfolio check — in plain language.
+description: Onboard an investor, or import an existing investor's notes. Use for "get started", "set up my portfolio", "I'm new to this", "update my profile", "import my notes", or right after installing the plugin.
 ---
 
-# Get Started
+# Get started
 
-Onboard the user assuming they are busy and NOT an investing expert. Plain language throughout: explain any term (XIRR, GTT, SIP, drawdown) in one short parenthetical the first time it appears. Never assume they know jargon.
+Plain language; explain each term (GTT, XIRR, SIP) once in a short parenthesis.
 
-## Step 1 — Build their profile (conversational, 2 minutes)
-
-Ask, in one friendly message (not a form):
-
-1. What are you investing for, and roughly how many years away is it?
-2. If your portfolio dropped 20% in a month, would you sell, hold, or buy more? (maps to conservative / balanced / aggressive)
-3. Roughly how much do you invest per month, and is there a lump sum sitting idle?
-4. Which broker(s) do you use? Zerodha and Kotak Neo connect live; some others (INDmoney, Upstox, Groww) have MCP connectors you can add; ANY other broker (ICICI Direct, HDFC Securities, Angel One, ...) works by uploading a holdings export or CAS statement - offer the import-statements skill.
-
-Derive and confirm: risk profile, return target (default 10% XIRR — explain: "the annualized return on your actual cash flows, like a bank interest rate but for investments"), and cash buffer target (5–10%).
-
-## Step 2 — Save the profile to a file
-
-Write the profile to `portfolio-profile.md` in the user's working/connected folder (ask where to keep it if no folder is connected). Include: risk level, return target, cash buffer target, brokers and their IDs (e.g., Kotak UCC), any custom thresholds, and — as the user forms them — a per-symbol verdict table (hold / add / reduce / exit, with a one-line reason). The verdict table is what powers the trade audit guardrail in session-open and daily-briefing. This file is the single source of truth — EVERY other skill must read it at the start of a run if it exists, and scheduled tasks work without re-embedding the profile in prompts. On "update my profile", edit this file so the change propagates everywhere. Tell the user where it's saved.
-
-## Step 3 — Connect and run first check
-
-1. Zerodha: `kite:login` → give them the URL, wait. Kotak Neo: ask for their UCC once, then `get_login` → QR scan → `validate_login`.
-2. Run the session-open skill for their first snapshot.
-3. Explain the snapshot in 3–4 plain sentences: what they own, whether anything needs attention, and the single most important next action.
-
-## Step 4 — Set the routine
-
-Offer the cadence in plain terms: "Say 'daily briefing' each morning (5 min read), 'weekly risk update' on Fridays, 'monthly rebalance' once a month. I can also run these automatically on a schedule if you'd like."
-
-## Rules
-
-- **Show the disclaimer first**: before profiling, state plainly — "Quick note before we start: I provide analysis and information, not investment advice. I'm not SEBI-registered, I never suggest which stocks to buy, and every order needs your explicit confirmation. All decisions are yours." Do not proceed until acknowledged.
-- One concept at a time; never dump the full feature list.
-- Every recommendation across all skills must state WHY in one plain sentence.
-- Reassure on control: nothing is ever bought or sold without them seeing the exact order and saying yes.
+1. Disclaimer first, and wait for an acknowledgement: "I provide analysis, not investment advice. I'm not SEBI-registered, I never suggest what to buy, and no order runs unless you approve the exact draft by typing its code."
+2. Ask which folder to keep their portfolio files in. Pass it as `folder` on the first portfolio-core call; it is remembered.
+3. Ask in one friendly message: goal and years to it; a 20% fall in a month: sell, hold or buy more (conservative / balanced / aggressive); monthly investment and idle lump sum; brokers (Zerodha and Kotak Neo connect live; IBKR via its connector; any other broker by CSV import); where the emergency cash buffer is kept (broker or bank).
+4. Save with `profile_update`, one path at a time: `investor.*`, `brokers.kotak.enabled` and `brokers.kotak.ucc`, `cash.buffer_location`, `allocation.targets` if they have them, `deployment_plan` if they have a staged plan. Confirm each in a short summary.
+5. Verdicts: as the investor states a stance on a holding, save `verdicts.<SYMBOL>` = `{stance, reason, exit_level?}`.
+6. Existing notes ("import my notes"): read their files, extract rules only (thresholds, GTT policy, buffer location, allocation targets, staged plan, verdicts with reasons). Show each proposed item and save it only after the investor confirms it. Never import snapshot numbers (quantities, prices, P&L, dated totals) as rules.
+7. Write the first `log_append` with `start_here`: goal, current state in one line, next actions, decisions owed.
+8. Run the check skill for the first snapshot. Explain it in 3-4 sentences and the one most important next action.
+9. Offer a routine: "check" each morning, "risk" on Fridays, "gtt" after any buy or sale. A scheduled weekday check works, but Indian brokers expire logins daily, so an unattended run gives macro plus the last snapshot.
