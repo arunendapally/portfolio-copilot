@@ -180,7 +180,10 @@ function plan(auditResult, snap, profile, { symbols } = {}) {
       continue;
     }
     if (!want) continue;
-    places.push({ action: 'place', symbol: r.symbol, exchange: h.exchange || 'NSE', reason, args: gttArgs(r.symbol, h.exchange || 'NSE', r.ltp, { ...want, qty: r.qty }) });
+    // Keep the exchange of the GTT being replaced; Kite holdings report NSE even for a BSE GTT.
+    const old = ((snap.brokers.kite || {}).gtts || []).find((g) => r.gtt_ids.includes(g.id));
+    const exchange = (old && old.exchange) || h.exchange || 'NSE';
+    places.push({ action: 'place', symbol: r.symbol, exchange, reason, args: gttArgs(r.symbol, exchange, r.ltp, { ...want, qty: r.qty }) });
     for (const id of r.gtt_ids) deletes.push({ action: 'delete', symbol: r.symbol, gtt_id: id, reason: 'replaced by the new GTT above' });
   }
   for (const o of auditResult.orphans) deletes.push({ action: 'delete', symbol: o.symbol, gtt_id: o.id, reason: 'orphan: symbol no longer held' });

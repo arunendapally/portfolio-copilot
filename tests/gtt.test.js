@@ -112,6 +112,16 @@ test('plan places every replacement before any delete', () => {
   assert.ok(!plan.rows.some((r) => r.action === 'place' && r.args.trigger_type === 'two-leg' && r.args.lower_trigger_value > r.args.last_price * 0.8 + 0.01), 'a planned stop is tighter than 20%');
 });
 
+test('a replacement GTT keeps the exchange of the GTT it replaces (smoke, 15-Oct)', () => {
+  const p = profile();
+  const book = JSON.parse(JSON.stringify(fixture('kite-book.json')));
+  const g = book.gtts.find((x) => (x.condition || {}).tradingsymbol === 'SBIN');
+  g.condition.exchange = 'BSE';
+  const s = snapOf(book, p);
+  const sbin = gtt.plan(gtt.audit(s, null, p), s, p).rows.find((r) => r.action === 'place' && r.symbol === 'SBIN');
+  assert.strictEqual(sbin.args.exchange, 'BSE');
+});
+
 test('gtt_audit tool marks findings unverified when Kite is not live today', async () => {
   const { folder } = tmpEnv();
   writeProfile(folder, fixture('profile.json'));
