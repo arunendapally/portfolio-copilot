@@ -109,6 +109,7 @@ test('persistent transport failure is outage', async () => {
   const kite = loadKite(f.url);
   await kite.login();
   f.server.close();
+  f.server.closeAllConnections(); // Node 18 keeps keep-alive sockets open after close()
   await new Promise((r) => setTimeout(r, 50));
   const s = await kite.status();
   assert.strictEqual(s.status, 'outage');
