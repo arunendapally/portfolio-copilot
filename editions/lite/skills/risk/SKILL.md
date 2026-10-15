@@ -1,6 +1,6 @@
 ---
 name: risk
-description: Risk and allocation review. Use for "risk check", "weekly risk update", "monthly rebalance", "allocation check", "review my MFs", "fund review", "rate sensitivity", "quarterly review", or "basket for <amount>".
+description: Risk and allocation review. Use for "risk check", "weekly risk update", "monthly rebalance", "allocation check", "review my MFs", "fund review", "rate sensitivity", "quarterly review", or "basket for [amount]".
 ---
 
 # Risk

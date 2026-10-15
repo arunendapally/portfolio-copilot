@@ -78,8 +78,16 @@ test('at most 6 skills, each under 60 lines, with frontmatter', () => {
 
 test('old trigger phrases still route to a skill', () => {
   const all = fs.readdirSync(path.join(ROOT, 'skills')).map((s) => read(`skills/${s}/SKILL.md`).split('\n')[2]).join('\n').toLowerCase();
-  for (const phrase of ['daily briefing', 'open session', 'eod analysis', 'audit gtts', 'review my mfs', 'risk check', 'monthly rebalance', 'crash mode', 'analyze <stock>', 'import my holdings', 'get started', 'macro brief']) {
+  for (const phrase of ['daily briefing', 'open session', 'eod analysis', 'audit gtts', 'review my mfs', 'risk check', 'monthly rebalance', 'crash mode', 'analyze [stock]', 'import my holdings', 'get started', 'macro brief']) {
     assert.ok(all.includes(phrase), `no skill handles "${phrase}"`);
+  }
+});
+
+test('skill and agent descriptions have no angle brackets (claude.ai rejects them as XML tags, 15-Oct)', () => {
+  const files = [...fs.readdirSync(path.join(ROOT, 'skills')).map((s) => `skills/${s}/SKILL.md`), ...fs.readdirSync(path.join(ROOT, 'agents')).map((a) => `agents/${a}`)];
+  for (const f of files) {
+    const d = (read(f).match(/^description:.*$/m) || [''])[0];
+    assert.doesNotMatch(d, /[<>]/, `${f} description contains < or >`);
   }
 });
 

@@ -1,6 +1,6 @@
 ---
 name: analyze
-description: Fundamentals assessment of one NSE/BSE stock the investor holds or names. Use for "analyze <stock>", "is <stock> worth holding", "fundamentals of <stock>", "should I re-enter <stock>".
+description: Fundamentals assessment of one NSE/BSE stock the investor holds or names. Use for "analyze [stock]", "is [stock] worth holding", "fundamentals of [stock]", "should I re-enter [stock]".
 ---
 
 # Analyze
