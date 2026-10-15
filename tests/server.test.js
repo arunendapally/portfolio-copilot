@@ -27,6 +27,7 @@ test('initialize, tools/list and tools/call follow MCP', async () => {
   assert.ok(out[1].result.tools.length >= 13);
   for (const t of out[1].result.tools) assert.strictEqual(t.inputSchema.type, 'object');
   assert.match(out[2].result.content[0].text, /25/);
+  assert.strictEqual(out[2].result.structuredContent, undefined, 'the model must get the text, not structuredContent');
   assert.strictEqual(out[3].error.code, -32601);
 });
 

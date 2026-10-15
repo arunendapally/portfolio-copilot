@@ -35,9 +35,10 @@ function createServer(ctx = makeContext(), write = (s) => process.stdout.write(s
       case 'tools/call': {
         const r = await callTool(params && params.name, (params && params.arguments) || {}, ctx);
         const { text, ...data } = r;
+        // Text only: Claude Code hands structuredContent to the model in place of the text,
+        // which dropped every report's tables (smoke test, 15-Oct-2026).
         return reply({
-          content: [{ type: 'text', text: text || '' }],
-          structuredContent: data,
+          content: [{ type: 'text', text: text || JSON.stringify(data) }],
           isError: r.ok === false,
         });
       }
