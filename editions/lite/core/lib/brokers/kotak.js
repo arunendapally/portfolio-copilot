@@ -79,6 +79,8 @@ function saveRaw(name, text) {
 
 // Accept either delimited text or a JSON array of row objects.
 function holdingsFrom(text, profile) {
+  // Kotak's hosted server returns the CSV as a JSON string literal ("...\r\n...").
+  if (/^\s*"/.test(text)) { try { const s = JSON.parse(text); if (typeof s === 'string') text = s; } catch { /* not a string literal */ } }
   const j = asJson(text);
   const arr = Array.isArray(j) ? j : j && Array.isArray(j.data) ? j.data : null;
   if (arr && arr.length && typeof arr[0] === 'object') {

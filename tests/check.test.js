@@ -158,3 +158,14 @@ test('no data at all says so instead of showing a zero book', async () => {
 test('kotak unknown format fails loudly with the headers', () => {
   assert.throws(() => kotak.holdingsFrom('a,b,c\n1,2,3', {}), /Headers: a, b, c/);
 });
+
+test('Kotak Neo holdings: CSV inside a JSON string, Neo headers, "-" tickers (smoke, 15-Oct)', () => {
+  const text = fs.readFileSync(path.join(__dirname, 'fixtures', 'kotak-holdings-neo-2026-10.txt'), 'utf8');
+  const h = kotak.holdingsFrom(text, fixture('profile.json'));
+  const by = Object.fromEntries(h.map((x) => [x.symbol, x]));
+  assert.deepStrictEqual(Object.keys(by).sort(), ['ABCLTD', 'EXAMPLE FLEXI CAP FUND', 'MIDCAPETF', 'SUSPENDED EXAMPLE LTD.']);
+  assert.deepStrictEqual([by.ABCLTD.qty, by.ABCLTD.avg, by.ABCLTD.ltp, by.ABCLTD.value, by.ABCLTD.exchange, by.ABCLTD.type], [10, 50, 40, 400, 'NSE', 'equity']);
+  assert.strictEqual(by['SUSPENDED EXAMPLE LTD.'].exchange, 'BSE');
+  assert.strictEqual(by.MIDCAPETF.type, 'etf');
+  assert.deepStrictEqual([by['EXAMPLE FLEXI CAP FUND'].type, by['EXAMPLE FLEXI CAP FUND'].exchange, by['EXAMPLE FLEXI CAP FUND'].qty], ['mf', 'MF', 2.5]);
+});

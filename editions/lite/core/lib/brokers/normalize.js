@@ -97,14 +97,16 @@ function kiteOrders(payload) {
 // ---- Kotak: delimited text with undocumented headers --------------------------------
 
 const KOTAK_ALIASES = {
-  symbol: ['symbol', 'tradingsymbol', 'trading symbol', 'displaysymbol', 'display symbol', 'scrip', 'scrip name', 'instrument', 'name', 'scheme name', 'fund name'],
+  symbol: ['symbol', 'tradingsymbol', 'trading symbol', 'stock ticker', 'displaysymbol', 'display symbol', 'scrip', 'scrip name', 'instrument', 'name', 'scheme name', 'fund name'],
+  name: ['stock name', 'security name', 'scheme name', 'fund name'],
   qty: ['quantity', 'qty', 'shares owned', 'holding quantity', 'units', 'total qty', 'sellable quantity'],
-  avg: ['average price', 'avg price', 'averageprice', 'avg cost', 'buy avg', 'average cost'],
+  avg: ['average price', 'average purchase price', 'avg price', 'averageprice', 'avg cost', 'buy avg', 'average cost'],
   ltp: ['ltp', 'last price', 'closing price', 'close price', 'current price', 'nav', 'market price'],
   value: ['market value', 'current value', 'mkt value', 'value', 'holding value', 'mktvalue'],
-  cost: ['cost', 'invested value', 'holding cost', 'total cost', 'invested amount', 'investment value'],
+  cost: ['cost', 'total cost of holdings', 'invested value', 'holding cost', 'total cost', 'invested amount', 'investment value'],
   type: ['instrument type', 'instrumenttype', 'segment', 'type', 'asset type', 'product'],
-  exchange: ['exchange', 'exchange segment', 'exch'],
+  exchange: ['exchange', 'exchange segment', 'exch', 'market segment'],
+  subtype: ['security type'],
   isin: ['isin'],
 };
 
@@ -152,16 +154,21 @@ function kotakHoldings(text, profile) {
     throw err;
   }
   return rows.map((r) => {
-    const symbol = String(r[idx.symbol]).toUpperCase();
+    // A '-' ticker (mutual funds, suspended scrips) falls back to the security's name.
+    const tick = String(r[idx.symbol]).trim();
+    const symbol = (/^-?$/.test(tick) && idx.name !== undefined ? String(r[idx.name]) : tick).toUpperCase();
     const qty = num(r[idx.qty]) || 0;
     const value = idx.value !== undefined ? num(r[idx.value]) : null;
     const ltp = idx.ltp !== undefined ? num(r[idx.ltp]) : (value !== null && qty ? value / qty : null);
     const avg = idx.avg !== undefined ? num(r[idx.avg]) : (idx.cost !== undefined && qty ? num(r[idx.cost]) / qty : null);
     const typeRaw = idx.type !== undefined ? String(r[idx.type]).toLowerCase() : '';
-    const type = /mf|mutual|fund/.test(typeRaw) ? 'mf' : isEtf(symbol, profile) ? 'etf' : /etf/.test(typeRaw) ? 'etf' : 'equity';
+    const subRaw = idx.subtype !== undefined ? String(r[idx.subtype]).toLowerCase() : '';
+    const type = /mf|mutual|fund/.test(typeRaw) ? 'mf' : isEtf(symbol, profile) || /etf/.test(typeRaw) || /etf/.test(subRaw) ? 'etf' : 'equity';
+    const exRaw = idx.exchange !== undefined ? String(r[idx.exchange]).trim() : '';
+    const exchange = /^nse/i.test(exRaw) ? 'NSE' : /^bse/i.test(exRaw) ? 'BSE' : exRaw || (type === 'mf' ? 'MF' : 'NSE');
     const v = value !== null ? value : ltp !== null ? qty * ltp : null;
     return {
-      broker: 'kotak', symbol, exchange: idx.exchange !== undefined ? r[idx.exchange] : type === 'mf' ? 'MF' : 'NSE',
+      broker: 'kotak', symbol, exchange,
       isin: idx.isin !== undefined ? r[idx.isin] : null, type, qty, avg, ltp, value: v,
       pnl: v !== null && avg !== null ? v - qty * avg : null, day_change: null, currency: 'INR',
     };
