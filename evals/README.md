@@ -43,3 +43,7 @@ python evals/run-evals.py --probes T3 --analyze-symbol TITAN
 Runs load the plugin with `--plugin-dir`, disable any installed copy, and use a temp state and
 session folder. Every broker order tool is denied by name. Transcripts go to `evals/runs/`
 (git-ignored). Requires a logged-in `claude` CLI.
+
+Inside a cloud Cowork session, plugin MCP servers are skipped by the host env, so T0 reads `status: None`.
+Run with `env -u CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS -u CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS_EXCEPT -u MCP_CONNECTION_NONBLOCKING python3 evals/run-evals.py`.
+WebFetch is also blocked there, so T3 only tests honesty on missing data; run T3 locally for the data path.

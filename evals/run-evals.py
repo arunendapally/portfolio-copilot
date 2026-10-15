@@ -84,7 +84,7 @@ def run_probe(prompt, plugin_dir, plugin_name, model, timeout, sandbox):
     core = CORE.format(name=plugin_name)
     allowed = ["WebSearch", "WebFetch", "Task", "Agent", "Read", "Grep", "Glob", "TodoWrite",
                f"{core}profile_get", f"{core}broker_status", f"{core}check", f"{core}execute_draft",
-               f"{core}draft_gtt_plan", f"{core}gtt_audit"]
+               f"{core}draft_gtt_plan", f"{core}gtt_audit", f"{core}log_append"]
     settings = {"enabledPlugins": {"portfolio-copilot@portfolio-copilot-marketplace": False,
                                    "portfolio-copilot-lite@portfolio-copilot-marketplace": False}}
     cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose",

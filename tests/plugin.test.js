@@ -100,6 +100,11 @@ test('house rules: 8 numbered rules, consistent with constitution I-III', () => 
   assert.match(r, /Do not re-read them from disk/);
 });
 
+test('analyze keeps source quotes end to end (eval T3, 15-Oct)', () => {
+  assert.match(read('agents/fundamentals-analyst.md'), /search-result summary is not quotable/i);
+  assert.match(read('skills/analyze/SKILL.md'), /unchanged: keep its format, bracketed source quotes/);
+});
+
 test('repo contains no personal data', () => {
   const ignored = read('.gitignore');
   for (const p of ['portfolio-copilot/', 'portfolio-profile.md', 'portfolio-snapshots/', 'dist/']) assert.ok(ignored.includes(p), `${p} not ignored`);
