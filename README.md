@@ -1,12 +1,12 @@
 # portfolio-copilot
 
-> **Disclaimer**: This plugin provides portfolio analysis and information, NOT investment advice. It is not SEBI-registered. It never suggests which stocks to buy — it analyzes what you hold or explicitly ask about. All decisions and orders are yours. See [DISCLAIMER.md](DISCLAIMER.md).
+> **Disclaimer**: This plugin provides portfolio analysis and information, NOT investment advice. It is not SEBI-registered. It never suggests which stocks to buy; it analyzes what you hold or explicitly ask about. All decisions and orders are yours. See [DISCLAIMER.md](DISCLAIMER.md).
 
-Portfolio management for busy people who aren't investing experts. Connects to your Indian broker accounts, watches your portfolio, and tells you — in plain language — what needs attention and why: rebalancing, risk alerts, and stock verdicts backed by fundamental and technical analysis.
+An analysis-and-drafting copilot for DIY Indian investors. It connects to your brokers, tells you in plain language what needs attention, audits your GTT stop-losses against your own policy, and drafts GTT plans and baskets. You decide and you execute.
 
-**You stay in control**: nothing is ever bought or sold without you seeing the exact order and saying yes (enforced by a built-in safety hook, not just a promise).
+**You stay in control**: every order is first a draft. In the full edition it runs only after you type `approve <code>` for that exact draft (enforced by code in hooks, not by the model's judgment). The lite edition cannot place orders at all.
 
-Why it exists, how it's built, and the design decisions behind the safety hook: [How I Manage My Stock Portfolio in 5 Minutes a Day With AI](https://arunendapally.com/posts/portfolio-copilot-claude-plugin/).
+Why it exists and how it was built: [How I Manage My Stock Portfolio in 5 Minutes a Day With AI](https://arunendapally.com/posts/portfolio-copilot-claude-plugin/).
 
 ## Install
 
@@ -17,103 +17,85 @@ In Claude Code or Claude Cowork:
 /plugin install portfolio-copilot@portfolio-copilot-marketplace
 ```
 
-Or download [`portfolio-copilot.plugin`](https://github.com/arunendapally/portfolio-copilot/raw/main/portfolio-copilot.plugin) and open it in the Claude desktop app.
+Drafts-only edition: `/plugin install portfolio-copilot-lite@portfolio-copilot-marketplace`.
 
-After installing, say **"get started"** in a new chat.
+Or download [`portfolio-copilot.plugin`](https://github.com/arunendapally/portfolio-copilot/raw/main/portfolio-copilot.plugin) (or [`-lite`](https://github.com/arunendapally/portfolio-copilot/raw/main/portfolio-copilot-lite.plugin)) and open it in the Claude desktop app. Needs Node 18 or later.
 
-## Start here
+Then say **"get started"** in a new chat.
 
-Say **"get started"**. The plugin builds your investor profile (goals, risk comfort, monthly investment), connects your broker, and runs your first portfolio check.
-
-## Skills
+## What you can say
 
 | Say | Get |
 |---|---|
-| "get started" | Profile setup, broker connection, first portfolio check |
-| "import my holdings" | Use ANY broker without an MCP - upload a holdings export or CAS statement |
-| "daily briefing" | 5-minute morning readout: markets, your P&L, alerts, one-line verdict |
-| "open session" / "portfolio check" | Full multi-broker snapshot with coverage gaps |
-| "audit GTTs" | Stop-loss order health check — finds unprotected positions and orphan orders |
-| "review my MFs" | Mutual fund check vs a model portfolio for your risk profile |
-| "risk check" / "weekly risk update" | Cash buffer, concentration, drawdown, beta/VaR, returns vs target |
-| "monthly rebalance" | Drift analysis + specific trades to get back to target |
-| "quarterly review" | What worked, what didn't, positioning for next quarter |
-| "EOD analysis" | End-of-day close-out and tomorrow's setup |
-| "crash mode" | Calm, staged playbook when markets fall sharply |
-| "analyze <stock>" | Fundamentals + technicals assessment with reference levels — for stocks you hold or name |
+| "get started" | Profile setup (or import your existing notes), broker connection, first check |
+| "check my portfolio" / "daily briefing" / "EOD analysis" | All brokers in one book: totals, cash vs buffer, alerts, trades that contradict your rules, what changed since last time, allocation drift |
+| "audit my GTTs" | Per-symbol quantity gaps, policy violations, crash test at -10%/-20%, corporate-action risk; then a GTT plan to approve |
+| "risk check" / "review my MFs" / "basket for ₹1L" | Concentration with its base, rate sensitivity, fund screen, basket rows to enter |
+| "crash mode" | Which stops fire, which would force-sell names you keep, which stage of your own deployment plan is reached |
+| "analyze <stock>" | Sourced fundamentals for a stock you hold or name |
 
-## Suggested cadence
+## How it works
 
-| When | Say | Time needed |
-|---|---|---|
-| Every morning ~9:15 | "daily briefing" | 5 min |
-| Every close ~3:30 | "EOD analysis" | 5 min |
-| Friday afternoon | "weekly risk update" | 10 min |
-| 1st Friday monthly | "monthly rebalance" | 20 min |
-| Every quarter | "quarterly review" | 30 min |
+```
+Hosted broker MCPs (Kite, Kotak Neo)   one connection each, owned by portfolio-core
+              │ raw payloads stay here
+portfolio-core (bundled, Node, zero deps)   normalize · snapshot · audit · policy · drafts
+              │ small, pre-computed results
+Skills (6, thin)                       when to run what, what to show, what to ask
+```
 
-These can also run automatically: in Claude Cowork, say "run my daily briefing every weekday at 9:15 AM" and it becomes a scheduled task — your portfolio gets checked whether you remember or not. Long-term portfolios sprawl past 20 holdings (yearly buys, IPO allotments, old SIPs); scheduled monitoring is how they stay safe without eating your time.
+- **Numbers come from code.** The model never parses broker payloads or does portfolio arithmetic, so the same data gives the same answer every time.
+- **One login per broker per day.** portfolio-core keeps its Kite session on disk, so a Claude restart does not ask you to log in again. Status is reported per broker: live, needs login, or outage.
+- **Your rules, in one place.** `portfolio-copilot/profile.json` in your working folder holds your thresholds, GTT policy, where your cash buffer lives, allocation targets, staged deployment plan and per-stock verdicts. Snapshots and a small rotating log sit next to it. Broker session ids stay in `~/.portfolio-copilot/`.
 
-## Built-in guardrails
+### Default GTT policy (change any of it in your profile)
 
-> **Hook support varies by client**: hook enforcement is designed for Claude Code, where registrations are visible via /hooks. In Cowork, plugin hooks currently may not execute (observed Jul 2026) — there, the same rules apply as always-on instructions via the skills, without the code-level gate. Verify on your setup before relying on enforcement.
+1. Index and commodity ETFs: target only, no stop.
+2. Hold/add stocks: crash-floor stop about 25% below price, never closer than 20%.
+3. EXIT/REDUCE verdicts: a single exit at the written level, no stop.
+4. Every audit runs a crash test; no hold/add name should fire at -20%.
+5. GTT quantity equals held quantity.
 
-0. **Analysis output audit**: a SubagentStop hook checks every fundamentals-analyst result — numbers without source quotes and vintage, or any buy/sell directive language, get blocked and regenerated
-0. **Always-on house rules**: a SessionStart hook injects `context/house-rules.md` into every session, so the core guardrails below apply even when no skill has loaded
-1. **No auto-trading**: every order shown in full and confirmed by you, enforced by a PreToolUse hook on all order tools
-2. **No stale data**: recommendations only from live, timestamped pulls; data gaps stated plainly rather than papered over
-3. **Cash buffer first**: maintains a 5–10% cash cushion before any new deployment
-4. **Global macro first**: no bullish calls when overnight global markets say otherwise
-5. **Setups, not forecasts**: key levels, catalysts, and scenarios — never a confident prediction of market direction
-6. **Self-consistency**: every verdict is checked against the data shown with it before presenting — no bullish calls sitting next to bearish data
-7. **No silent logins**: authentication always requires your action (click a link / scan a QR); sessions are never assumed
-8. **No return promises**: targets are goals, not guarantees; this is decision support, not financial advice
+Stops protect against a broken thesis, not a market-wide fall.
 
-## What this plugin does NOT do
+## Brokers
 
-It does not monitor your portfolio in the background — data is pulled only when you run a skill (or a scheduled task runs one for you). It cannot watch prices 24/7, catch a crash in real time, or refresh itself between sessions. For routine coverage, set up scheduled runs of "daily briefing" and "EOD analysis"; for everything else, GTT orders at your broker are the always-on protection layer — which is exactly why the gtt-audit skill exists.
-
-## Broker support
-
-| Your broker | How it connects |
+| Broker | How |
 |---|---|
-| Zerodha | Live — official Kite MCP, bundled with this plugin |
-| Kotak Neo | Live — official MCP, bundled with this plugin |
-| INDmoney | Live — add their official MCP connector |
-| Upstox, Groww, Angel One, 5paisa | Live — community MCP servers exist; add as connectors |
-| ICICI Direct, HDFC Securities, or any other | Statement upload — say "import my holdings" and upload your holdings export (CSV/XLSX) or CAMS/KFintech CAS. All analysis skills work; order placement needs a live connection |
+| Zerodha | Live via the hosted Kite MCP, through portfolio-core |
+| Kotak Neo | Live via the hosted Kotak Neo MCP, through portfolio-core (UCC + QR) |
+| Interactive Brokers | Add the IBKR connector; the check skill passes its summary to portfolio-core |
+| Any other | Holdings CSV: say "import my holdings" |
 
-### Bundled MCP servers (`.mcp.json`)
+If you already have a standalone Kite or Kotak connector, keep it or remove it; portfolio-core does not depend on it, and the order gate covers its order tools too.
 
-- **Kite (Zerodha)** — `npx mcp-remote https://mcp.kite.trade/sse`. Login via browser link each session.
-- **Kotak Neo** — `npx mcp-remote https://neo.kotaksecurities.com/mcp-server/mcp`. Login via your UCC + QR scan in the Kotak Neo app.
+## Guardrails
 
-Connectors (Settings UI), `claude_desktop_config.json` entries, and this plugin's `.mcp.json` are all MCP connections underneath — keep only one copy of each server to avoid duplicate tools. Other brokers (e.g., IBKR for US stocks) can be added as separate connectors; skills use them if present.
+1. **Orders only from approved drafts**: a `UserPromptSubmit` hook records approval only from your own message (`approve D7K2`), bound to a hash of the draft; a `PreToolUse` hook blocks any order tool call on any server that does not match an approved draft. Fails closed.
+2. **Always-on house rules** injected at session start.
+3. **No stale data presented as live**: every figure carries its time; carried data is labelled with how many runs it has gone unverified.
+4. **Analysis audit**: the fundamentals-analyst output is checked for sourced numbers and no buy/sell language.
 
-## Using with other AI tools
+## What it does not do
 
-The skills are plain markdown and MIT-licensed — you can copy any `skills/*/SKILL.md` into GitHub Copilot custom instructions, a ChatGPT project, or any system prompt, and the workflow logic (audit steps, thresholds, risk rules) carries over. MCP is an open standard, so the same Zerodha/Kotak Neo servers also work in other MCP-capable clients (VS Code Copilot, Cursor, ChatGPT desktop).
+It does not watch prices in the background, and Indian broker logins expire daily, so a scheduled run with you away gives the macro read and your last snapshot. GTTs at your broker are the always-on protection, which is why the GTT audit exists.
 
-**What does NOT carry over: the safety hook.** In Claude, "no order without explicit confirmation" is enforced by a gate that runs before the tool executes. In any other tool, that rule is only text in a prompt — long conversations can drift past it. If you port these skills elsewhere and connect a live broker, you are trading with a written rule instead of an enforced one. Be careful, or keep order placement out of the ported setup entirely.
+## Development
 
-## Records the plugin keeps for you
+```bash
+node --test tests/*.test.js
+```
 
-Briefings and EOD runs write durable records into your working folder: a full dated review in `PortfolioReviews/`, a one-paragraph running log in `progress.md`, and machine-readable baselines in `portfolio-snapshots/`. Scheduled runs with expired broker sessions degrade gracefully: you get the macro read and last-known context on time, with login links for the rest. These files are personal — keep them out of any public repo (the bundled .gitignore covers them).
+```bash
+node scripts/build.js
+```
 
-## Customization
+```bash
+python evals/run-evals.py
+```
 
-Your targets are set conversationally: the "get started" profile captures risk level and return target (default 10% XIRR), and any skill honors updated values ("my XIRR target is 12%"). To change hard defaults permanently, edit the thresholds table in `skills/risk-check/SKILL.md` or the model allocations in `skills/mf-review/SKILL.md` and reinstall.
-
-Defaults: XIRR ≥10%, cash buffer 5–10%, single stock ≤15%, sector ≤30%, single fund house ≤25%.
-
-## Components
-
-10 skills, 1 agent (fundamentals-analyst), 3 hooks (order gate, always-on house rules, analysis output audit), 2 bundled broker MCP servers.
+Specs (Spec Kit) are in [`specs/001-v05-rebuild/`](specs/001-v05-rebuild/), the architecture review in [`docs/specs/architecture-review.md`](docs/specs/architecture-review.md), evals in [`evals/README.md`](evals/README.md), and the release checklist in [`docs/release.md`](docs/release.md). `editions/lite/` is generated; do not edit it.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Contributions welcome.
-
-## Disclaimer
-
-This plugin provides analysis and information, not investment advice. It is not SEBI-registered. Markets carry risk; past performance does not guarantee future returns. You make all final decisions. Full text: [DISCLAIMER.md](DISCLAIMER.md).
+MIT, see [LICENSE](LICENSE).

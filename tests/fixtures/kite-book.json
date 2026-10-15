@@ -1,0 +1,34 @@
+{
+  "_comment": "Synthetic book. Each holding seeds one failure mode from the field log; see tests/gtt.test.js.",
+  "holdings": [
+    { "tradingsymbol": "SBIN", "exchange": "NSE", "isin": "INE062A01020", "quantity": 100, "t1_quantity": 0, "average_price": 600, "last_price": 800, "day_change": 5 },
+    { "tradingsymbol": "ICICIBANK", "exchange": "NSE", "isin": "X", "quantity": 69, "t1_quantity": 0, "average_price": 1000, "last_price": 1200, "day_change": -3 },
+    { "tradingsymbol": "NIFTYBEES", "exchange": "NSE", "isin": "X", "quantity": 470, "t1_quantity": 0, "average_price": 250, "last_price": 280, "day_change": 1 },
+    { "tradingsymbol": "MID150BEES", "exchange": "NSE", "isin": "X", "quantity": 117, "t1_quantity": 0, "average_price": 200, "last_price": 220, "day_change": 0 },
+    { "tradingsymbol": "JIOFIN", "exchange": "NSE", "isin": "X", "quantity": 200, "t1_quantity": 0, "average_price": 300, "last_price": 240, "day_change": 2 },
+    { "tradingsymbol": "TATAPOWER", "exchange": "NSE", "isin": "X", "quantity": 50, "t1_quantity": 0, "average_price": 380, "last_price": 400, "day_change": -4 },
+    { "tradingsymbol": "HDFCBANK", "exchange": "NSE", "isin": "X", "quantity": 60, "t1_quantity": 0, "average_price": 700, "last_price": 780, "day_change": 0 },
+    { "tradingsymbol": "LUPIN", "exchange": "NSE", "isin": "X", "quantity": 6, "t1_quantity": 0, "average_price": 1800, "last_price": 2000, "day_change": 10 },
+    { "tradingsymbol": "SBIFUNDS", "exchange": "NSE", "isin": "X", "quantity": 0, "t1_quantity": 10, "average_price": 100, "last_price": 100, "day_change": 0 }
+  ],
+  "mf": [
+    { "folio": "F1", "fund": "Kotak Emerging Equity Fund", "tradingsymbol": "INF174K01LS2", "average_price": 100, "last_price": 120, "quantity": 500 }
+  ],
+  "gtts": [
+    { "id": 1, "type": "two-leg", "status": "active", "condition": { "exchange": "NSE", "tradingsymbol": "SBIN", "trigger_values": [700, 1000], "last_price": 760 }, "orders": [ { "transaction_type": "SELL", "quantity": 100, "price": 693 }, { "transaction_type": "SELL", "quantity": 100, "price": 1000 } ] },
+    { "id": 2, "type": "single", "status": "active", "condition": { "exchange": "NSE", "tradingsymbol": "ICICIBANK", "trigger_values": [900], "last_price": 1150 }, "orders": [ { "transaction_type": "SELL", "quantity": 46, "price": 891 } ] },
+    { "id": 3, "type": "two-leg", "status": "active", "condition": { "exchange": "NSE", "tradingsymbol": "NIFTYBEES", "trigger_values": [230, 320], "last_price": 270 }, "orders": [ { "transaction_type": "SELL", "quantity": 472, "price": 228 }, { "transaction_type": "SELL", "quantity": 472, "price": 320 } ] },
+    { "id": 4, "type": "single", "status": "active", "condition": { "exchange": "NSE", "tradingsymbol": "MID150BEES", "trigger_values": [260], "last_price": 210 }, "orders": [ { "transaction_type": "SELL", "quantity": 108, "price": 260 } ] },
+    { "id": 5, "type": "two-leg", "status": "active", "condition": { "exchange": "NSE", "tradingsymbol": "JIOFIN", "trigger_values": [200, 300], "last_price": 250 }, "orders": [ { "transaction_type": "SELL", "quantity": 200, "price": 198 }, { "transaction_type": "SELL", "quantity": 200, "price": 300 } ] },
+    { "id": 6, "type": "single", "status": "active", "condition": { "exchange": "NSE", "tradingsymbol": "TATAPOWER", "trigger_values": [393], "last_price": 420 }, "orders": [ { "transaction_type": "SELL", "quantity": 50, "price": 389 } ] },
+    { "id": 7, "type": "single", "status": "active", "condition": { "exchange": "NSE", "tradingsymbol": "LUPIN", "trigger_values": [1500], "last_price": 1900 }, "orders": [ { "transaction_type": "SELL", "quantity": 6, "price": 1485 } ] },
+    { "id": 8, "type": "single", "status": "active", "condition": { "exchange": "NSE", "tradingsymbol": "LUPIN", "trigger_values": [1550], "last_price": 1950 }, "orders": [ { "transaction_type": "SELL", "quantity": 3, "price": 1535 } ] },
+    { "id": 9, "type": "single", "status": "cancelled", "condition": { "exchange": "NSE", "tradingsymbol": "HDFCBANK", "trigger_values": [600], "last_price": 800 }, "orders": [ { "transaction_type": "SELL", "quantity": 60, "price": 594 } ], "meta": { "rejection_reason": "corporate action" } },
+    { "id": 10, "type": "single", "status": "active", "condition": { "exchange": "NSE", "tradingsymbol": "COALINDIA", "trigger_values": [350], "last_price": 420 }, "orders": [ { "transaction_type": "SELL", "quantity": 40, "price": 346 } ] }
+  ],
+  "margins": { "equity": { "net": 50000, "available": { "cash": 50000, "live_balance": 50000 } } },
+  "orders": [
+    { "order_id": "O1", "tradingsymbol": "SBIFUNDS", "exchange": "NSE", "transaction_type": "BUY", "quantity": 10, "filled_quantity": 10, "average_price": 100, "status": "COMPLETE", "order_timestamp": "2026-10-14 11:02:00" }
+  ],
+  "trades": []
+}

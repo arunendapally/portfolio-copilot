@@ -1,5 +1,6 @@
 {
   "name": "portfolio-copilot-marketplace",
+  "description": "portfolio-copilot plugins: full (approved-draft execution) and lite (drafts only) editions for DIY Indian investors.",
   "owner": {
     "name": "Arun Kumar"
   },
@@ -7,7 +8,12 @@
     {
       "name": "portfolio-copilot",
       "source": "./",
-      "description": "Portfolio management for busy, non-expert Indian retail investors. Plain-language briefings, rebalancing, risk alerts, and analysis across Zerodha and Kotak Neo - with a safety hook so nothing trades without confirmation. Not investment advice."
+      "description": "Analysis-and-drafting copilot for DIY Indian investors: one connection per broker, deterministic portfolio checks and GTT audits, and orders only from drafts you approve by code. Not investment advice."
+    },
+    {
+      "name": "portfolio-copilot-lite",
+      "source": "./editions/lite",
+      "description": "Same analysis and drafting, with no order execution at all: you enter every GTT plan and basket yourself. Not investment advice."
     }
   ]
 }

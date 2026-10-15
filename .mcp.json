@@ -1,12 +1,9 @@
 {
   "mcpServers": {
-    "kite": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.kite.trade/sse"]
-    },
-    "kotak-neo": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://neo.kotaksecurities.com/mcp-server/mcp"]
+    "portfolio-core": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/core/server.js"],
+      "env": { "PORTFOLIO_EDITION": "full" }
     }
   }
 }
