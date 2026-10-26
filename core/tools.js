@@ -264,7 +264,7 @@ function planText(d, ctx, notes = []) {
     : [r.step, 'DELETE', r.symbol, `#${r.gtt_id}`, '', '', r.reason]);
   const how = ctx.edition === 'lite'
     ? 'Enter these in Kite web (Orders > GTT): place every new GTT first, then delete the old ones, then run refresh to verify.'
-    : `To execute, the investor types: approve ${d.code}  (then call execute_draft). Places run first; deletes only after the new GTTs are confirmed.`;
+    : `To execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. Then call execute_draft. Places run first; deletes only after the new GTTs are confirmed.`;
   return [`**GTT plan ${d.code}** · ${d.rows.length} steps`, table(['#', 'Action', 'Symbol', 'Type / id', 'Trigger(s)', 'Qty', 'Why'], rows), notes.length ? `\nNot planned: ${notes.join('; ')}` : '', `\n${how}`].join('\n');
 }
 
@@ -420,8 +420,17 @@ async function logAppend(args, ctx) {
 }
 
 async function executeDraft(args, ctx) {
-  const v = drafts.verify(args.folder, String(args.code || '').toUpperCase(), ctx.now());
-  if (!v.ok) return { ok: false, error: v.reason, text: `Not executed: ${v.reason}. The investor must type "approve <code>" after reading the draft.` };
+  const code = String(args.code || '').toUpperCase();
+  let v = drafts.verify(args.folder, code, ctx.now());
+  if (!v.ok && args.remote_approval === true) {
+    // Approved in a cloud chat linked to this PC; the cloud order gate let this call through (issue #9).
+    const { profile } = profiles.load(args.folder);
+    if (!profile.orders.allow_remote_approval) return { ok: false, error: 'remote approvals are off', text: 'Not executed: approvals from a linked cloud chat are switched off on this computer (orders.allow_remote_approval = false). Approve in Claude Code on this computer, or switch it on with profile_update.' };
+    const r = drafts.acceptRemote(args.folder, code, ctx.now());
+    if (!r.ok) return { ok: false, error: r.reason, text: `Not executed: ${r.reason}.` };
+    v = drafts.verify(args.folder, code, ctx.now());
+  }
+  if (!v.ok) return { ok: false, error: v.reason, text: `Not executed: ${v.reason}. Ask the investor with the inline question ("No, don't place" / "Yes, place ${code}") after showing the draft.` };
   const d = v.draft;
   if (d.kind !== 'gtt_plan') return { ok: false, error: 'only GTT plans execute here', text: 'Baskets are entered and executed by you in Kite web; there is no basket API.' };
   const results = [];
@@ -476,7 +485,7 @@ const TOOLS = [
   { name: 'profile_get', handler: profileGet, description: "Read the investor's profile (or a dotted path in it).", props: { path: { type: 'string' } } },
   { name: 'profile_update', handler: profileUpdate, description: 'Set one dotted path in the profile (e.g. cash.buffer_location = "bank", verdicts.SBIN = {stance, reason}). Validated before saving. Only on the investor\'s instruction.', props: { path: { type: 'string' }, value: {} }, required: ['path'] },
   { name: 'log_append', handler: logAppend, description: 'Append a dated entry to the log and optionally rewrite the "Start here" block. Older months archive automatically.', props: { text: { type: 'string' }, start_here: { type: 'string' } } },
-  { name: 'execute_draft', handler: executeDraft, fullOnly: true, description: 'Execute an approved GTT plan. Refuses unless the investor typed "approve <code>" for this exact draft. Places first, deletes after.', props: { code: { type: 'string' } }, required: ['code'] },
+  { name: 'execute_draft', handler: executeDraft, fullOnly: true, description: 'Execute an approved GTT plan. Refuses unless the investor clicked "Yes, place <code>" for this exact draft. Places first, deletes after.', props: { code: { type: 'string' }, remote_approval: { type: 'boolean', description: 'Only when the approval hook says the draft is on the linked computer.' } }, required: ['code'] },
 ];
 
 function listTools(edition) {

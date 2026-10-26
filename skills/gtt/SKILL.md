@@ -23,8 +23,8 @@ This policy lives in portfolio-core; do not restate or improvise thresholds.
 2. Optional: search held symbols for upcoming bonus/split/demerger; pass them as `corporate_actions`.
 3. Call `gtt_audit`. Show its text.
 4. If the investor wants fixes: for every hold name with a `stop_too_tight` finding, run the analyze skill first and classify it (policy 5). Then call `draft_gtt_plan` with `symbols` set to only the names to widen, plus any quantity or ETF/exit fixes. Show the full plan text. New GTTs are placed before old ones are deleted.
-5. Approval: the investor must type `approve <code>` themselves. Do not ask "shall I proceed?" and treat "yes" as approval; only the code counts.
-6. After approval (full edition): call `execute_draft` with the code, show the result, then `refresh` and `gtt_audit` to verify. If deletes failed, give the listed ids for deletion in Kite web (Orders > GTT).
+5. Approval (full edition): ask with `AskUserQuestion`, exactly as the plan text says. Use header = the code. The question names the code and lists every row (action, symbol, qty, trigger/target, reason). Give two options in this order: "No, don't place", then "Yes, place <code>". Never pre-fill answers; only the investor's click counts, and a plain "yes" typed in chat approves nothing.
+6. After the hook confirms the approval: call `execute_draft` with the code. Add `remote_approval: true` only when the hook says the draft is on the linked computer. Show the result, then `refresh` and `gtt_audit` to verify. If deletes failed, give the listed ids for deletion in Kite web (Orders > GTT).
 7. Lite edition, or no approval: the investor enters the plan in Kite web; afterwards run `refresh` and `gtt_audit`.
 8. `log_append` what changed.
 

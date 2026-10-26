@@ -4,7 +4,7 @@
 
 An analysis-and-drafting copilot for DIY Indian investors. It connects to your brokers, tells you in plain language what needs attention, audits your GTT stop-losses against your own policy, and drafts GTT plans and baskets. You decide and you execute.
 
-**You stay in control**: every order is first a draft. In the full edition it runs only after you type `approve <code>` for that exact draft (enforced by code in hooks, not by the model's judgment). The lite edition cannot place orders at all.
+**You stay in control**: every order is first a draft. In the full edition it runs only after you click "Yes, place <code>" in an inline question that lists that exact draft (enforced by code in hooks, not by the model's judgment). The lite edition cannot place orders at all.
 
 Why it exists and how it was built: [How I Manage My Stock Portfolio in 5 Minutes a Day With AI](https://arunendapally.com/posts/portfolio-copilot-claude-plugin/).
 
@@ -71,7 +71,10 @@ If you already have a standalone Kite or Kotak connector, keep it or remove it; 
 
 ## Guardrails
 
-1. **Orders only from approved drafts**: a `UserPromptSubmit` hook records approval only from your own message (`approve D7K2`), bound to a hash of the draft; a `PreToolUse` hook blocks any order tool call on any server that does not match an approved draft. Fails closed.
+1. **Orders only from approved drafts.**
+   - A `PostToolUse` hook records an approval only from your own click ("Yes, place D7K2") in an inline question listing the draft. The approval is bound to a hash of the draft.
+   - A `PreToolUse` hook blocks any order tool call on any server that does not match an approved draft, and blocks approval questions sent with their answers already filled in. Fails closed.
+   - In a cloud chat linked to your PC, the PC accepts the cloud gate's approval only if you set `orders.allow_remote_approval = true`.
 2. **Always-on house rules** injected at session start.
 3. **No stale data presented as live**: every figure carries its time; carried data is labelled with how many runs it has gone unverified.
 4. **Analysis audit**: the fundamentals-analyst output is checked for sourced numbers and no buy/sell language.
