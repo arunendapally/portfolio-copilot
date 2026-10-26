@@ -4,7 +4,8 @@
 const path = require('path');
 const { stateDir, readJson, writeJson } = require('./state');
 
-const STANCES = ['hold', 'add', 'hold_no_add', 'reduce', 'exit'];
+// 'trade': a deliberate short-term position with its own stop/target; the crash-floor rule does not apply (issue #7).
+const STANCES = ['hold', 'add', 'hold_no_add', 'reduce', 'exit', 'trade'];
 
 const DEFAULTS = Object.freeze({
   schema_version: 1,
@@ -24,7 +25,8 @@ const DEFAULTS = Object.freeze({
   verdicts: {},
   sectors: {},
   rate_overrides: {},
-  deployment_plan: { index: 'NIFTY 50', corpus_inr: null, stages: [], destinations: [] },
+  // corpus_source: text matched against holding symbols and fund names (e.g. "ARBITRAGE") to read the corpus live.
+  deployment_plan: { index: 'NIFTY 50', corpus_inr: null, corpus_source: null, stages: [], destinations: [] },
 });
 
 function isObj(v) {
@@ -71,7 +73,12 @@ function validate(p) {
   }
   const d = p.deployment_plan;
   if (!Array.isArray(d.stages)) errs.push('deployment_plan.stages: array');
-  else d.stages.forEach((s, i) => { num(s.level, `deployment_plan.stages[${i}].level`, 0); num(s.share_pct, `deployment_plan.stages[${i}].share_pct`, 0, 100); });
+  else d.stages.forEach((s, i) => {
+    num(s.level, `deployment_plan.stages[${i}].level`, 0);
+    num(s.share_pct, `deployment_plan.stages[${i}].share_pct`, 0, 100);
+    if (s.done_at !== undefined && s.done_at !== null && Number.isNaN(Date.parse(s.done_at))) errs.push(`deployment_plan.stages[${i}].done_at: a date (YYYY-MM-DD) or null`);
+  });
+  if (d.corpus_source !== null && d.corpus_source !== undefined && typeof d.corpus_source !== 'string') errs.push('deployment_plan.corpus_source: text or null');
   if (!Array.isArray(d.destinations)) errs.push('deployment_plan.destinations: array');
   else {
     d.destinations.forEach((x, i) => { if (!x.symbol) errs.push(`deployment_plan.destinations[${i}].symbol: required`); num(x.weight_pct, `deployment_plan.destinations[${i}].weight_pct`, 0, 100); });

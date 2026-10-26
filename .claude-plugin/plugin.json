@@ -1,6 +1,6 @@
 {
   "name": "portfolio-copilot",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Analysis-and-drafting copilot for DIY Indian investors. Live Zerodha/Kotak Neo via one owned connection each, IBKR or any broker via import. Deterministic checks, GTT policy audits with crash test, basket drafts. Orders run only from drafts you approve by code. Not investment advice.",
   "author": {
     "name": "Arun Kumar"

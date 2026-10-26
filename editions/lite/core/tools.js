@@ -70,7 +70,20 @@ async function brokerLogin(args, ctx) {
 }
 
 function todaySnapshot(folder, now) {
-  return state.loadSnapshot(folder, istDate(now)) || { taken_at: now.toISOString(), brokers: {}, fx: {}, unverified: {} };
+  const today = state.loadSnapshot(folder, istDate(now));
+  if (today) return today;
+  const snap = { taken_at: now.toISOString(), brokers: {}, fx: {}, unverified: {} };
+  // A new day starts from the last snapshot with every broker marked "not pulled", so an
+  // ingest or a partial refresh never makes the rest of the book disappear (issue #4).
+  const prev = state.previousSnapshot(folder, istDate(now));
+  if (prev) {
+    for (const [name, b] of Object.entries(prev.brokers || {})) {
+      snap.brokers[name] = { ...b, status: 'not_pulled', carried_from: b.carried_from || b.as_of };
+    }
+    snap.fx = { ...(prev.fx || {}) };
+    snap.unverified = { ...(prev.unverified || {}) };
+  }
+  return snap;
 }
 
 async function refresh(args, ctx) {
@@ -169,6 +182,21 @@ async function check(args, ctx) {
   const c = snapshotLib.consolidate(snap, profile);
   const d = snapshotLib.diff(prev, snap);
   const t = tradeAudit(snap, c, d, profile);
+  // Cash that drops to exactly 0 between snapshots is worth a look: a withdrawal, or bad data (issue #5).
+  for (const [name, b] of Object.entries(snap.brokers)) {
+    const was = prev && prev.brokers && prev.brokers[name];
+    if (b.status === 'live' && b.cash === 0 && was && was.cash > 0) {
+      c.alerts.push({ level: 'warn', text: `${name} cash is ${inr(0)} as reported by ${name}, was ${inr(was.cash)} at ${istStamp(new Date(was.as_of))}: confirm in ${name} (withdrawal, or bad data?)` });
+    }
+  }
+  if (c.unclassified_sector_count && !Object.keys(profile.sectors || {}).length) c.notes.push('sector limit not checked: the profile has no sector map (profile.sectors)');
+  // Hold stops drift inside the floor as prices fall; say so without waiting for a GTT audit (issue #7).
+  if (snap.brokers.kite && (snap.brokers.kite.gtts || []).length) {
+    const worst = gtt.audit(snap, prev, profile).crash.slice(-1)[0];
+    if (worst && worst.hold_names_firing.length) {
+      c.alerts.push({ level: 'warn', text: `${worst.hold_names_firing.length} hold stop(s) would fire in a ${worst.move_pct}% fall (${worst.hold_names_firing.join(', ')}): analyze each before changing (strong company, macro fall: widen; company weakening: keep)` });
+    }
+  }
   const L = [];
   L.push(`**Portfolio check** · ${istStamp(now)}`);
   L.push(Object.entries(snap.brokers).map(([n, b]) => `- ${brokerLine(n, b, snap.unverified)}`).join('\n'));
@@ -265,6 +293,19 @@ async function pricesFor(symbols, snap, ctx) {
   return prices;
 }
 
+// War-chest corpus: read live from the holding named by corpus_source, else the saved figure (issue #6).
+function corpusOf(plan, snap) {
+  if (plan.corpus_source && snap) {
+    const needle = String(plan.corpus_source).toUpperCase();
+    const hits = Object.values(snap.brokers || {}).flatMap((b) => (b.holdings || []).filter((h) => `${h.symbol} ${h.name || ''}`.toUpperCase().includes(needle)));
+    if (hits.length) {
+      const total = hits.reduce((a, h) => a + (h.value || 0), 0);
+      return { inr: total, basis: `${hits.map((h) => h.name || h.symbol).join(' + ')}, snapshot ${istStamp(new Date(snap.taken_at))}` };
+    }
+  }
+  return plan.corpus_inr ? { inr: plan.corpus_inr, basis: 'saved corpus_inr' } : null;
+}
+
 async function draftBasket(args, ctx) {
   const { profile } = profiles.load(args.folder);
   const plan = profile.deployment_plan;
@@ -274,9 +315,10 @@ async function draftBasket(args, ctx) {
   let label = 'custom amount';
   if (!amount && args.stage) {
     const st = [...plan.stages].sort((a, b) => b.level - a.level)[args.stage - 1];
-    if (!st || !plan.corpus_inr) return { ok: false, error: 'stage or corpus missing', text: 'Stage not found or deployment_plan.corpus_inr not set.' };
-    amount = (plan.corpus_inr * st.share_pct) / 100;
-    label = `stage ${args.stage} (${st.share_pct}% of ${inr(plan.corpus_inr)})`;
+    const corpus = corpusOf(plan, state.latestSnapshot(args.folder));
+    if (!st || !corpus) return { ok: false, error: 'stage or corpus missing', text: `${!st ? `Stage ${args.stage} not found. ` : ''}${!corpus ? 'No corpus: set deployment_plan.corpus_source (a holding name such as "ARBITRAGE") or deployment_plan.corpus_inr.' : ''}`.trim() };
+    amount = (corpus.inr * st.share_pct) / 100;
+    label = `stage ${args.stage} (${st.share_pct}% of ${inr(corpus.inr)}, ${corpus.basis})`;
   }
   if (!amount) return { ok: false, error: 'amount or stage required', text: 'Give an amount or a stage number.' };
   const snap = state.latestSnapshot(args.folder);
@@ -322,12 +364,17 @@ async function crashCheck(args, ctx) {
     return { ok: true, stage: null, text: L.join('\n') };
   }
   const s = crash.stageReached(plan, level);
-  L.push('\n' + table(['Stage', 'Level', 'Share', 'Reached'], s.stages.map((x) => [x.number, x.level, `${x.share_pct}%`, x.reached ? 'yes' : 'no'])));
+  L.push('\n' + table(['Stage', 'Level', 'Share', 'Reached'], s.stages.map((x) => [x.number, x.level, `${x.share_pct}%`, x.done ? `done ${x.done_at}` : x.reached ? 'yes' : 'no'])));
   let draft = null;
-  if (s.reached && plan.corpus_inr && plan.destinations.length) {
-    draft = await draftBasket({ folder: args.folder, stage: s.reached.number }, ctx);
+  const corpus = corpusOf(plan, snap);
+  const missing = [!corpus && 'deployment_plan.corpus_source (or corpus_inr)', !plan.destinations.length && 'deployment_plan.destinations'].filter(Boolean);
+  const next = s.pending[0];
+  if (next && !missing.length) {
+    draft = await draftBasket({ folder: args.folder, stage: next.number }, ctx);
     L.push(`\n${draft.text}`);
-  } else if (s.reached) L.push('\nStage reached, but corpus_inr or destinations are not saved, so no basket is drafted.');
+    if (s.pending.length > 1) L.push(`Also reached and not done: stage ${s.pending.slice(1).map((x) => x.number).join(', ')}.`);
+  } else if (next) L.push(`\nStage ${next.number} reached, but ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not saved, so no basket is drafted. Set with profile_update.`);
+  else if (s.reached) L.push('\nEvery reached stage is already marked done; nothing to draft.');
   L.push('\nClassify the fall (structural vs sentiment) with sources before acting. Never tighten stops in a fall.');
   return { ok: true, stage: s.reached ? s.reached.number : null, draft: draft && draft.code, text: L.join('\n') };
 }

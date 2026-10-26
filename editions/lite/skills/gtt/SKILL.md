@@ -11,7 +11,10 @@ Stops protect against a broken thesis, not a market-wide fall.
 2. Hold/add stocks: crash-floor stop about 25% below price, never closer than 20%.
 3. EXIT/REDUCE verdicts: a single exit at the written level, no stop.
 4. No verdict means hold.
-5. Every audit includes the crash test (-10%, -20%); no hold/add name should fire at -20%.
+5. Every audit includes the crash test (-10%, -20%). A hold/add name that fires at -20% is not widened automatically: analyze it first (step 4).
+   - Strong company, fall driven by macro or the market (oil, war, rates, a broad selloff): widen to the crash floor.
+   - Company weakening (results, asset quality, margins, governance): keep the stop and let it exit.
+   - A `trade` verdict keeps its own stop and target; the crash-floor rule does not apply to it.
 6. GTT quantity equals held quantity.
 This policy lives in portfolio-core; do not restate or improvise thresholds.
 
@@ -19,7 +22,7 @@ This policy lives in portfolio-core; do not restate or improvise thresholds.
 1. If today's Kite data is not live, run `broker_status` and `refresh` first (see the check skill). Otherwise findings are unverified and say so.
 2. Optional: search held symbols for upcoming bonus/split/demerger; pass them as `corporate_actions`.
 3. Call `gtt_audit`. Show its text.
-4. If the investor wants fixes, call `draft_gtt_plan` (optionally `symbols`). Show the full plan text. New GTTs are placed before old ones are deleted.
+4. If the investor wants fixes: for every hold name with a `stop_too_tight` finding, run the analyze skill first and classify it (policy 5). Then call `draft_gtt_plan` with `symbols` set to only the names to widen, plus any quantity or ETF/exit fixes. Show the full plan text. New GTTs are placed before old ones are deleted.
 5. Approval: the investor must type `approve <code>` themselves. Do not ask "shall I proceed?" and treat "yes" as approval; only the code counts.
 6. After approval (full edition): call `execute_draft` with the code, show the result, then `refresh` and `gtt_audit` to verify. If deletes failed, give the listed ids for deletion in Kite web (Orders > GTT).
 7. Lite edition, or no approval: the investor enters the plan in Kite web; afterwards run `refresh` and `gtt_audit`.

@@ -56,6 +56,13 @@ class McpHttpClient {
           e.sessionExpired = true;
           throw e;
         }
+        // Kite answers a dead session with "HTTP 400: Invalid session ID" (26-Oct-2026), not 404.
+        if (res.status === 400 && this.sessionId && body.method !== 'initialize') {
+          const t = await res.text();
+          const e = new TransportError(`HTTP 400: ${t.slice(0, 200)}`, 400);
+          if (/session/i.test(t)) e.sessionExpired = true;
+          throw e;
+        }
         if (res.status >= 500) throw new TransportError(`HTTP ${res.status}`, res.status);
         if (res.status === 202 || body.id === undefined) return null;
         if (res.status >= 400) throw new TransportError(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`, res.status);
@@ -82,7 +89,7 @@ class McpHttpClient {
     this.sessionId = null;
     const res = await this.post({
       jsonrpc: '2.0', id: this.nextId++, method: 'initialize',
-      params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: this.clientName, version: '0.5.0' } },
+      params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: this.clientName, version: '0.5.1' } },
     });
     if (res && res.error) throw new TransportError(`initialize failed: ${res.error.message}`);
     await this.post({ jsonrpc: '2.0', method: 'notifications/initialized' });

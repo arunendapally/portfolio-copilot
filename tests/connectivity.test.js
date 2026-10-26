@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const http = require('http');
 const { tmpEnv } = require('./helpers');
 
-function fakeKite({ failFirst = 0, sse = false } = {}) {
+function fakeKite({ failFirst = 0, sse = false, deadSession = 404 } = {}) {
   const sessions = new Map(); // id -> { authorised, calls }
   let n = 0;
   let failures = failFirst;
@@ -30,7 +30,7 @@ function fakeKite({ failFirst = 0, sse = false } = {}) {
       }
       if (msg.method === 'notifications/initialized') { res.writeHead(202); return res.end(); }
       const s = sessions.get(sid);
-      if (!s) { res.writeHead(404); return res.end(); }
+      if (!s) { res.writeHead(deadSession); return res.end(deadSession === 400 ? 'Invalid session ID\n' : ''); }
       const name = msg.params.name;
       if (name === 'login') return send({ content: [{ type: 'text', text: `Show the warning. [Login to Kite](https://mcp.kite.trade/authorize?session_id=${sid})` }] });
       if (!s.authorised) {
@@ -129,6 +129,17 @@ test('expired MCP session (404) re-initialises transparently', async () => {
   const kite = loadKite(f.url);
   await kite.login();
   f.sessions.clear(); // server forgot every session
+  const s = await kite.status();
+  assert.strictEqual(s.status, 'needs_login');
+  f.server.close();
+});
+
+test('dead session answered with "HTTP 400: Invalid session ID" is needs_login, not outage (issue #3)', async () => {
+  tmpEnv();
+  const f = await fakeKite({ deadSession: 400 });
+  const kite = loadKite(f.url);
+  await kite.login();
+  f.sessions.clear();
   const s = await kite.status();
   assert.strictEqual(s.status, 'needs_login');
   f.server.close();
