@@ -21,7 +21,7 @@ function createServer(ctx = makeContext(), write = (s) => process.stdout.write(s
         return reply({
           protocolVersion: SUPPORTED.includes(asked) ? asked : SUPPORTED[0],
           capabilities: { tools: {} },
-          serverInfo: { name: 'portfolio-core', version: '0.5.0' },
+          serverInfo: { name: 'portfolio-core', version: '0.5.1' },
           instructions: 'Deterministic portfolio engine. Show each tool\'s `text` as is. Never compute portfolio numbers yourself.',
         });
       }

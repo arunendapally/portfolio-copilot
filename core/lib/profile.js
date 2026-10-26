@@ -4,7 +4,8 @@
 const path = require('path');
 const { stateDir, readJson, writeJson } = require('./state');
 
-const STANCES = ['hold', 'add', 'hold_no_add', 'reduce', 'exit'];
+// 'trade': a deliberate short-term position with its own stop/target; the crash-floor rule does not apply (issue #7).
+const STANCES = ['hold', 'add', 'hold_no_add', 'reduce', 'exit', 'trade'];
 
 const DEFAULTS = Object.freeze({
   schema_version: 1,
@@ -24,7 +25,11 @@ const DEFAULTS = Object.freeze({
   verdicts: {},
   sectors: {},
   rate_overrides: {},
-  deployment_plan: { index: 'NIFTY 50', corpus_inr: null, stages: [], destinations: [] },
+  // corpus_source: text matched against holding symbols and fund names (e.g. "ARBITRAGE") to read the corpus live.
+  deployment_plan: { index: 'NIFTY 50', corpus_inr: null, corpus_source: null, stages: [], destinations: [] },
+  // allow_remote_approval: a cloud chat linked to this PC may execute drafts approved there,
+  // trusting the cloud-side order gate. Off by default (issue #9).
+  orders: { allow_remote_approval: false },
 });
 
 function isObj(v) {
@@ -54,6 +59,7 @@ function validate(p) {
   };
   if (!['conservative', 'balanced', 'aggressive'].includes(p.investor.risk)) errs.push('investor.risk: conservative | balanced | aggressive');
   if (!['broker', 'bank'].includes(p.cash.buffer_location)) errs.push('cash.buffer_location: broker | bank');
+  if (typeof p.orders.allow_remote_approval !== 'boolean') errs.push('orders.allow_remote_approval: true | false');
   num(p.cash.buffer_min_pct, 'cash.buffer_min_pct', 0, 100);
   num(p.cash.buffer_max_pct, 'cash.buffer_max_pct', 0, 100);
   for (const k of ['single_stock_pct', 'sector_pct', 'fund_house_pct']) num(p.limits[k], `limits.${k}`, 0, 100);
@@ -71,7 +77,12 @@ function validate(p) {
   }
   const d = p.deployment_plan;
   if (!Array.isArray(d.stages)) errs.push('deployment_plan.stages: array');
-  else d.stages.forEach((s, i) => { num(s.level, `deployment_plan.stages[${i}].level`, 0); num(s.share_pct, `deployment_plan.stages[${i}].share_pct`, 0, 100); });
+  else d.stages.forEach((s, i) => {
+    num(s.level, `deployment_plan.stages[${i}].level`, 0);
+    num(s.share_pct, `deployment_plan.stages[${i}].share_pct`, 0, 100);
+    if (s.done_at !== undefined && s.done_at !== null && Number.isNaN(Date.parse(s.done_at))) errs.push(`deployment_plan.stages[${i}].done_at: a date (YYYY-MM-DD) or null`);
+  });
+  if (d.corpus_source !== null && d.corpus_source !== undefined && typeof d.corpus_source !== 'string') errs.push('deployment_plan.corpus_source: text or null');
   if (!Array.isArray(d.destinations)) errs.push('deployment_plan.destinations: array');
   else {
     d.destinations.forEach((x, i) => { if (!x.symbol) errs.push(`deployment_plan.destinations[${i}].symbol: required`); num(x.weight_pct, `deployment_plan.destinations[${i}].weight_pct`, 0, 100); });

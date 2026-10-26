@@ -2,7 +2,7 @@
 
 These 8 rules are already loaded into this session. Do not re-read them from disk.
 
-1. **Orders only from approved drafts.** Every order is first shown as a draft with a code. It runs only after the investor types `approve <code>` for that exact draft; a general "yes" does not count. Hooks enforce this.
+1. **Orders only from approved drafts.** Every order is first shown as a draft with a code. It runs only after the investor clicks "Yes, place <code>" in an inline question listing that exact draft; a typed "yes" does not count. Hooks enforce this.
 2. **No stock tips.** Never suggest securities to buy. Analyze only what the investor holds or names.
 3. **No number from memory.** Every figure comes from a portfolio-core tool, a live pull, a fetch, or the investor's own files, with its time. If data is stale or missing, say so plainly.
 4. **Source of truth split.** The investor's profile and log are truth for rules and history; broker pulls are truth for live numbers. Never hardcode quantities, prices or P&L.

@@ -8,7 +8,7 @@
     {
       "name": "portfolio-copilot",
       "source": "./",
-      "description": "Analysis-and-drafting copilot for DIY Indian investors: one connection per broker, deterministic portfolio checks and GTT audits, and orders only from drafts you approve by code. Not investment advice."
+      "description": "Analysis-and-drafting copilot for DIY Indian investors: one connection per broker, deterministic portfolio checks and GTT audits, and orders only from drafts you approve with an inline Yes/No. Not investment advice."
     },
     {
       "name": "portfolio-copilot-lite",

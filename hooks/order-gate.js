@@ -34,13 +34,22 @@ function decide(input, folders, now = new Date()) {
   const tool = String(input.tool_name || '');
   const args = input.tool_input || {};
 
+  // Approvals come only from the investor's click; a question sent with its answers filled in is forged.
+  if (tool === 'AskUserQuestion') {
+    const answered = args.answers && typeof args.answers === 'object' && Object.keys(args.answers).length;
+    const offersYes = (args.questions || []).some((q) => (q.options || []).some((o) => drafts.YES_RE.test(String(o.label))));
+    return answered && offersYes ? { allow: false, reason: 'Approval questions are answered by the investor in the question UI; never pre-fill answers.' } : { allow: true };
+  }
+
   if (/execute_draft$/.test(tool)) {
     const code = String(args.code || '').toUpperCase();
     for (const f of folders) {
       const v = drafts.verify(f, code, now);
       if (v.ok) return { allow: true };
     }
-    return { allow: false, reason: `Draft ${code || '(none)'} is not approved by the investor. Show the draft and ask them to type "approve ${code || '<code>'}".` };
+    // Cloud session linked to a PC: the click was recorded here; let one call through (issue #9).
+    if (args.remote_approval === true && drafts.CODE_RE.test(code) && drafts.consumeRemote(code, now)) return { allow: true };
+    return { allow: false, reason: `Draft ${code || '(none)'} is not approved by the investor. Show the draft and ask with an inline question whose options are "No, don't place" and "Yes, place ${code || '<code>'}".` };
   }
 
   if (!ORDER_RE.test(tool)) return { allow: true };
@@ -54,7 +63,7 @@ function decide(input, folders, now = new Date()) {
   if (!isGtt && op === 'place' && approved.some((d) => d.kind === 'basket' && d.rows.some((r) => sameBasketOrder(args, r)))) return { allow: true };
   return {
     allow: false,
-    reason: `Blocked ${tool}: it does not match any draft the investor approved. Create a draft (draft_gtt_plan / draft_basket), show it, and wait for "approve <code>". Modify and cancel are not drafted: use place-then-delete.`,
+    reason: `Blocked ${tool}: it does not match any draft the investor approved. Create a draft (draft_gtt_plan / draft_basket), show it, and ask with the inline Yes/No question. Modify and cancel are not drafted: use place-then-delete.`,
   };
 }
 

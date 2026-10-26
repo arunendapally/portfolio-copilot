@@ -46,6 +46,27 @@ test('crash mode reports the stage from the saved plan and drafts only that stag
   assert.doesNotMatch(r.text, /trail/i);
 });
 
+test('crash mode reads the corpus live, skips done stages and names missing fields (issue #6)', async () => {
+  const patch = (p) => {
+    p.deployment_plan.corpus_inr = null;
+    p.deployment_plan.corpus_source = 'emerging equity'; // Kite Coin lists funds by ISIN; match the name
+    p.deployment_plan.stages[0].done_at = '2026-10-07';
+    return p;
+  };
+  const { folder, ctx } = await ready(patch);
+  const arb = require('../core/lib/state').latestSnapshot(folder).brokers.kite.holdings.find((h) => /Emerging Equity/.test(h.name || ''));
+  assert.ok(arb, 'fixture has the fund');
+  const r = await callTool('crash_check', { folder, index_level: 21500 }, ctx); // stage 1 done, stage 2 reached
+  assert.match(r.text, /done 2026-10-07/);
+  const d = drafts.load(folder, r.draft);
+  assert.ok(Math.abs(d.amount - (arb.value * 35) / 100) < 0.01, `stage 2 is 35% of the live arbitrage value, got ${d.amount}`);
+  assert.match(d.label, /stage 2 .*Kotak Emerging Equity Fund/);
+
+  const none = await ready((p) => { p.deployment_plan.corpus_inr = null; return p; });
+  const m = await callTool('crash_check', { folder: none.folder, index_level: 22800 }, none.ctx);
+  assert.match(m.text, /Stage 1 reached, but deployment_plan\.corpus_source \(or corpus_inr\) is not saved/);
+});
+
 test('crash mode drafts nothing without a saved plan', async () => {
   const { folder, ctx } = await ready((p) => ({ ...p, deployment_plan: { stages: [], destinations: [] } }));
   const r = await callTool('crash_check', { folder, index_level: 21000 }, ctx);

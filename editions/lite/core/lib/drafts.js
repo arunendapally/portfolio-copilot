@@ -1,16 +1,16 @@
 'use strict';
 // Drafts: proposed orders the investor reads in full. Approval is recorded only by the
-// UserPromptSubmit hook from the investor's own message ("approve D7K2"), bound to a hash of
-// the rows, so a draft edited after approval is no longer approved.
+// PostToolUse hook from the investor's own click in an inline question ("Yes, place D7K2"),
+// bound to a hash of the rows, so a draft edited after approval is no longer approved.
 
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { stateDir, readJson, writeJson } = require('./state');
+const { stateDir, configDir, readJson, writeJson } = require('./state');
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_RE = /^D[A-HJ-NP-Z2-9]{4}$/;
-const APPROVE_RE = /\bapprove\s+(D[A-HJ-NP-Z2-9]{4})\b/gi;
+const YES_RE = /^Yes, place (D[A-HJ-NP-Z2-9]{4})$/;
 const TTL_MS = 24 * 3600 * 1000;
 
 function draftsDir(folder) {
@@ -44,26 +44,56 @@ function save(folder, d) {
 
 function create(folder, kind, rows, extra = {}) {
   const code = newCode((c) => fs.existsSync(file(folder, c)));
-  const d = { code, kind, created_at: new Date().toISOString(), status: 'draft', rows, ...extra };
+  const d = { code, kind, created_at: new Date().toISOString(), created_hash: hashRows(rows), status: 'draft', rows, ...extra };
   save(folder, d);
   return d;
 }
 
-// Called by the hook with the investor's prompt text. Returns codes approved / not found.
-function approveFromPrompt(folder, prompt, now = new Date()) {
-  const approved = [];
-  const missing = [];
-  for (const m of String(prompt).matchAll(APPROVE_RE)) {
-    const code = m[1].toUpperCase();
-    const d = load(folder, code);
-    if (!d || d.status !== 'draft') { missing.push(code); continue; }
-    d.status = 'approved';
-    d.approved_at = now.toISOString();
-    d.approved_hash = hashRows(d.rows);
-    save(folder, d);
-    approved.push({ code, rows: d.rows.length });
-  }
-  return { approved, missing };
+// Called by the hook after the investor clicked "Yes, place <code>". Null when no open draft.
+function approve(folder, code, now = new Date(), via = 'inline question') {
+  const d = load(folder, code);
+  if (!d || d.status !== 'draft') return null;
+  d.status = 'approved';
+  d.approved_at = now.toISOString();
+  d.approved_hash = hashRows(d.rows);
+  d.approved_via = via;
+  save(folder, d);
+  return { code, rows: d.rows.length };
+}
+
+// ---- remote approvals (cloud session linked to the investor's PC, issue #9) --------------
+// The hook runs in the cloud and cannot see drafts kept on the PC. It records the click here;
+// the order gate lets exactly one matching execute_draft through and consumes the record.
+
+function remoteFile() {
+  return path.join(configDir(), 'approvals.json');
+}
+
+function recordRemote(code, now = new Date()) {
+  const all = readJson(remoteFile(), {});
+  all[code] = { approved_at: now.toISOString() };
+  writeJson(remoteFile(), all, 0o600);
+}
+
+function consumeRemote(code, now = new Date()) {
+  const all = readJson(remoteFile(), {});
+  const r = all[code];
+  if (!r) return false;
+  delete all[code];
+  writeJson(remoteFile(), all, 0o600);
+  return now - new Date(r.approved_at) <= TTL_MS;
+}
+
+// Server side: accept an approval the cloud gate passed through. Only for an untouched draft
+// younger than the TTL; the caller checks the profile opt-in first.
+function acceptRemote(folder, code, now = new Date()) {
+  const d = load(folder, code);
+  if (!d) return { ok: false, reason: `no draft ${code}` };
+  if (d.status !== 'draft') return { ok: false, reason: `draft ${code} is ${d.status}` };
+  if (now - new Date(d.created_at) > TTL_MS) return { ok: false, reason: `draft ${code} is older than 24 h` };
+  if (!d.created_hash || hashRows(d.rows) !== d.created_hash) return { ok: false, reason: `draft ${code} changed since it was shown (or predates v0.5.1): draft it again` };
+  approve(folder, code, now, 'inline question, cloud gate');
+  return { ok: true };
 }
 
 function verify(folder, code, now = new Date()) {
@@ -81,4 +111,4 @@ function approvedDrafts(folder, now = new Date()) {
   return names.map((f) => verify(folder, f.slice(0, -5), now)).filter((v) => v.ok).map((v) => v.draft);
 }
 
-module.exports = { CODE_RE, APPROVE_RE, create, load, save, approveFromPrompt, verify, approvedDrafts, hashRows, draftsDir };
+module.exports = { CODE_RE, YES_RE, create, load, save, approve, verify, approvedDrafts, hashRows, draftsDir, recordRemote, consumeRemote, acceptRemote };

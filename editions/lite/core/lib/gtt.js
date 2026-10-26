@@ -52,7 +52,7 @@ function audit(snap, prev, profile, { corporateActions = [] } = {}) {
   for (const h of holdings) {
     const mine = active.filter((g) => g.symbol === h.symbol && g.legs.some((l) => l.side === 'SELL'));
     const v = verdictOf(profile, h.symbol);
-    const cls = h.type === 'etf' ? 'etf' : ['exit', 'reduce'].includes(v.stance) ? 'exit' : 'hold';
+    const cls = h.type === 'etf' ? 'etf' : ['exit', 'reduce'].includes(v.stance) ? 'exit' : v.stance === 'trade' ? 'trade' : 'hold';
     const issues = [];
     let stop = null;
     let target = null;
