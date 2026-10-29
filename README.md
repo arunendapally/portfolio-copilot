@@ -74,7 +74,9 @@ If you already have a standalone Kite or Kotak connector, keep it or remove it; 
 1. **Orders only from approved drafts**: a `UserPromptSubmit` hook records approval only from your own message (`approve D7K2`), bound to a hash of the draft; a `PreToolUse` hook blocks any order tool call on any server that does not match an approved draft. Fails closed.
 2. **Always-on house rules** injected at session start.
 3. **No stale data presented as live**: every figure carries its time; carried data is labelled with how many runs it has gone unverified.
-4. **Analysis audit**: the fundamentals-analyst output is checked for sourced numbers and no buy/sell language.
+4. **Analysis audit**: the fundamentals-analyst output is checked for sourced numbers and no buy/sell language. A blocked primary source is reported in a fixed `Data gaps` line and marks the analysis PARTIAL.
+
+   In cloud sessions the analyst's web fetches ask for permission and can time out. Allow its sources once in your Claude settings (`permissions.allow`): `WebFetch(domain:www.screener.in)`, `WebFetch(domain:www.nseindia.com)`, `WebFetch(domain:www.bseindia.com)`, `WebFetch(domain:www.morningstar.in)`.
 
 ## What it does not do
 

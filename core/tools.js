@@ -14,6 +14,8 @@ const basket = require('./lib/basket');
 const crash = require('./lib/crash');
 const rates = require('./lib/rates');
 const log = require('./lib/log');
+const protection = require('./lib/protection');
+const gapLib = require('./lib/gap');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
 
 const FOLDER = { folder: { type: 'string', description: "The investor's working folder (absolute path). Pass it on the first call; it is remembered." } };
@@ -207,13 +209,18 @@ function kiteFresh(snap, now) {
   return k && k.status === 'live' && istDate(new Date(k.as_of)) === istDate(now);
 }
 
+function crashRow(x) {
+  const kept = x.kept_names_firing.length ? ` (kept by decision: ${x.kept_names_firing.join(', ')})` : '';
+  return [`${x.move_pct}%`, x.fires.length, `${x.hold_names_firing.join(', ') || 'none'}${kept}`];
+}
+
 async function gttAudit(args, ctx) {
   const now = ctx.now();
   const { profile } = profiles.load(args.folder);
   const snap = state.latestSnapshot(args.folder);
   if (!snap || !snap.brokers.kite) return { ok: false, error: 'no Kite data', text: 'No Kite data yet. Run refresh first.' };
   const prev = state.previousSnapshot(args.folder, istDate(new Date(snap.taken_at)));
-  const a = gtt.audit(snap, prev, profile, { corporateActions: args.corporate_actions || [] });
+  const a = gtt.audit(snap, prev, profile, { corporateActions: args.corporate_actions || [], today: istDate(ctx.now()) });
   const stale = !kiteFresh(snap, now);
   const L = [];
   L.push(`**GTT audit** · ${istStamp(now)}${stale ? ' · ⚠️ Kite data is not from a live pull today: findings are UNVERIFIED' : ''}`);
@@ -223,7 +230,7 @@ async function gttAudit(args, ctx) {
   L.push(table(['Symbol', 'Policy', 'Qty', 'LTP', 'Stop', 'Target', 'Findings'], flagged.map((r) => [r.symbol, `${r.class}${r.implicit_verdict ? ' (default)' : ''}`, r.qty, r.ltp, r.stop ?? '-', r.target ?? '-', r.issues.map((i) => i.text).join('; ')])));
   L.push(`OK, no change: ${a.rows.length - flagged.length}`);
   L.push('\n**Crash test** (uniform move, live prices)');
-  L.push(table(['Move', 'Stops that fire', 'Hold/add names firing'], a.crash.map((x) => [`${x.move_pct}%`, x.fires.length, x.hold_names_firing.join(', ') || 'none'])));
+  L.push(table(['Move', 'Stops that fire', 'Hold/add names firing'], a.crash.map(crashRow)));
   if (a.orphans.length) L.push(`\nOrphans (no holding): ${a.orphans.map((o) => `${o.symbol} #${o.id}`).join(', ')}`);
   if (a.inactive.length) L.push(`Inactive GTTs on held names: ${a.inactive.map((g) => `${g.symbol} #${g.id} ${g.status}${g.reason ? ` (${g.reason})` : ''}`).join(', ')}`);
   if (a.vanished.length) L.push(`Active last time, missing now (cancelled by a corporate action?): ${a.vanished.map((g) => `${g.symbol} #${g.id}`).join(', ')}`);
@@ -245,7 +252,7 @@ async function draftGttPlan(args, ctx) {
   const snap = state.latestSnapshot(args.folder);
   if (!kiteFresh(snap, ctx.now())) return { ok: false, error: 'needs a live Kite pull today', text: 'Run refresh with Kite live before drafting GTT changes.' };
   const prev = state.previousSnapshot(args.folder, istDate(new Date(snap.taken_at)));
-  const a = gtt.audit(snap, prev, profile, { corporateActions: args.corporate_actions || [] });
+  const a = gtt.audit(snap, prev, profile, { corporateActions: args.corporate_actions || [], today: istDate(ctx.now()) });
   const p = gtt.plan(a, snap, profile, { symbols: args.symbols });
   if (!p.rows.length) return { ok: true, code: null, text: `No GTT changes needed under your policy.${p.notes.length ? ` Not planned: ${p.notes.join('; ')}` : ''}` };
   const d = drafts.create(args.folder, 'gtt_plan', p.rows);
@@ -311,9 +318,9 @@ async function crashCheck(args, ctx) {
   const L = [`**Crash check** · ${profile.deployment_plan.index} at ${level} (${source})`];
   let stopRows = [];
   if (snap && snap.brokers.kite) {
-    const a = gtt.audit(snap, null, profile);
+    const a = gtt.audit(snap, null, profile, { today: istDate(ctx.now()) });
     stopRows = crash.stopReview(a.rows, profile.gtt_policy);
-    L.push(table(['Move', 'Stops that fire', 'Hold/add names firing'], a.crash.map((x) => [`${x.move_pct}%`, x.fires.length, x.hold_names_firing.join(', ') || 'none'])));
+    L.push(table(['Move', 'Stops that fire', 'Hold/add names firing'], a.crash.map(crashRow)));
     L.push(stopRows.length ? `Stops that would force-sell names you intend to keep:\n${stopRows.map((s) => `- ${s.symbol}: stop ${s.stop} (${s.distance_pct}% below); ${s.proposal}`).join('\n')}` : 'No hold/add stop is tighter than your policy minimum.');
   }
   const plan = profile.deployment_plan;
@@ -365,6 +372,48 @@ async function profileUpdate(args) {
   if (!args.path) return { ok: false, error: 'path required', text: 'path required' };
   const r = profiles.update(args.folder, args.path, args.value);
   return r.ok ? { ok: true, value: r.value, text: `Saved ${args.path}.` } : { ok: false, errors: r.errors, text: `Not saved: ${r.errors.join('; ')}` };
+}
+
+async function protectionCheck(args) {
+  const { profile } = profiles.load(args.folder);
+  const r = protection.check(profile);
+  const pr = profile.protection;
+  const L = ['**Protection and buffer** (from your saved inputs; none of this is read from a broker)'];
+  L.push(`- Emergency fund ${inr(pr.emergency_fund_inr)} · monthly expenses ${inr(pr.monthly_expenses_inr)} · ${r.months === null ? 'months covered n/a' : `${r.months.toFixed(1)} months covered`}`);
+  L.push(`- Term cover ${inr(pr.term_cover_inr)} · health cover: ${pr.health_cover}`);
+  for (const f of r.findings) L.push(`${f.level === 'warn' ? '⚠️' : '-'} ${f.text}`);
+  const sips = profile.sips;
+  L.push(sips.length ? `\n**SIPs** (as confirmed by you)\n${table(['Fund', 'Amount', 'Action'], sips.map((s) => [s.fund, inr(s.amount_inr), s.action === 'redirect' ? `redirect to ${s.redirect_to}` : s.action || 'continue']))}` : '\nNo SIPs recorded. Coin SIPs are not readable from any broker: ask the investor, then save `sips` with profile_update.');
+  return { ok: true, months_of_expenses: r.months, findings: r.findings, text: L.join('\n') };
+}
+
+async function verdictNotes(args) {
+  const { profile } = profiles.load(args.folder);
+  const rows = Object.entries(profile.verdicts).sort(([a], [b]) => a.localeCompare(b));
+  if (!rows.length) return { ok: true, text: 'No verdicts saved.' };
+  const line = ([sym, v]) => {
+    const bits = [`${sym}: ${v.stance.toUpperCase()}${v.reason ? `, ${v.reason}` : ''}`];
+    if (v.exit_level) bits.push(`exit at ${v.exit_level}`);
+    if (v.stop_review) bits.push(`stop ${v.stop_review.decision === 'keep' ? 'kept' : 'to widen'} (${v.stop_review.at || 'undated'}${v.stop_review.reason ? `, ${v.stop_review.reason}` : ''}${v.stop_review.review_by ? `, review by ${v.stop_review.review_by}` : ''})`);
+    return `- ${bits.join('; ')}`;
+  };
+  return { ok: true, text: `**Verdicts** (the profile is the source; paste into your notes file to keep it in step)\n${rows.map(line).join('\n')}` };
+}
+
+async function reportGap(args, ctx) {
+  if (!args.title || !args.missing) return { ok: false, error: 'title and missing required', text: 'report_gap needs a title and what is missing.' };
+  const gap = { title: String(args.title), attempted: args.attempted, missing: String(args.missing), output: args.output };
+  const gh = ctx.github;
+  let filed = null;
+  let why = '';
+  if (gh && gh.token) {
+    try { filed = await gapLib.fileGap(gap, gh, ctx.now()); } catch (e) { why = ` GitHub filing failed (${e.message}).`; }
+  }
+  const file = gapLib.logLocal(args.folder, gap, ctx.now(), filed && filed.url);
+  const text = filed
+    ? `Gap ${filed.action} on GitHub: ${filed.url}. Also logged to ${file}.`
+    : `Gap logged to ${file}.${why}${gh && gh.token ? '' : ' No GitHub token configured (set PORTFOLIO_COPILOT_GITHUB_TOKEN), so no issue was filed.'}`;
+  return { ok: true, filed, logged: file, text };
 }
 
 async function logAppend(args, ctx) {
@@ -428,6 +477,9 @@ const TOOLS = [
   { name: 'rate_map', handler: rateMap, description: 'Group holdings by interest-rate sensitivity (default map plus profile overrides).', props: {} },
   { name: 'profile_get', handler: profileGet, description: "Read the investor's profile (or a dotted path in it).", props: { path: { type: 'string' } } },
   { name: 'profile_update', handler: profileUpdate, description: 'Set one dotted path in the profile (e.g. cash.buffer_location = "bank", verdicts.SBIN = {stance, reason}). Validated before saving. Only on the investor\'s instruction.', props: { path: { type: 'string' }, value: {} }, required: ['path'] },
+  { name: 'protection_check', handler: protectionCheck, description: "Report the emergency fund against 6-12 months of expenses, term and health cover, and the SIP list, all from the investor's saved profile inputs.", props: {} },
+  { name: 'verdict_notes', handler: verdictNotes, description: 'Render the saved verdicts (with reasons, exit levels and stop decisions) as text the investor can paste into their notes file.', props: {} },
+  { name: 'report_gap', handler: reportGap, description: 'Record something the plugin cannot do: always logged to the feedback file, and filed as a GitHub issue labelled gap (or commented on an open duplicate) when a token is configured. Never include quantities, prices or P&L.', props: { title: { type: 'string' }, attempted: { type: 'string' }, missing: { type: 'string' }, output: { type: 'string' } }, required: ['title', 'missing'] },
   { name: 'log_append', handler: logAppend, description: 'Append a dated entry to the log and optionally rewrite the "Start here" block. Older months archive automatically.', props: { text: { type: 'string' }, start_here: { type: 'string' } } },
   { name: 'execute_draft', handler: executeDraft, fullOnly: true, description: 'Execute an approved GTT plan. Refuses unless the investor typed "approve <code>" for this exact draft. Places first, deletes after.', props: { code: { type: 'string' } }, required: ['code'] },
 ];
@@ -441,7 +493,7 @@ function listTools(edition) {
 }
 
 function makeContext(overrides = {}) {
-  return { edition: process.env.PORTFOLIO_EDITION || 'full', brokers: defaultBrokers(), now: () => new Date(), ...overrides };
+  return { edition: process.env.PORTFOLIO_EDITION || 'full', brokers: defaultBrokers(), now: () => new Date(), github: { token: process.env.PORTFOLIO_COPILOT_GITHUB_TOKEN || process.env.GITHUB_TOKEN, repo: process.env.PORTFOLIO_COPILOT_GAP_REPO || gapLib.DEFAULT_REPO, fetch: globalThis.fetch }, ...overrides };
 }
 
 async function callTool(name, args, ctx) {

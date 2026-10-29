@@ -19,7 +19,7 @@ function run(input) {
   }
   const parts = [];
   if (approved.length) parts.push(`Investor approved ${approved.map((a) => `${a.code} (${a.rows} rows)`).join(', ')}. You may now call execute_draft for exactly these codes.`);
-  if (missing && missing.length) parts.push(`No open draft found for ${missing.join(', ')}; nothing was approved for it.`);
+  if (missing && missing.length) parts.push(`No open draft found for ${missing.join(', ')} on this machine; nothing was approved for it. If the draft was made on the investor's PC (a cloud session linked to a device), approval cannot be recorded from here: tell them to type the same approve line in Claude Code on the PC. Do not work around this.`);
   return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: parts.join(' ') } };
 }
 

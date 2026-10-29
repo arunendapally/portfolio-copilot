@@ -164,3 +164,10 @@ test('drafts live in the working folder state, not the repo', async () => {
   const { folder, code } = await planned();
   assert.ok(fs.existsSync(path.join(folder, 'portfolio-copilot', 'drafts', `${code}.json`)));
 });
+
+test('approving a draft that lives on another machine says to approve on the PC', async () => {
+  const { folder } = tmpEnv();
+  const out = approve.run({ prompt: 'approve DABCD', cwd: folder });
+  assert.match(out.hookSpecificOutput.additionalContext, /No open draft found for DABCD on this machine/);
+  assert.match(out.hookSpecificOutput.additionalContext, /Claude Code on the PC/);
+});

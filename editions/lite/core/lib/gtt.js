@@ -40,7 +40,13 @@ function median(xs) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-function audit(snap, prev, profile, { corporateActions = [] } = {}) {
+// A recorded "keep the stop" decision holds until review_by (inclusive); no review_by means until revoked.
+function stopKept(v, today) {
+  const r = v && v.stop_review;
+  return !!(r && r.decision === 'keep' && (!r.review_by || !today || r.review_by >= today));
+}
+
+function audit(snap, prev, profile, { corporateActions = [], today = null } = {}) {
   const pol = profile.gtt_policy;
   const kite = (snap.brokers && snap.brokers.kite) || { holdings: [], gtts: [] };
   const holdings = (kite.holdings || []).filter((h) => h.type === 'equity' || h.type === 'etf');
@@ -82,7 +88,10 @@ function audit(snap, prev, profile, { corporateActions = [] } = {}) {
     }
     if (cls === 'hold') {
       if (stop === null) issues.push({ code: 'no_crash_floor', severity: 'info', text: `no crash-floor stop (policy: about ${pol.crash_floor_pct}% below)` });
-      else if (dist < pol.min_stop_distance_pct) issues.push({ code: 'stop_too_tight', severity: 'warn', text: `stop ${round(dist, 1)}% below price; policy minimum ${pol.min_stop_distance_pct}%` });
+      else if (dist < pol.min_stop_distance_pct) {
+        if (stopKept(v, today)) issues.push({ code: 'stop_kept', severity: 'info', text: `stop ${round(dist, 1)}% below price, kept by decision on ${v.stop_review.at || 'an earlier date'}${v.stop_review.review_by ? ` (review by ${v.stop_review.review_by})` : ''}` });
+        else issues.push({ code: 'stop_too_tight', severity: 'warn', text: `stop ${round(dist, 1)}% below price; policy minimum ${pol.min_stop_distance_pct}%` });
+      }
     }
     if (stop !== null && dist !== null && dist >= 0 && dist <= NEAR_PCT) issues.push({ code: 'near_stop', severity: 'warn', text: `stop ${stop} is ${round(dist, 1)}% below live price` });
     if (target !== null && h.ltp && ((target - h.ltp) / h.ltp) * 100 <= NEAR_PCT && target >= h.ltp) issues.push({ code: 'near_target', severity: 'info', text: `target ${target} within ${NEAR_PCT}% of live price` });
@@ -124,9 +133,11 @@ function audit(snap, prev, profile, { corporateActions = [] } = {}) {
     }
   }
 
+  const isKept = (r) => r.issues.some((i) => i.code === 'stop_kept');
   const crash = (pol.crash_test_pcts || []).map((p) => {
     const fires = rows.filter((r) => r.stop !== null && r.stop >= r.ltp * (1 - p / 100));
-    return { move_pct: -p, fires: fires.map((r) => ({ symbol: r.symbol, class: r.class, stop: r.stop })), hold_names_firing: fires.filter((r) => r.class === 'hold').map((r) => r.symbol) };
+    const holds = fires.filter((r) => r.class === 'hold');
+    return { move_pct: -p, fires: fires.map((r) => ({ symbol: r.symbol, class: r.class, stop: r.stop })), hold_names_firing: holds.filter((r) => !isKept(r)).map((r) => r.symbol), kept_names_firing: holds.filter(isKept).map((r) => r.symbol) };
   });
   const worst = crash[crash.length - 1];
   const summary = {
@@ -168,7 +179,7 @@ function plan(auditResult, snap, profile, { symbols } = {}) {
       else notes.push(`${r.symbol}: ${r.stance.toUpperCase()} verdict has no exit_level; write one to plan this GTT`);
     } else if (r.class === 'hold' && (codes.has('stop_too_tight') || codes.has('no_crash_floor') || codes.has('qty_short') || codes.has('double_coverage') || codes.has('no_gtt'))) {
       const floor = tick(r.ltp * (1 - pol.crash_floor_pct / 100));
-      const keepStop = r.stop !== null && r.stop_distance_pct >= pol.min_stop_distance_pct ? r.stop : floor;
+      const keepStop = r.stop !== null && (r.stop_distance_pct >= pol.min_stop_distance_pct || codes.has('stop_kept')) ? r.stop : floor;
       want = { stop: keepStop, target: r.target };
       reason = codes.has('stop_too_tight') ? `widen stop to crash floor ${pol.crash_floor_pct}% below` : codes.has('no_crash_floor') || codes.has('no_gtt') ? 'add crash-floor stop' : 'match GTT quantity to holding';
     } else if (codes.has('qty_short') || codes.has('double_coverage')) {

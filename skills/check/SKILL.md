@@ -1,6 +1,6 @@
 ---
 name: check
-description: Portfolio check across all brokers. Use for "check my portfolio", "daily briefing", "morning briefing", "open session", "portfolio check", "pull my portfolio", "mid-day check", "EOD analysis", "macro brief", "import my holdings", or any portfolio question that needs live numbers. Also the scheduled daily run.
+description: Portfolio check across all brokers, and working through the investor's open action list. Use for "work through my to-dos", "do my open actions", "check my portfolio", "daily briefing", "morning briefing", "open session", "portfolio check", "pull my portfolio", "mid-day check", "EOD analysis", "macro brief", "import my holdings", or any portfolio question that needs live numbers. Also the scheduled daily run.
 ---
 
 # Check
@@ -27,10 +27,19 @@ Also search held stock symbols for upcoming bonus, split or demerger ex-dates. I
 2. The `refresh` text: broker lines, needs attention, changes since last snapshot, brokers, positions, allocation.
 3. Macro table (morning) and any corporate-action GTT risk.
 4. Close (EOD): add `gtt_audit` summary line.
-SIP status is not readable from any broker: ask, don't infer.
+SIP status is not readable from any broker: call `protection_check` to show the SIPs the investor has confirmed; if none are saved, ask, don't infer, and save them with `profile_update` only after they confirm.
 
 ## 5. Log
 Call `log_append` with a 3-5 line entry (what was pulled, totals, what changed, anything flagged). Rewrite `start_here` only when goals, next actions or decisions owed change. Never edit a verdict; log the contradiction.
+
+## Open actions ("work through my to-dos")
+1. Read the open actions: the Todoist project for portfolio actions (Todoist tools, find-tasks; ask which project if unclear), else the "Start here" block of the log.
+2. Take them one at a time. Map each to the skill or tool that does it: GTT work to `gtt`, a stock review to `analyze`, risk, buffer or rebalancing to `risk`, a number the investor holds to `profile_update`, SIP, cover and buffer inputs to `protection_check`.
+3. Run it. Ask the investor only for inputs the plugin cannot get (a number, a decision). Never guess one.
+4. Complete the Todoist task (complete-tasks) only after the work is done and verified, and `log_append` it. An action no tool can do stays open: call `report_gap` for it.
+
+## Gaps
+When a tool says "not supported", a known limitation, or errors with no fallback, call `report_gap` (title, what was attempted, what is missing, the error). Never put quantities, prices or P&L in it. Then tell the investor where it was logged.
 
 ## Scheduled run (investor away)
 Do not wait for logins. Run `broker_status` once, then `check` (last snapshot, clearly dated) and the macro read, then one line per broker that needs login. Nothing is presented as live unless the tool says live.

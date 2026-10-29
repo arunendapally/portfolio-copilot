@@ -13,6 +13,7 @@ Stops protect against a broken thesis, not a market-wide fall.
 4. No verdict means hold.
 5. Every audit includes the crash test (-10%, -20%); no hold/add name should fire at -20%.
 6. GTT quantity equals held quantity.
+7. A hold name whose stop is tighter than the minimum but carries `verdicts.<SYMBOL>.stop_review` with `decision: "keep"` is shown as "kept by decision" until its `review_by` date; the audit, crash test and plan leave that stop alone. After `review_by` it is flagged again.
 This policy lives in portfolio-core; do not restate or improvise thresholds.
 
 ## Steps
