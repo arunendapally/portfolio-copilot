@@ -62,7 +62,12 @@ function audit(snap, prev, profile, { corporateActions = [], today = null } = {}
     const issues = [];
     let stop = null;
     let target = null;
-    for (const g of mine) {
+    // Several GTTs on a hold name: one that already meets policy at full quantity is the keeper.
+    const keep = cls === 'hold' && mine.length > 1 ? mine.find((g) => {
+      const l = legsOf(g, h.ltp);
+      return l.stop !== null && h.ltp && (100 * (h.ltp - l.stop)) / h.ltp >= pol.min_stop_distance_pct && sellQty(g) >= h.qty;
+    }) : null;
+    for (const g of keep ? [keep] : mine) {
       const l = legsOf(g, h.ltp);
       if (l.stop !== null) stop = stop === null ? l.stop : Math.max(stop, l.stop);
       if (l.target !== null) target = target === null ? l.target : Math.min(target, l.target);
@@ -109,7 +114,7 @@ function audit(snap, prev, profile, { corporateActions = [], today = null } = {}
         });
       }
     }
-    rows.push({ symbol: h.symbol, class: cls, stance: v.stance, implicit_verdict: !!v.implicit, qty: h.qty, ltp: h.ltp, value: round(h.qty * h.ltp), stop, target, stop_distance_pct: dist === null ? null : round(dist, 1), gtt_ids: mine.map((g) => g.id), issues });
+    rows.push({ symbol: h.symbol, class: cls, stance: v.stance, implicit_verdict: !!v.implicit, qty: h.qty, ltp: h.ltp, value: round(h.qty * h.ltp), stop, target, stop_distance_pct: dist === null ? null : round(dist, 1), gtt_ids: mine.map((g) => g.id), keep_id: keep ? keep.id : null, issues });
   }
 
   // Outliers: stops much tighter than the book's own convention.
@@ -170,6 +175,11 @@ function plan(auditResult, snap, profile, { symbols } = {}) {
     const h = holdings.get(r.symbol);
     let want = null;
     let reason = '';
+    // A compliant GTT already covers the full quantity: only remove the duplicates.
+    if (r.keep_id && codes.has('double_coverage') && !['stop_too_tight', 'no_crash_floor', 'qty_short', 'no_gtt', 'etf_stop', 'exit_stop', 'exit_missing'].some((c) => codes.has(c))) {
+      for (const id of r.gtt_ids.filter((x) => x !== r.keep_id)) deletes.push({ action: 'delete', symbol: r.symbol, gtt_id: id, reason: `duplicate: #${r.keep_id} already meets policy` });
+      continue;
+    }
     if (r.class === 'etf' && codes.has('etf_stop')) {
       if (r.target !== null) { want = { stop: null, target: r.target }; reason = 'ETF: keep target, remove stop'; }
       else { notes.push(`${r.symbol}: ETF stop to remove; no target on file, so no replacement is placed`); }

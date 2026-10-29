@@ -158,3 +158,14 @@ test('a keep decision lapses after review_by and invalid ones are rejected', () 
   p.verdicts.SBIN.stop_review = { decision: 'maybe' };
   assert.ok(profiles.validate(p).some((e) => /stop_review\.decision/.test(e)));
 });
+
+test('duplicate GTTs: keep the compliant one, delete only the other (TMCV, 29-Oct)', () => {
+  const p = profile();
+  const s = snapOf(fixture('kite-book.json'), p);
+  const a = gtt.audit(s, null, p);
+  const row = a.rows.find((r) => r.symbol === 'LUPIN');
+  assert.strictEqual(row.keep_id, 7); // 25% below at full quantity
+  assert.ok(row.issues.some((i) => i.code === 'double_coverage'));
+  const mine = gtt.plan(a, s, p, { symbols: ['LUPIN'] }).rows.filter((r) => r.symbol === 'LUPIN');
+  assert.deepStrictEqual(mine.map((r) => [r.action, r.gtt_id]), [['delete', 8]]);
+});
