@@ -32,9 +32,6 @@ const DEFAULTS = Object.freeze({
   protection: { term_cover_inr: null, health_cover: 'unknown', emergency_fund_inr: null, monthly_expenses_inr: null },
   // corpus_source: text matched against holding symbols and fund names (e.g. "ARBITRAGE") to read the corpus live.
   deployment_plan: { index: 'NIFTY 50', corpus_inr: null, corpus_source: null, stages: [], destinations: [] },
-  // allow_remote_approval: a cloud chat linked to this PC may execute drafts approved there,
-  // trusting the cloud-side order gate. Off by default (issue #9).
-  orders: { allow_remote_approval: false },
 });
 
 function isObj(v) {
@@ -64,7 +61,6 @@ function validate(p) {
   };
   if (!['conservative', 'balanced', 'aggressive'].includes(p.investor.risk)) errs.push('investor.risk: conservative | balanced | aggressive');
   if (!['broker', 'bank'].includes(p.cash.buffer_location)) errs.push('cash.buffer_location: broker | bank');
-  if (typeof p.orders.allow_remote_approval !== 'boolean') errs.push('orders.allow_remote_approval: true | false');
   num(p.cash.buffer_min_pct, 'cash.buffer_min_pct', 0, 100);
   num(p.cash.buffer_max_pct, 'cash.buffer_max_pct', 0, 100);
   for (const k of ['single_stock_pct', 'sector_pct', 'fund_house_pct']) num(p.limits[k], `limits.${k}`, 0, 100);

@@ -34,12 +34,8 @@ function run(input, now = new Date()) {
   for (const code of codes) {
     let hit = null;
     for (const folder of candidateFolders(input)) hit = hit || drafts.approve(folder, code, now);
-    if (hit) parts.push(`Investor approved ${code} (${hit.rows} rows). You may now call execute_draft with code ${code}.`);
-    else {
-      // The draft lives on a linked computer this hook cannot read: record the click for the gate.
-      drafts.recordRemote(code, now);
-      parts.push(`Investor approved ${code}. The draft is on the linked computer: call execute_draft with code ${code} and remote_approval true (allowed once).`);
-    }
+    if (hit) parts.push(`Investor approved ${code} (${hit.rows} rows). Make the calls listed in the draft, exactly as shown; the order gate allows each once.`);
+    else parts.push(`Investor clicked Yes for ${code}, but no open draft ${code} exists in this chat or on this machine. Draft it again here.`);
   }
   return { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: parts.join(' ') } };
 }

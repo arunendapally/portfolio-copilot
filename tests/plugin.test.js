@@ -16,9 +16,9 @@ const ORDER_TOOL_NAMES = [
   'mcp__kite__place_gtt_order', 'mcp__kite__delete_gtt_order', 'mcp__kite__place_order', 'mcp__kite__cancel_order',
   'mcp__plugin_portfolio-copilot_kite__place_gtt_order', 'mcp__plugin_portfolio-copilot_kite__modify_gtt_order',
   'mcp__remote-devices__kite__place_gtt_order', 'mcp__remote-devices__plugin_portfolio-copilot_kite__delete_gtt_order',
-  'mcp__plugin_portfolio-copilot_portfolio-core__execute_draft',
+  'mcp__claude_ai_Interactive_Brokers_IBKR__create_order_instruction', 'mcp__claude_ai_Interactive_Brokers_IBKR__submit_order',
 ];
-const NOT_ORDER_TOOLS = ['mcp__kite__get_gtts', 'mcp__kite__get_orders', 'mcp__kite__get_order_history', 'mcp__plugin_portfolio-copilot_portfolio-core__draft_gtt_plan', 'Bash', 'mcp__kotak-neo__get_order_book'];
+const NOT_ORDER_TOOLS = ['mcp__kite__get_gtts', 'mcp__kite__get_orders', 'mcp__kite__get_order_history', 'mcp__claude_ai_Interactive_Brokers_IBKR__get_account_orders', 'Bash', 'mcp__kotak-neo__get_order_book'];
 
 test('hooks.json has the documented {"hooks": {...}} shape and only command hooks guard orders', () => {
   const h = json('hooks/hooks.json');
@@ -40,14 +40,22 @@ test('PreToolUse matcher covers every known order tool name and nothing else', (
 });
 
 test('gate script recognises the same names as the matcher', () => {
-  const { ORDER_RE } = require('../hooks/order-gate');
-  for (const n of ORDER_TOOL_NAMES.filter((x) => !x.endsWith('execute_draft'))) assert.ok(ORDER_RE.test(n), n);
+  const { WRITE_RE } = require('../hooks/order-gate');
+  for (const n of ORDER_TOOL_NAMES) assert.ok(WRITE_RE.test(n), n);
+  for (const n of NOT_ORDER_TOOLS) assert.ok(!WRITE_RE.test(n), n);
 });
 
-test('.mcp.json ships only portfolio-core, no local proxies', () => {
-  const m = json('.mcp.json');
-  assert.deepStrictEqual(Object.keys(m.mcpServers), ['portfolio-core']);
-  assert.doesNotMatch(read('.mcp.json'), /mcp-remote|npx/);
+test('capture matcher covers broker read tools on any prefix and no writes', () => {
+  const m = json('hooks/hooks.json').hooks.PostToolUse.find((g) => g.hooks.some((x) => /capture\.js/.test(x.command))).matcher;
+  const re = new RegExp(m);
+  for (const n of ['mcp__kite__get_holdings', 'mcp__kite__get_gtts', 'mcp__remote-devices__kite__get_margins', 'mcp__kotak-neo__get_limits', 'mcp__claude_ai_Interactive_Brokers_IBKR__get_account_positions']) assert.ok(re.test(n), n);
+  for (const n of ORDER_TOOL_NAMES.concat(['Bash', 'mcp__claude_ai_Gmail__list_drafts'])) assert.ok(!re.test(n), `captured by mistake: ${n}`);
+});
+
+test('the plugin ships no MCP server and no broker client: brokers are reached through their own MCPs (#23)', () => {
+  assert.ok(!fs.existsSync(path.join(ROOT, '.mcp.json')));
+  for (const f of ['core/server.js', 'core/lib/mcp-client.js', 'core/lib/brokers/kite.js', 'core/lib/brokers/kotak.js']) assert.ok(!fs.existsSync(path.join(ROOT, f)), `${f} should be gone`);
+  assert.doesNotMatch(read('core/tools.js'), /ctx\.brokers|allow_remote_approval|execute_draft/);
 });
 
 test('core has zero runtime dependencies', () => {
@@ -124,7 +132,9 @@ test('editions/lite is generated from the current source and is lite', () => {
   const { liteFiles, diffLite } = require('../scripts/build');
   const files = liteFiles();
   assert.deepStrictEqual(diffLite(files), [], 'run: node scripts/build.js');
-  assert.strictEqual(JSON.parse(files.get('.mcp.json')).mcpServers['portfolio-core'].env.PORTFOLIO_EDITION, 'lite');
+  assert.ok(!files.has('.mcp.json'));
+  assert.match(files.get('hooks/hooks.json').toString(), /order-gate\.js\\" --edition=lite/);
+  assert.doesNotMatch(read('hooks/hooks.json'), /--edition=lite/, 'the full edition gate is not in deny-all mode');
   assert.strictEqual(JSON.parse(files.get('.claude-plugin/plugin.json')).name, 'portfolio-copilot-lite');
 });
 
@@ -160,7 +170,7 @@ test('version handshake: broker_status warns when hooks and server differ (29-Oc
   assert.ok(out.hookSpecificOutput.additionalContext.includes(`version ${m.version}`));
 });
 
-test('versioning: one declared version, matched by package.json, the server and the changelog', async () => {
+test('versioning: one declared version, matched by package.json and the changelog', async () => {
   const { manifest } = require('../core/lib/version');
   const v = manifest().version;
   assert.match(v, /^\d+\.\d+\.\d+$/, 'semantic version');
@@ -170,15 +180,4 @@ test('versioning: one declared version, matched by package.json, the server and 
   assert.match(read('docs/release.md'), /## Versioning policy/);
   const market = JSON.parse(read('.claude-plugin/marketplace.json'));
   for (const p of market.plugins) assert.strictEqual(p.version, undefined, 'marketplace entries must not carry a second version');
-  const out = [];
-  const { createServer } = require('../core/server');
-  await createServer({ edition: 'full', now: () => new Date() }, (s) => out.push(JSON.parse(s))).receive(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } }));
-  assert.strictEqual(out[0].result.serverInfo.version, v, 'server reports the manifest version');
-});
-
-test('onboarding asks about cloud approval once; refusal and edition guard say what to do (#9, #17)', () => {
-  assert.match(read('skills/get-started/SKILL.md'), /orders\.allow_remote_approval/);
-  assert.match(read('hooks/session-start.js'), /more than one 'portfolio-copilot hooks:' line/);
-  assert.match(read('core/tools.js'), /show the draft again for a fresh click/);
-  assert.doesNotMatch(read('core/tools.js'), /or switch it on with profile_update/);
 });

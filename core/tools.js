@@ -17,60 +17,28 @@ const log = require('./lib/log');
 const protection = require('./lib/protection');
 const gapLib = require('./lib/gap');
 const version = require('./lib/version');
+const inputs = require('./lib/inputs');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
 
 const FOLDER = { folder: { type: 'string', description: "The investor's working folder (absolute path). Pass it on the first call; it is remembered." } };
-
-function defaultBrokers() {
-  return { kite: require('./lib/brokers/kite'), kotak: require('./lib/brokers/kotak') };
-}
 
 // ---------------------------------------------------------------------------------------
 
 async function brokerStatus(args, ctx) {
   const { profile } = profiles.load(args.folder);
+  const now = ctx.now();
   const rows = [];
-  const links = [];
   const out = {};
   for (const name of ['kite', 'kotak']) {
     if (!profile.brokers[name] || !profile.brokers[name].enabled) { out[name] = { status: 'disabled' }; continue; }
-    const s = await ctx.brokers[name].status();
-    out[name] = s;
-    if (s.status === 'needs_login') {
-      if (name === 'kite') {
-        const l = await ctx.brokers.kite.login();
-        if (l.ok) { s.link = l.link; links.push(`Zerodha: [log in to Kite](${l.link}) then say "done"`); }
-        else s.error = l.error;
-      } else if (profile.brokers.kotak.ucc) {
-        const l = await ctx.brokers.kotak.loginStart(profile.brokers.kotak.ucc);
-        if (l.ok) { s.link = l.link; links.push(`Kotak Neo: ${l.link ? `[open login](${l.link})` : 'check the Kotak app'}. ${l.instructions}`); }
-        else s.error = l.error;
-      } else s.error = 'No Kotak UCC on file: profile_update brokers.kotak.ucc';
-    }
-    rows.push([name, s.status, s.status === 'outage' ? `outage: ${s.detail}. Do not log in again; retry later.` : s.error || s.detail || s.user || '']);
+    const r = inputs.pull(name, profile, now);
+    out[name] = { status: r.status, as_of: r.as_of || null };
+    rows.push([name, r.status.replace('_', ' '), r.status === 'live' ? `data ${istStamp(new Date(r.as_of))}` : r.detail]);
   }
   if (profile.brokers.ibkr && profile.brokers.ibkr.enabled) rows.push(['ibkr', 'via connector', 'call get_account_summary (and positions) on the IBKR connector, then ingest']);
   const warn = version.mismatch({ plugin: args.hook_plugin, version: args.hook_version });
-  const text = [`**Broker status** · ${istStamp(ctx.now())}`, ...(warn ? [warn] : []), table(['Broker', 'Status', 'Detail'], rows), links.length ? `\nLog in (links come straight from each broker's login tool):\n- ${links.join('\n- ')}` : ''].join('\n');
+  const text = [`**Broker status** · ${istStamp(now)} · reads come from the brokers' own MCP tools, captured in this chat`, ...(warn ? [warn] : []), table(['Broker', 'Status', 'Detail'], rows)].join('\n');
   return { ok: true, brokers: out, text };
-}
-
-async function brokerLogin(args, ctx) {
-  const { profile } = profiles.load(args.folder);
-  if (args.broker === 'kite') {
-    const l = await ctx.brokers.kite.login();
-    return l.ok ? { ok: true, link: l.link, text: `[Log in to Kite](${l.link}), then say "done".` } : { ok: false, error: l.error, text: l.error };
-  }
-  if (args.broker === 'kotak') {
-    if (args.step === 'validate') {
-      const v = await ctx.brokers.kotak.loginValidate();
-      return v.ok ? { ok: true, text: 'Kotak Neo session validated.' } : { ok: false, error: v.error, text: `${v.error}${v.detail ? `: ${v.detail}` : ''}` };
-    }
-    const ucc = args.ucc || profile.brokers.kotak.ucc;
-    const l = await ctx.brokers.kotak.loginStart(ucc);
-    return l.ok ? { ok: true, link: l.link, text: `${l.link ? `[Open Kotak login](${l.link}). ` : ''}${l.instructions}` } : { ok: false, error: l.error, text: l.error };
-  }
-  return { ok: false, error: 'broker must be kite or kotak', text: 'broker must be kite or kotak' };
 }
 
 function todaySnapshot(folder, now) {
@@ -102,28 +70,11 @@ async function refresh(args, ctx) {
   for (const name of ['kite', 'kotak']) {
     if (args.brokers && !args.brokers.includes(name)) continue;
     if (!profile.brokers[name] || !profile.brokers[name].enabled) continue;
-    const s = await ctx.brokers[name].status();
-    let block = null;
-    if (s.status === 'live') {
-      try {
-        if (name === 'kite') {
-          const raw = await ctx.brokers.kite.fetchAll();
-          const holdings = [...norm.kiteHoldings(raw.holdings, profile), ...norm.kiteMfHoldings(raw.mf)];
-          const c = snapshotLib.floorCash(norm.kiteCash(raw.margins));
-          block = { status: 'live', as_of: now.toISOString(), holdings, gtts: norm.kiteGtts(raw.gtts), orders: norm.kiteOrders(raw.orders), cash: c.cash, cash_note: c.note, mf_folio_count: holdings.filter((h) => h.type === 'mf').length };
-        } else {
-          const raw = await ctx.brokers.kotak.fetchAll(profile);
-          const c = snapshotLib.floorCash(raw.cash);
-          block = { status: 'live', as_of: now.toISOString(), holdings: raw.holdings, gtts: [], orders: [], cash: c.cash, cash_note: c.note, mf_folio_count: raw.holdings.filter((h) => h.type === 'mf').length };
-        }
-      } catch (e) {
-        s.status = e.code === 'NEEDS_LOGIN' ? 'needs_login' : e.code === 'KOTAK_FORMAT' ? 'format_error' : 'outage';
-        s.detail = e.message.slice(0, 200);
-      }
-    }
+    const r = inputs.pull(name, profile, now);
+    const s = { status: r.status, detail: r.detail };
     const key = `${name}:verification`;
-    if (block) {
-      snap.brokers[name] = block;
+    if (r.block) {
+      snap.brokers[name] = r.block;
       snap.unverified[key] = 0;
       pulled.push(name);
     } else {
@@ -267,13 +218,18 @@ async function gttAudit(args, ctx) {
   return { ok: true, unverified: stale, summary: a.summary, findings: flagged.length, text: L.join('\n') };
 }
 
+function callsBlock(d) {
+  return ['Calls to make after Yes, in this order, with exactly these arguments (the order gate allows each once):']
+    .concat(d.rows.map((r) => `${r.step}. ${r.tool} ${JSON.stringify(r.args)}`)).join('\n');
+}
+
 function planText(d, ctx, notes = []) {
   const rows = d.rows.map((r) => r.action === 'place'
     ? [r.step, 'PLACE', r.symbol, r.args.trigger_type, r.args.trigger_type === 'two-leg' ? `${r.args.lower_trigger_value} / ${r.args.upper_trigger_value}` : r.args.trigger_value, r.args.trigger_type === 'two-leg' ? r.args.lower_quantity : r.args.quantity, r.reason]
     : [r.step, 'DELETE', r.symbol, `#${r.gtt_id}`, '', '', r.reason]);
   const how = ctx.edition === 'lite'
-    ? 'Enter these in Kite web (Orders > GTT): place every new GTT first, then delete the old ones, then run refresh to verify.'
-    : `To execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. Then call execute_draft. Places run first; deletes only after the new GTTs are confirmed.`;
+    ? 'Enter these in Kite web (Orders > GTT): place every new GTT first, then delete the old ones, then read GTTs again and run refresh to verify.'
+    : `To execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. After Yes, call the Kite MCP tools below, places first and deletes only after every place succeeded. If a delete fails in the MCP, delete only those ids in Kite web (Orders > GTT, ticking exactly the planned ids). Then read GTTs again and run refresh and gtt_audit to verify.\n\n${callsBlock(d)}`;
   return [`**GTT plan ${d.code}** · ${d.rows.length} steps`, table(['#', 'Action', 'Symbol', 'Type / id', 'Trigger(s)', 'Qty', 'Why'], rows), notes.length ? `\nNot planned: ${notes.join('; ')}` : '', `\n${how}`].join('\n');
 }
 
@@ -285,20 +241,16 @@ async function draftGttPlan(args, ctx) {
   const a = gtt.audit(snap, prev, profile, { corporateActions: args.corporate_actions || [], today: istDate(ctx.now()) });
   const p = gtt.plan(a, snap, profile, { symbols: args.symbols });
   if (!p.rows.length) return { ok: true, code: null, text: `No GTT changes needed under your policy.${p.notes.length ? ` Not planned: ${p.notes.join('; ')}` : ''}` };
-  const d = drafts.create(args.folder, 'gtt_plan', p.rows);
+  const rows = p.rows.map((r) => (r.action === 'place' ? { ...r, tool: 'place_gtt_order' } : { ...r, tool: 'delete_gtt_order', args: { trigger_id: Number(r.gtt_id) } }));
+  const d = drafts.create(args.folder, 'gtt_plan', rows);
   return { ok: true, code: d.code, rows: d.rows.length, text: planText(d, ctx, p.notes) };
 }
 
-async function pricesFor(symbols, snap, ctx) {
+function pricesFor(symbols, snap) {
   const prices = {};
   for (const [, b] of Object.entries(snap ? snap.brokers : {})) for (const h of b.holdings || []) if (h.ltp && !prices[h.symbol]) prices[h.symbol] = h.ltp;
-  const missing = symbols.filter((s) => !prices[s]);
-  if (missing.length && kiteFresh(snap, ctx.now())) {
-    try {
-      const r = await ctx.brokers.kite.ltp(missing.map((s) => `NSE:${s}`));
-      for (const [k, v] of Object.entries(r)) prices[k.split(':')[1]] = v;
-    } catch { /* reported as missing below */ }
-  }
+  const captured = inputs.ltp();
+  for (const s of symbols) if (!prices[s] && captured[`NSE:${s}`]) prices[s] = captured[`NSE:${s}`];
   return prices;
 }
 
@@ -331,16 +283,19 @@ async function draftBasket(args, ctx) {
   }
   if (!amount) return { ok: false, error: 'amount or stage required', text: 'Give an amount or a stage number.' };
   const snap = state.latestSnapshot(args.folder);
-  const prices = await pricesFor(destinations.map((d) => d.symbol.toUpperCase()), snap, ctx);
+  const prices = pricesFor(destinations.map((d) => d.symbol.toUpperCase()), snap);
   const kite = snap && snap.brokers.kite;
   const b = basket.build({ amount, destinations, prices, cash: kite ? kite.cash : null, profile });
-  const d = drafts.create(args.folder, 'basket', b.rows, { amount, label });
+  const orders = b.rows.map((r) => ({ ...r, tool: 'place_order', args: { variety: 'regular', exchange: r.exchange, tradingsymbol: r.symbol, transaction_type: 'BUY', quantity: r.qty, product: 'CNC', order_type: 'LIMIT', price: r.limit_price } }));
+  const d = drafts.create(args.folder, 'basket', orders, { amount, label });
   const L = [`**Basket draft ${d.code}** · ${label} · ${istStamp(ctx.now())}`];
   if (b.conflicts.length) L.push(`⚠️ ${b.conflicts.join('; ')}`);
   L.push(table(['Symbol', 'Exch', 'Qty', 'LIMIT', 'Amount', 'Basis'], b.rows.map((r) => [r.symbol, r.exchange, r.qty, r.limit_price, inr(r.amount), r.basis])));
   L.push(`Total ${inr(b.total)}${b.cash_left !== null ? ` · Kite cash after ${inr(b.cash_left)}` : ''}`);
-  if (b.missing_prices.length) L.push(`No live price for: ${b.missing_prices.join(', ')} (not included)`);
-  L.push('\nEnter in Kite web: Orders > Baskets > New basket, add each row with type LIMIT at the price shown. Review and press Execute yourself.');
+  if (b.missing_prices.length) L.push(`No live price for: ${b.missing_prices.join(', ')} (not included). Call the Kite MCP get_ltp for ${b.missing_prices.map((x) => `NSE:${x}`).join(', ')} and draft again.`);
+  L.push(ctx.edition === 'lite'
+    ? '\nEnter in Kite web: Orders > Baskets > New basket, add each row with type LIMIT at the price shown. Review and press Execute yourself.'
+    : `\nTo execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. After Yes, call the Kite MCP place_order once per row with exactly the arguments below (the order gate allows each once). Then read orders again to confirm, and run gtt_audit: new shares need a GTT.\n\n${callsBlock(d)}`);
   return { ok: true, code: d.code, total: b.total, conflicts: b.conflicts, text: L.join('\n') };
 }
 
@@ -350,13 +305,9 @@ async function crashCheck(args, ctx) {
   let level = args.index_level;
   let source = 'given';
   if (!level) {
-    try {
-      const r = await ctx.brokers.kite.ltp(['NSE:NIFTY 50']);
-      level = r['NSE:NIFTY 50'];
-      source = `Kite LTP ${istStamp(now)}`;
-    } catch {
-      return { ok: false, error: 'index level unknown', text: 'Give index_level (Kite is not live to fetch it).' };
-    }
+    level = inputs.ltp()['NSE:NIFTY 50'];
+    source = 'Kite get_ltp, captured in this chat';
+    if (!level) return { ok: false, error: 'index level unknown', text: 'Give index_level, or call the Kite MCP get_ltp for NSE:NIFTY 50 first.' };
   }
   const snap = state.latestSnapshot(args.folder);
   const L = [`**Crash check** · ${profile.deployment_plan.index} at ${level} (${source})`];
@@ -470,62 +421,26 @@ async function logAppend(args, ctx) {
   return { ok: true, ...r, text: `Logged to ${r.path}${r.archived.length ? ` (archived ${r.archived.join(', ')})` : ''}.` };
 }
 
-async function executeDraft(args, ctx) {
-  const code = String(args.code || '').toUpperCase();
-  let v = drafts.verify(args.folder, code, ctx.now());
-  if (!v.ok && args.remote_approval === true) {
-    // Approved in a cloud chat linked to this PC; the cloud order gate let this call through (issue #9).
-    const { profile } = profiles.load(args.folder);
-    if (!profile.orders.allow_remote_approval) return { ok: false, error: 'remote approvals are off', text: 'Not executed: approvals from a linked cloud chat are switched off on this computer (orders.allow_remote_approval = false). Ask the investor once, with an inline question, whether cloud chats linked to this computer may execute drafts they approve by clicking. On Yes, save orders.allow_remote_approval = true with profile_update, then show the draft again for a fresh click. On No, they approve in Claude Code on this computer.' };
-    const r = drafts.acceptRemote(args.folder, code, ctx.now());
-    if (!r.ok) return { ok: false, error: r.reason, text: `Not executed: ${r.reason}.` };
-    v = drafts.verify(args.folder, code, ctx.now());
-  }
-  if (!v.ok) return { ok: false, error: v.reason, text: `Not executed: ${v.reason}. Ask the investor with the inline question ("No, don't place" / "Yes, place ${code}") after showing the draft.` };
-  const d = v.draft;
-  if (d.kind !== 'gtt_plan') return { ok: false, error: 'only GTT plans execute here', text: 'Baskets are entered and executed by you in Kite web; there is no basket API.' };
-  const results = [];
-  const places = d.rows.filter((r) => r.action === 'place');
-  const deletes = d.rows.filter((r) => r.action === 'delete');
-  for (const r of places) {
-    try {
-      const res = await ctx.brokers.kite.placeGtt(r.args);
-      results.push({ step: r.step, ok: true, detail: typeof res === 'object' ? res : String(res).slice(0, 120) });
-    } catch (e) {
-      results.push({ step: r.step, ok: false, detail: e.message.slice(0, 160) });
-    }
-  }
-  const placeFailed = results.some((x) => !x.ok);
-  if (!placeFailed) {
-    for (const r of deletes) {
-      try {
-        await ctx.brokers.kite.deleteGtt(r.gtt_id);
-        results.push({ step: r.step, ok: true, detail: 'deleted' });
-      } catch (e) {
-        results.push({ step: r.step, ok: false, manual: true, detail: `delete failed (${e.message.slice(0, 80)}): delete #${r.gtt_id} in Kite web` });
-      }
-    }
-  }
-  d.status = 'executed';
-  d.executed_at = ctx.now().toISOString();
-  d.results = results;
-  drafts.save(args.folder, d);
-  const manual = results.filter((x) => x.manual).map((x) => d.rows[x.step - 1].gtt_id);
-  return {
-    ok: !placeFailed, results,
-    text: [`**Executed ${d.code}**`, table(['#', 'Result', 'Detail'], results.map((x) => [x.step, x.ok ? 'ok' : 'FAILED', typeof x.detail === 'string' ? x.detail : JSON.stringify(x.detail).slice(0, 100)])),
-      placeFailed ? 'A placement failed, so no old GTT was deleted. Nothing is left unprotected.' : '',
-      manual.length ? `Delete manually in Kite web (Orders > GTT): ${manual.map((id) => `#${id}`).join(', ')}` : '',
-      'Run refresh, then gtt_audit, to verify the final state.'].filter(Boolean).join('\n'),
-  };
+// Rows for orders the plan builders do not draft (IBKR instructions, cancel or modify an open order).
+const ORDER_TOOLS = ['place_order', 'modify_order', 'cancel_order', 'create_order_instruction', 'submit_order'];
+
+async function draftOrders(args, ctx) {
+  const rows = (args.rows || []).map((r, i) => ({ step: i + 1, tool: String(r.tool || ''), symbol: r.symbol || '', reason: r.reason || '', args: r.args || {} }));
+  if (!rows.length) return { ok: false, error: 'rows required', text: 'Give rows: [{tool, args, symbol?, reason?}].' };
+  const bad = rows.find((r) => !ORDER_TOOLS.includes(r.tool));
+  if (bad) return { ok: false, error: `tool ${bad.tool} not allowed`, text: `Row ${bad.step}: tool must be one of ${ORDER_TOOLS.join(', ')}.` };
+  const d = drafts.create(args.folder, 'orders', rows, { label: args.label || 'orders' });
+  const how = ctx.edition === 'lite'
+    ? 'Enter these at the broker yourself.'
+    : `To execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. After Yes, make the calls below.\n\n${callsBlock(d)}`;
+  return { ok: true, code: d.code, rows: rows.length, text: [`**Order draft ${d.code}** · ${d.label}`, table(['#', 'Tool', 'Symbol', 'Arguments', 'Why'], rows.map((r) => [r.step, r.tool, r.symbol, JSON.stringify(r.args), r.reason])), `\n${how}`].join('\n') };
 }
 
 // ---------------------------------------------------------------------------------------
 
 const TOOLS = [
-  { name: 'broker_status', handler: brokerStatus, description: 'Check every enabled broker independently: live, needs_login (with a login link returned by that broker), outage, or disabled. Call first in every session. Pass hook_plugin and hook_version from the session-start context so a version or edition mismatch is reported.', props: { hook_plugin: { type: 'string' }, hook_version: { type: 'string' } } },
-  { name: 'broker_login', handler: brokerLogin, description: 'Start a broker login (kite: returns link; kotak: start returns link + QR steps, validate confirms after the investor scans).', props: { broker: { type: 'string', enum: ['kite', 'kotak'] }, step: { type: 'string', enum: ['start', 'validate'] }, ucc: { type: 'string' } }, required: ['broker'] },
-  { name: 'refresh', handler: refresh, description: "Pull all live brokers, save today's snapshot, and return the consolidated portfolio check (totals, cash, alerts, trade audit, changes since last snapshot).", props: { brokers: { type: 'array', items: { type: 'string' } } } },
+  { name: 'broker_status', handler: brokerStatus, description: 'Report, per enabled broker, whether its reads were captured from the broker MCP in this chat: live, needs_login, not_connected, stale or outage. Call first in every session. Pass hook_plugin and hook_version from the session-start context so a version or edition mismatch is reported.', props: { hook_plugin: { type: 'string' }, hook_version: { type: 'string' } } },
+  { name: 'refresh', handler: refresh, description: "Build today's snapshot from the broker reads captured in this chat (call the broker MCP read tools first), and return the consolidated portfolio check (totals, cash, alerts, trade audit, changes since last snapshot).", props: { brokers: { type: 'array', items: { type: 'string' } } } },
   { name: 'ingest', handler: ingest, description: "Add holdings from a broker core does not connect to (IBKR connector output, or a holdings CSV statement) to today's snapshot. Foreign currency needs fx_rate and fx_source.", props: { broker: { type: 'string' }, holdings: { type: 'array', items: { type: 'object' } }, csv_path: { type: 'string' }, cash: { type: 'number' }, currency: { type: 'string' }, fx_rate: { type: 'number' }, fx_source: { type: 'string' }, source: { type: 'string' } }, required: ['broker'] },
   { name: 'check', handler: check, description: 'Re-render the consolidated portfolio check from the latest snapshot without pulling brokers.', props: {} },
   { name: 'gtt_audit', handler: gttAudit, description: "Audit Kite GTTs against the investor's policy: per-symbol quantity gaps, policy violations, crash test, outliers, orphans, cancelled GTTs, corporate-action re-scoring.", props: { corporate_actions: { type: 'array', items: { type: 'object', properties: { symbol: { type: 'string' }, kind: { type: 'string', enum: ['bonus', 'split', 'demerger', 'dividend'] }, ratio: { type: 'string' }, price_factor: { type: 'number' }, ex_date: { type: 'string' }, confirmed: { type: 'boolean' } } } } } },
@@ -539,7 +454,7 @@ const TOOLS = [
   { name: 'verdict_notes', handler: verdictNotes, description: 'Render the saved verdicts (with reasons, exit levels and stop decisions) as text the investor can paste into their notes file.', props: {} },
   { name: 'report_gap', handler: reportGap, description: 'Record something the plugin cannot do: always logged to the feedback file, and filed as a GitHub issue labelled gap (or commented on an open duplicate) when a token is configured. Never include quantities, prices or P&L.', props: { title: { type: 'string' }, attempted: { type: 'string' }, missing: { type: 'string' }, output: { type: 'string' } }, required: ['title', 'missing'] },
   { name: 'log_append', handler: logAppend, description: 'Append a dated entry to the log and optionally rewrite the "Start here" block. Older months archive automatically.', props: { text: { type: 'string' }, start_here: { type: 'string' } } },
-  { name: 'execute_draft', handler: executeDraft, fullOnly: true, description: 'Execute an approved GTT plan. Refuses unless the investor clicked "Yes, place <code>" for this exact draft. Places first, deletes after.', props: { code: { type: 'string' }, remote_approval: { type: 'boolean', description: 'Only when the approval hook says the draft is on the linked computer.' } }, required: ['code'] },
+  { name: 'draft_orders', handler: draftOrders, description: 'Draft explicit broker order calls (IBKR create_order_instruction, cancel or modify an open Kite order) so the order gate can allow exactly those calls once the investor clicks Yes.', props: { label: { type: 'string' }, rows: { type: 'array', items: { type: 'object', properties: { tool: { type: 'string' }, args: { type: 'object' }, symbol: { type: 'string' }, reason: { type: 'string' } } } } }, required: ['rows'] },
 ];
 
 function listTools(edition) {
@@ -551,7 +466,7 @@ function listTools(edition) {
 }
 
 function makeContext(overrides = {}) {
-  return { edition: process.env.PORTFOLIO_EDITION || 'full', brokers: defaultBrokers(), now: () => new Date(), github: { token: process.env.PORTFOLIO_COPILOT_GITHUB_TOKEN || process.env.GITHUB_TOKEN, repo: process.env.PORTFOLIO_COPILOT_GAP_REPO || gapLib.DEFAULT_REPO, fetch: globalThis.fetch }, ...overrides };
+  return { edition: process.env.PORTFOLIO_EDITION || (/-lite$/.test(version.manifest().name) ? 'lite' : 'full'), now: () => new Date(), github: { token: process.env.PORTFOLIO_COPILOT_GITHUB_TOKEN || process.env.GITHUB_TOKEN, repo: process.env.PORTFOLIO_COPILOT_GAP_REPO || gapLib.DEFAULT_REPO, fetch: globalThis.fetch }, ...overrides };
 }
 
 async function callTool(name, args, ctx) {

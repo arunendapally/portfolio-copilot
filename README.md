@@ -37,15 +37,15 @@ Then say **"get started"** in a new chat.
 ## How it works
 
 ```
-Hosted broker MCPs (Kite, Kotak Neo)   one connection each, owned by portfolio-core
-              │ raw payloads stay here
-portfolio-core (bundled, Node, zero deps)   normalize · snapshot · audit · policy · drafts
+Broker MCPs (Kite, Kotak Neo, IBKR)   your own connections; the plugin holds no broker login
+              │ a hook saves every read, so no number is retyped
+pc.js (bundled script, Node, zero deps)   normalize · snapshot · audit · policy · drafts
               │ small, pre-computed results
 Skills (6, thin)                       when to run what, what to show, what to ask
 ```
 
 - **Numbers come from code.** The model never parses broker payloads or does portfolio arithmetic, so the same data gives the same answer every time.
-- **One login per broker per day.** portfolio-core keeps its Kite session on disk, so a Claude restart does not ask you to log in again. Status is reported per broker: live, needs login, or outage.
+- **One login per broker, yours.** The plugin has no broker client and no server, so there is no second session to expire. Status is reported per broker: live, needs login (with the broker MCP's own login), not connected, or outage.
 - **Your rules, in one place.** `portfolio-copilot/profile.json` in your working folder holds your thresholds, GTT policy, where your cash buffer lives, allocation targets, staged deployment plan and per-stock verdicts. Snapshots and a small rotating log sit next to it. Broker session ids stay in `~/.portfolio-copilot/`.
 
 ### Default GTT policy (change any of it in your profile)
@@ -62,19 +62,20 @@ Stops protect against a broken thesis, not a market-wide fall.
 
 | Broker | How |
 |---|---|
-| Zerodha | Live via the hosted Kite MCP, through portfolio-core |
-| Kotak Neo | Live via the hosted Kotak Neo MCP, through portfolio-core (UCC + QR) |
-| Interactive Brokers | Add the IBKR connector; the check skill passes its summary to portfolio-core |
+| Zerodha | Connect the Kite MCP in your chat; reads and GTT or order writes use it |
+| Kotak Neo | Connect the Kotak Neo MCP (UCC + QR); read only, it has no GTTs or orders |
+| Interactive Brokers | Add the IBKR connector; the check skill passes its summary to the engine |
 | Any other | Holdings CSV: say "import my holdings" |
 
-If you already have a standalone Kite or Kotak connector, keep it or remove it; portfolio-core does not depend on it, and the order gate covers its order tools too.
+The plugin works on the broker MCPs you already have, in a plain claude.ai chat or in Claude Code, and matches their tools by name so any prefix works. The order gate covers their order tools.
 
 ## Guardrails
 
 1. **Orders only from approved drafts.**
    - A `PostToolUse` hook records an approval only from your own click ("Yes, place D7K2") in an inline question listing the draft. The approval is bound to a hash of the draft.
-   - A `PreToolUse` hook blocks any order tool call on any server that does not match an approved draft, and blocks approval questions sent with their answers already filled in. Fails closed.
-   - In a cloud chat linked to your PC, the PC accepts the cloud gate's approval only if you set `orders.allow_remote_approval = true`.
+   - A `PreToolUse` hook lets a broker write call through only if its arguments match a row of an approved draft exactly, and only once per row. Anything else is blocked, as are approval questions sent with their answers already filled in. Fails closed. Drafts and approvals live in the same chat as the calls, so there is nothing to approve across machines.
+   - The lite edition's gate denies every broker write.
+   - Limit: if a Kite MCP delete fails, the skill deletes the approved ids in Kite web in your logged-in tab. A hook cannot see browser clicks, so that step is checked by the skill (planned count) and by the audit that follows.
 2. **Always-on house rules** injected at session start.
 3. **No stale data presented as live**: every figure carries its time; carried data is labelled with how many runs it has gone unverified.
 4. **Analysis audit**: the fundamentals-analyst output is checked for sourced numbers and no buy/sell language. A blocked primary source is reported in a fixed `Data gaps` line and marks the analysis PARTIAL.

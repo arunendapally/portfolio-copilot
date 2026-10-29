@@ -25,7 +25,11 @@ test('basket rows stay within target and LIMIT is slightly above last price', as
   assert.strictEqual(nifty.limit_price, 280.85);
   assert.ok(nifty.amount <= 60000 && 60000 - nifty.amount < nifty.limit_price);
   assert.ok(Math.abs(r.total - rows.reduce((a, x) => a + x.amount, 0)) < 0.01);
-  assert.match(r.text, /press Execute yourself/);
+  assert.match(r.text, /Yes, place D/);
+  assert.match(r.text, /place_order \{"variety":"regular","exchange":"NSE","tradingsymbol":"NIFTYBEES","transaction_type":"BUY","quantity":213,"product":"CNC","order_type":"LIMIT","price":280.85\}/);
+  assert.deepStrictEqual([nifty.tool, nifty.args.quantity, nifty.args.price], ['place_order', 213, 280.85]);
+  const lite = await callTool('draft_basket', { folder, amount: 100000 }, { ...ctx, edition: 'lite' });
+  assert.match(lite.text, /press Execute yourself/);
 });
 
 test('basket flags verdict conflicts and cash shortfall', async () => {

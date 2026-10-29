@@ -1,36 +1,39 @@
 #!/usr/bin/env node
 'use strict';
-// PreToolUse: deterministic order gate. Allows an order-capable call only when it matches an
-// investor-approved draft. No model judgment. Any internal error denies (fail closed).
+// PreToolUse: deterministic order gate for the brokers' own MCP tools. A write call passes only
+// when its arguments match a row of a draft the investor approved, and each row passes once.
+// Tools are matched by name suffix, so mcp__kite__*, remote-device and hosted-connector prefixes
+// all work. No model judgment. Any internal error denies (fail closed).
 
 const drafts = require('../core/lib/drafts');
 const { readStdin, candidateFolders } = require('./lib');
 
-const ORDER_RE = /(place|modify|delete|cancel)_(gtt_)?order$/;
+const WRITE_RE = /(^|__)((place|modify|delete|cancel|submit)_(gtt_)?order|create_order_instruction)$/;
 const EPS = 0.01;
+// Informational fields: the live price moves, the tag is only a label.
+const IGNORE = new Set(['last_price', 'tag']);
 
-function near(a, b) {
-  return a !== undefined && b !== undefined && a !== null && b !== null && Math.abs(Number(a) - Number(b)) <= EPS;
+function suffixOf(tool) {
+  return String(tool).split('__').pop();
 }
 
-function sameGtt(input, args) {
-  if (String(input.tradingsymbol || '').toUpperCase() !== String(args.tradingsymbol).toUpperCase()) return false;
-  if ((input.transaction_type || 'SELL') !== args.transaction_type) return false;
-  if ((input.trigger_type || 'single') !== args.trigger_type) return false;
-  if (args.trigger_type === 'two-leg') {
-    return ['lower_trigger_value', 'lower_quantity', 'lower_limit_price', 'upper_trigger_value', 'upper_quantity', 'upper_limit_price'].every((k) => near(input[k], args[k]));
-  }
-  return ['trigger_value', 'quantity', 'limit_price'].every((k) => near(input[k], args[k]));
+function same(a, b) {
+  if (a === undefined || a === null || a === '') return b === undefined || b === null || b === '';
+  if (b === undefined || b === null || b === '') return false;
+  const na = Number(a);
+  const nb = Number(b);
+  if (typeof a !== 'object' && typeof b !== 'object' && Number.isFinite(na) && Number.isFinite(nb)) return Math.abs(na - nb) <= EPS;
+  return String(a).toUpperCase() === String(b).toUpperCase();
 }
 
-function sameBasketOrder(input, row) {
-  return String(input.tradingsymbol || '').toUpperCase() === row.symbol
-    && input.transaction_type === 'BUY'
-    && near(input.quantity, row.qty)
-    && (input.order_type === 'LIMIT' && near(input.price, row.limit_price));
+// Every argument must agree, in both directions: an extra argument the draft did not show is a mismatch.
+function sameArgs(input, rowArgs) {
+  const keys = new Set([...Object.keys(input), ...Object.keys(rowArgs)]);
+  for (const k of keys) if (!IGNORE.has(k) && !same(input[k], rowArgs[k])) return false;
+  return true;
 }
 
-function decide(input, folders, now = new Date()) {
+function decide(input, folders, now = new Date(), opts = {}) {
   const tool = String(input.tool_name || '');
   const args = input.tool_input || {};
 
@@ -41,29 +44,30 @@ function decide(input, folders, now = new Date()) {
     return answered && offersYes ? { allow: false, reason: 'Approval questions are answered by the investor in the question UI; never pre-fill answers.' } : { allow: true };
   }
 
-  if (/execute_draft$/.test(tool)) {
-    const code = String(args.code || '').toUpperCase();
-    for (const f of folders) {
-      const v = drafts.verify(f, code, now);
-      if (v.ok) return { allow: true };
+  if (!WRITE_RE.test(tool)) return { allow: true };
+  if (opts.edition === 'lite') return { allow: false, reason: `Blocked ${tool}: the lite edition never places or changes orders. Draft the plan and enter it at the broker yourself.` };
+
+  const name = suffixOf(tool);
+  let usedBefore = null;
+  const open = [];
+  for (const f of folders) {
+    for (const d of drafts.approvedDrafts(f, now)) {
+      for (let i = 0; i < d.rows.length; i++) {
+        const row = d.rows[i];
+        if (row.tool !== name) continue;
+        const label = `${d.code} step ${row.step || i + 1}`;
+        if (!sameArgs(args, row.args || {})) {
+          if (!drafts.rowUsed(f, d.code, i)) open.push(`${label}: ${name} ${JSON.stringify(row.args)}`);
+        } else if (drafts.rowUsed(f, d.code, i)) usedBefore = label;
+        else if (drafts.claimRow(f, d.code, i)) return { allow: true };
+        else usedBefore = label;
+      }
     }
-    // Cloud session linked to a PC: the click was recorded here; let one call through (issue #9).
-    if (args.remote_approval === true && drafts.CODE_RE.test(code) && drafts.consumeRemote(code, now)) return { allow: true };
-    return { allow: false, reason: `Draft ${code || '(none)'} is not approved by the investor. Show the draft and ask with an inline question whose options are "No, don't place" and "Yes, place ${code || '<code>'}".` };
   }
-
-  if (!ORDER_RE.test(tool)) return { allow: true };
-
-  const approved = folders.flatMap((f) => drafts.approvedDrafts(f, now));
-  const kind = tool.match(ORDER_RE);
-  const op = kind[1];
-  const isGtt = !!kind[2];
-  if (isGtt && op === 'place' && approved.some((d) => d.kind === 'gtt_plan' && d.rows.some((r) => r.action === 'place' && sameGtt(args, r.args)))) return { allow: true };
-  if (isGtt && op === 'delete' && approved.some((d) => d.kind === 'gtt_plan' && d.rows.some((r) => r.action === 'delete' && String(r.gtt_id) === String(args.trigger_id)))) return { allow: true };
-  if (!isGtt && op === 'place' && approved.some((d) => d.kind === 'basket' && d.rows.some((r) => sameBasketOrder(args, r)))) return { allow: true };
+  if (usedBefore) return { allow: false, reason: `Blocked ${tool}: it matches ${usedBefore}, which was already used once. Each approved row runs one time.` };
   return {
     allow: false,
-    reason: `Blocked ${tool}: it does not match any draft the investor approved. Create a draft (draft_gtt_plan / draft_basket), show it, and ask with the inline Yes/No question. Modify and cancel are not drafted: use place-then-delete.`,
+    reason: `Blocked ${tool}: its arguments do not match any row of a draft the investor approved. Create a draft (draft_gtt_plan / draft_basket / draft_orders), show it, and ask with the inline Yes/No question.${open.length ? ` Open approved rows: ${open.slice(0, 5).join(' | ')}` : ''}`,
   };
 }
 
@@ -72,7 +76,7 @@ if (require.main === module) {
     let d;
     try {
       const input = JSON.parse(raw || '{}');
-      d = decide(input, candidateFolders(input));
+      d = decide(input, candidateFolders(input), new Date(), { edition: process.argv.includes('--edition=lite') ? 'lite' : 'full' });
     } catch (e) {
       d = { allow: false, reason: `Order gate error (${e.message}); failing closed.` };
     }
@@ -83,4 +87,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { decide, ORDER_RE };
+module.exports = { decide, WRITE_RE, sameArgs, suffixOf };

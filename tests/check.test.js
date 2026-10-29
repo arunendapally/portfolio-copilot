@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { tmpEnv, fixture, writeProfile, fakeBrokers, ctxAt } = require('./helpers');
 const { callTool } = require('../core/tools');
-const kotak = require('../core/lib/brokers/kotak');
+const inputs = require('../core/lib/inputs');
 
 const KOTAK_TEXT = fs.readFileSync(path.join(__dirname, 'fixtures', 'kotak-holdings.txt'), 'utf8');
 
@@ -16,7 +16,7 @@ function setup({ kiteStatus, kotakStatus, book = fixture('kite-book.json'), kota
   writeProfile(folder, profile);
   const brokers = fakeBrokers({
     kite: { status: kiteStatus, data: book },
-    kotak: { status: kotakStatus, data: { holdings: kotak.holdingsFrom(kotakText, profile), cash: kotakCash } },
+    kotak: { status: kotakStatus, data: { text: kotakText, cash: kotakCash } },
   });
   return { folder, brokers };
 }
@@ -65,7 +65,7 @@ test('between-session changes are detected and explained', async () => {
   next.gtts = next.gtts.filter((g) => g.id !== 6);
   next.holdings.push({ tradingsymbol: 'ONGC', exchange: 'NSE', quantity: 100, t1_quantity: 0, average_price: 240, last_price: 245 });
   next.orders = [];
-  brokers.kite.fetchAll = async () => next;
+  brokers.kite.data = next;
   const r = await callTool('refresh', { folder }, ctxAt('2026-10-14T05:00:00Z', brokers));
   const tp = r.changes.changes.find((c) => c.symbol === 'TATAPOWER');
   const og = r.changes.changes.find((c) => c.symbol === 'ONGC');
@@ -79,7 +79,7 @@ test('fewer fund folios than last time is flagged, not concluded', async () => {
   const { folder, brokers } = setup();
   await callTool('refresh', { folder }, ctxAt('2026-10-13T05:00:00Z', brokers));
   const fewer = KOTAK_TEXT.split('\n').filter((l) => !l.includes('Nippon')).join('\n');
-  brokers.kotak.fetchAll = async () => ({ holdings: kotak.holdingsFrom(fewer, fixture('profile.json')), cash: 0 });
+  brokers.kotak.data = { text: fewer, cash: 0 };
   const r = await callTool('refresh', { folder }, ctxAt('2026-10-14T05:00:00Z', brokers));
   assert.strictEqual(r.changes.folio_drops.length, 1);
   assert.match(r.text, /not concluded/);
@@ -88,26 +88,38 @@ test('fewer fund folios than last time is flagged, not concluded', async () => {
 test('a broker that needs login is carried forward and counted as unverified', async () => {
   const { folder, brokers } = setup();
   await callTool('refresh', { folder }, ctxAt('2026-10-12T05:00:00Z', brokers));
-  brokers.kite.status = async () => ({ status: 'needs_login' });
+  brokers.kite.status = { status: 'needs_login' };
   await callTool('refresh', { folder }, ctxAt('2026-10-13T05:00:00Z', brokers));
   const r = await callTool('refresh', { folder }, ctxAt('2026-10-14T05:00:00Z', brokers));
   assert.match(r.text, /kite: needs login, showing data from 2026-10-12[^\n]*unverified 2 runs in a row/);
 });
 
-test('broker_status shows a link only for the broker that needs it', async () => {
+test('broker_status says which broker needs a login, and only that one', async () => {
   const { folder, brokers } = setup({ kotakStatus: { status: 'needs_login' } });
   const r = await callTool('broker_status', { folder }, ctxAt('2026-10-14T05:00:00Z', brokers));
   assert.strictEqual(r.brokers.kite.status, 'live');
-  assert.ok(!r.brokers.kite.link);
-  assert.ok(r.brokers.kotak.link);
-  assert.doesNotMatch(r.text, /log in to Kite/);
+  assert.strictEqual(r.brokers.kotak.status, 'needs_login');
+  assert.match(r.text, /Kotak Neo wants a login/);
+  assert.doesNotMatch(r.text, /Kite wants a login/);
 });
 
-test('outage tells the investor not to log in again', async () => {
-  const { folder, brokers } = setup({ kiteStatus: { status: 'outage', detail: 'HTTP 502' } });
-  const r = await callTool('broker_status', { folder }, ctxAt('2026-10-14T05:00:00Z', brokers));
-  assert.match(r.text, /Do not log in again/);
-  assert.doesNotMatch(r.text, /authorize/);
+test('an expired Kite session is a login request, an upstream failure is an outage (criterion 5)', async () => {
+  const login = setup({ kiteStatus: { status: 'needs_login' } });
+  const a = await callTool('broker_status', { folder: login.folder }, ctxAt('2026-10-14T05:00:00Z', login.brokers));
+  assert.match(a.text, /Kite wants a login: call the Kite MCP login tool/);
+  assert.doesNotMatch(a.text, /outage/i);
+  const down = setup({ kiteStatus: { status: 'outage' } });
+  const b = await callTool('broker_status', { folder: down.folder }, ctxAt('2026-10-14T05:00:00Z', down.brokers));
+  assert.match(b.text, /do not log in again/);
+  assert.strictEqual(b.brokers.kite.status, 'outage');
+});
+
+test('nothing captured, or data older than 30 minutes, is never presented as live', async () => {
+  const { folder, brokers } = setup();
+  ctxAt('2026-10-14T05:00:00Z', brokers); // captured at 05:00
+  const stale = await callTool('broker_status', { folder }, { edition: 'full', now: () => new Date('2026-10-14T06:00:00Z') });
+  assert.strictEqual(stale.brokers.kite.status, 'stale');
+  assert.match(stale.text, /older than 30 min/);
 });
 
 test('ingest adds a foreign broker with its FX rate and source', async () => {
@@ -145,7 +157,7 @@ test('cash that drops to exactly 0 between snapshots is flagged; empty sector ma
   await callTool('refresh', { folder }, ctxAt('2026-10-15T05:00:00Z', brokers));
   const next = fixture('kite-book.json');
   next.margins = { equity: { net: 0, available: { cash: 0, live_balance: 0 } } };
-  brokers.kite.fetchAll = async () => next;
+  brokers.kite.data = next;
   const p = fixture('profile.json');
   p.sectors = {};
   writeProfile(folder, p);
@@ -186,12 +198,12 @@ test('no data at all says so instead of showing a zero book', async () => {
 });
 
 test('kotak unknown format fails loudly with the headers', () => {
-  assert.throws(() => kotak.holdingsFrom('a,b,c\n1,2,3', {}), /Headers: a, b, c/);
+  assert.throws(() => inputs.holdingsFrom('a,b,c\n1,2,3', {}), /Headers: a, b, c/);
 });
 
 test('Kotak Neo holdings: CSV inside a JSON string, Neo headers, "-" tickers (smoke, 15-Oct)', () => {
   const text = fs.readFileSync(path.join(__dirname, 'fixtures', 'kotak-holdings-neo-2026-10.txt'), 'utf8');
-  const h = kotak.holdingsFrom(text, fixture('profile.json'));
+  const h = inputs.holdingsFrom(text, fixture('profile.json'));
   const by = Object.fromEntries(h.map((x) => [x.symbol, x]));
   assert.deepStrictEqual(Object.keys(by).sort(), ['ABCLTD', 'EXAMPLE FLEXI CAP FUND', 'MIDCAPETF', 'SUSPENDED EXAMPLE LTD.']);
   assert.deepStrictEqual([by.ABCLTD.qty, by.ABCLTD.avg, by.ABCLTD.ltp, by.ABCLTD.value, by.ABCLTD.exchange, by.ABCLTD.type], [10, 50, 40, 400, 'NSE', 'equity']);
