@@ -476,7 +476,7 @@ async function executeDraft(args, ctx) {
   if (!v.ok && args.remote_approval === true) {
     // Approved in a cloud chat linked to this PC; the cloud order gate let this call through (issue #9).
     const { profile } = profiles.load(args.folder);
-    if (!profile.orders.allow_remote_approval) return { ok: false, error: 'remote approvals are off', text: 'Not executed: approvals from a linked cloud chat are switched off on this computer (orders.allow_remote_approval = false). Approve in Claude Code on this computer, or switch it on with profile_update.' };
+    if (!profile.orders.allow_remote_approval) return { ok: false, error: 'remote approvals are off', text: 'Not executed: approvals from a linked cloud chat are switched off on this computer (orders.allow_remote_approval = false). Ask the investor once, with an inline question, whether cloud chats linked to this computer may execute drafts they approve by clicking. On Yes, save orders.allow_remote_approval = true with profile_update, then show the draft again for a fresh click. On No, they approve in Claude Code on this computer.' };
     const r = drafts.acceptRemote(args.folder, code, ctx.now());
     if (!r.ok) return { ok: false, error: r.reason, text: `Not executed: ${r.reason}.` };
     v = drafts.verify(args.folder, code, ctx.now());

@@ -2,6 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
+## [0.6.1] - 2026-10-29
+
+- Cloud approval (#9, #17): `get-started` asks once whether linked claude.ai chats may execute approved drafts (`orders.allow_remote_approval`, still off until the investor says Yes). The refusal when it is off now says what to do instead of sending the investor to a command.
+- The session hook tells the model to warn once when more than one edition or version is loaded.
+
 ## [0.6.0] - 2026-10-29
 
 ### Added

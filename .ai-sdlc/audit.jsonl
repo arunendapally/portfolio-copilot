@@ -1,0 +1,1 @@
+{"at":"2026-10-29T12:25:41.295Z","event":"pre-tool","tool":"Bash","decision":"deny","reason":"\"gh pr merge 18 --merge 2>&1 | tail -2; sleep 3; gh pr view 1\" merges, deploys, changes settings or records a human decision. A human runs it.","rule":"human-action","session":"61871c03-a457-444f-9129-cf9db63004a7"}
