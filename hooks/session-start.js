@@ -12,7 +12,7 @@ try {
   const m = manifest();
   const handshake = `
 
-portfolio-copilot hooks: plugin ${m.name}, version ${m.version}. When you call broker_status, pass hook_plugin="${m.name}" and hook_version="${m.version}" so a version or edition mismatch is reported.`;
+portfolio-copilot hooks: plugin ${m.name}, version ${m.version}. When you call broker_status, pass hook_plugin="${m.name}" and hook_version="${m.version}" so a version or edition mismatch is reported. If more than one 'portfolio-copilot hooks:' line is in your context, two editions or versions are loaded: tell the investor once, naming the extra one to remove.`;
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: rules + handshake } }));
 } catch (err) {
   // Fail open for the session, but tell the model protection is degraded so it says so.

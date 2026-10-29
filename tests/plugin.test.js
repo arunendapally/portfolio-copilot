@@ -175,3 +175,10 @@ test('versioning: one declared version, matched by package.json, the server and 
   await createServer({ edition: 'full', now: () => new Date() }, (s) => out.push(JSON.parse(s))).receive(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } }));
   assert.strictEqual(out[0].result.serverInfo.version, v, 'server reports the manifest version');
 });
+
+test('onboarding asks about cloud approval once; refusal and edition guard say what to do (#9, #17)', () => {
+  assert.match(read('skills/get-started/SKILL.md'), /orders\.allow_remote_approval/);
+  assert.match(read('hooks/session-start.js'), /more than one 'portfolio-copilot hooks:' line/);
+  assert.match(read('core/tools.js'), /show the draft again for a fresh click/);
+  assert.doesNotMatch(read('core/tools.js'), /or switch it on with profile_update/);
+});
