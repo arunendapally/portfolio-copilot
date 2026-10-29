@@ -3,6 +3,8 @@
 // broker login stays bound to it across Claude restarts, retries once on transport failure,
 // and separates transport failures (outage) from tool-level errors (handled by callers).
 
+const { manifest } = require('./version');
+
 const PROTOCOL_VERSION = '2025-03-26';
 
 class TransportError extends Error {
@@ -89,7 +91,7 @@ class McpHttpClient {
     this.sessionId = null;
     const res = await this.post({
       jsonrpc: '2.0', id: this.nextId++, method: 'initialize',
-      params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: this.clientName, version: '0.6.0' } },
+      params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: this.clientName, version: manifest().version } },
     });
     if (res && res.error) throw new TransportError(`initialize failed: ${res.error.message}`);
     await this.post({ jsonrpc: '2.0', method: 'notifications/initialized' });

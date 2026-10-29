@@ -159,3 +159,19 @@ test('version handshake: broker_status warns when hooks and server differ (29-Oc
   const out = JSON.parse(require('child_process').execFileSync(process.execPath, [path.join(ROOT, 'hooks', 'session-start.js')]).toString());
   assert.ok(out.hookSpecificOutput.additionalContext.includes(`version ${m.version}`));
 });
+
+test('versioning: one declared version, matched by package.json, the server and the changelog', async () => {
+  const { manifest } = require('../core/lib/version');
+  const v = manifest().version;
+  assert.match(v, /^\d+\.\d+\.\d+$/, 'semantic version');
+  assert.strictEqual(JSON.parse(read('package.json')).version, v, 'package.json');
+  const heading = read('CHANGELOG.md').split(/\r?\n/).find((l) => l.startsWith(`## [${v}] - `));
+  assert.ok(heading && /^## \[[^\]]+\] - \d{4}-\d{2}-\d{2}\s*$/.test(heading), `CHANGELOG has no dated entry for ${v}`);
+  assert.match(read('docs/release.md'), /## Versioning policy/);
+  const market = JSON.parse(read('.claude-plugin/marketplace.json'));
+  for (const p of market.plugins) assert.strictEqual(p.version, undefined, 'marketplace entries must not carry a second version');
+  const out = [];
+  const { createServer } = require('../core/server');
+  await createServer({ edition: 'full', now: () => new Date() }, (s) => out.push(JSON.parse(s))).receive(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } }));
+  assert.strictEqual(out[0].result.serverInfo.version, v, 'server reports the manifest version');
+});
