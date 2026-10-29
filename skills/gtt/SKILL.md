@@ -16,6 +16,7 @@ Stops protect against a broken thesis, not a market-wide fall.
    - Company weakening (results, asset quality, margins, governance): keep the stop and let it exit.
    - A `trade` verdict keeps its own stop and target; the crash-floor rule does not apply to it.
 6. GTT quantity equals held quantity.
+7. A hold name whose stop is tighter than the minimum but carries `verdicts.<SYMBOL>.stop_review` with `decision: "keep"` is shown as "kept by decision" until its `review_by` date; the audit, crash test and plan leave that stop alone. After `review_by` it is flagged again.
 This policy lives in portfolio-core; do not restate or improvise thresholds.
 
 ## Steps

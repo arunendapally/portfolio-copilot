@@ -65,6 +65,7 @@ Technicals: <trend vs 50/200 DMA, support ₹<s> / resistance ₹<r>>
 Reference levels: nearest support ₹<x> / resistance ₹<y> (basis stated)
 In plain terms: <one sentence a non-expert understands>
 Note: analysis, not investment advice — the hold/exit decision is yours
+Data gaps: <primary sources that could not be loaded (e.g. "Screener.in: permission request timed out") and the figures that depend on them, or "none">
 Sources: <urls with access date>
 ```
 
@@ -77,4 +78,5 @@ Sources: <urls with access date>
 - Never present an estimate as a reported number.
 - The assessment is analytical input only — never a buy/sell directive, and never place or draft orders. Only analyze stocks the user holds or explicitly names; never originate stock picks.
 - Bounded search (no hangs): draw only on the sources in **Data gathering** plus the CMP ladder; cap total fetches at ~6–8. If key figures are still missing after that, mark them "not found in sources" and return the assessment anyway — never keep fetching or retry in a loop.
+- Blocked primary source: if Screener.in or an NSE/BSE filings page cannot be loaded (permission denied or timed out), do not retry. Fill the `Data gaps` line, mark every figure that depended on it "not found in sources", and begin ASSESSMENT with "PARTIAL:" so the caller can flag it.
 - Sparse-coverage names (micro-caps, recent listings, illiquid stocks): a short report that plainly flags what could not be verified IS the correct, complete output. Do not stall trying to fill every field.

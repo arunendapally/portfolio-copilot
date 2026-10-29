@@ -6,6 +6,9 @@ const { stateDir, readJson, writeJson } = require('./state');
 
 // 'trade': a deliberate short-term position with its own stop/target; the crash-floor rule does not apply (issue #7).
 const STANCES = ['hold', 'add', 'hold_no_add', 'reduce', 'exit', 'trade'];
+const STOP_DECISIONS = ['keep', 'widen'];
+const SIP_ACTIONS = ['continue', 'stop', 'redirect'];
+const HEALTH_COVER = ['unknown', 'none', 'employer', 'personal', 'both'];
 
 const DEFAULTS = Object.freeze({
   schema_version: 1,
@@ -25,6 +28,8 @@ const DEFAULTS = Object.freeze({
   verdicts: {},
   sectors: {},
   rate_overrides: {},
+  sips: [],
+  protection: { term_cover_inr: null, health_cover: 'unknown', emergency_fund_inr: null, monthly_expenses_inr: null },
   // corpus_source: text matched against holding symbols and fund names (e.g. "ARBITRAGE") to read the corpus live.
   deployment_plan: { index: 'NIFTY 50', corpus_inr: null, corpus_source: null, stages: [], destinations: [] },
   // allow_remote_approval: a cloud chat linked to this PC may execute drafts approved there,
@@ -71,10 +76,29 @@ function validate(p) {
   for (const [sym, v] of Object.entries(p.verdicts)) {
     if (!isObj(v) || !STANCES.includes(v.stance)) errs.push(`verdicts.${sym}.stance: ${STANCES.join(' | ')}`);
     else if (v.exit_level !== undefined && v.exit_level !== null) num(v.exit_level, `verdicts.${sym}.exit_level`, 0);
+    if (isObj(v) && v.stop_review !== undefined && v.stop_review !== null) {
+      const r = v.stop_review;
+      if (!isObj(r) || !STOP_DECISIONS.includes(r.decision)) errs.push(`verdicts.${sym}.stop_review.decision: ${STOP_DECISIONS.join(' | ')}`);
+      else for (const k of ['at', 'review_by']) if (r[k] !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(r[k])) errs.push(`verdicts.${sym}.stop_review.${k}: YYYY-MM-DD`);
+    }
   }
   for (const [sym, v] of Object.entries(p.rate_overrides)) {
     if (!['most', 'mixed', 'least'].includes(v)) errs.push(`rate_overrides.${sym}: most | mixed | least`);
   }
+  if (!Array.isArray(p.sips)) errs.push('sips: array');
+  else {
+    p.sips.forEach((s, i) => {
+      if (!isObj(s) || !s.fund) errs.push(`sips[${i}].fund: required`);
+      else {
+        num(s.amount_inr === undefined ? null : s.amount_inr, `sips[${i}].amount_inr`, 0);
+        if (s.action !== undefined && !SIP_ACTIONS.includes(s.action)) errs.push(`sips[${i}].action: ${SIP_ACTIONS.join(' | ')}`);
+        if (s.action === 'redirect' && !s.redirect_to) errs.push(`sips[${i}].redirect_to: required when action is redirect`);
+      }
+    });
+  }
+  const pr = p.protection;
+  if (!HEALTH_COVER.includes(pr.health_cover)) errs.push(`protection.health_cover: ${HEALTH_COVER.join(' | ')}`);
+  for (const k of ['term_cover_inr', 'emergency_fund_inr', 'monthly_expenses_inr']) num(pr[k], `protection.${k}`, 0);
   const d = p.deployment_plan;
   if (!Array.isArray(d.stages)) errs.push('deployment_plan.stages: array');
   else d.stages.forEach((s, i) => {

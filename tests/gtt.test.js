@@ -134,6 +134,42 @@ test('gtt_audit tool marks findings unverified when Kite is not live today', asy
   assert.strictEqual(d.ok, false);
 });
 
+test('a keep decision holds the stop until review_by, in audit, crash test and plan', () => {
+  const p = profile();
+  const book = fixture('kite-book.json');
+  p.verdicts.SBIN.stop_review = { decision: 'keep', at: '2026-10-13', reason: 'weakening', review_by: '2026-11-10' };
+  const a = gtt.audit(snapOf(book, p), null, p, { today: '2026-10-14' });
+  const sbin = a.rows.find((r) => r.symbol === 'SBIN');
+  assert.ok(!sbin.issues.some((i) => i.code === 'stop_too_tight'));
+  assert.match(sbin.issues.find((i) => i.code === 'stop_kept').text, /kept by decision on 2026-10-13/);
+  const at20 = a.crash.find((c) => c.move_pct === -20);
+  assert.deepStrictEqual(at20.hold_names_firing, ['TATAPOWER']);
+  assert.deepStrictEqual(at20.kept_names_firing, ['SBIN']);
+  assert.ok(!require('../core/lib/crash').stopReview(a.rows, p.gtt_policy).some((r) => r.symbol === 'SBIN'));
+  const s = snapOf(book, p);
+  assert.ok(!gtt.plan(a, s, p).rows.some((r) => r.symbol === 'SBIN'), 'plan must not widen a kept stop');
+});
+
+test('a keep decision lapses after review_by and invalid ones are rejected', () => {
+  const p = profile();
+  p.verdicts.SBIN.stop_review = { decision: 'keep', at: '2026-10-13', review_by: '2026-10-20' };
+  const a = gtt.audit(snapOf(fixture('kite-book.json'), p), null, p, { today: '2026-10-21' });
+  assert.ok(a.rows.find((r) => r.symbol === 'SBIN').issues.some((i) => i.code === 'stop_too_tight'));
+  p.verdicts.SBIN.stop_review = { decision: 'maybe' };
+  assert.ok(profiles.validate(p).some((e) => /stop_review\.decision/.test(e)));
+});
+
+test('duplicate GTTs: keep the compliant one, delete only the other (TMCV, 29-Oct)', () => {
+  const p = profile();
+  const s = snapOf(fixture('kite-book.json'), p);
+  const a = gtt.audit(s, null, p);
+  const row = a.rows.find((r) => r.symbol === 'LUPIN');
+  assert.strictEqual(row.keep_id, 7); // 25% below at full quantity
+  assert.ok(row.issues.some((i) => i.code === 'double_coverage'));
+  const mine = gtt.plan(a, s, p, { symbols: ['LUPIN'] }).rows.filter((r) => r.symbol === 'LUPIN');
+  assert.deepStrictEqual(mine.map((r) => [r.action, r.gtt_id]), [['delete', 8]]);
+});
+
 test("a 'trade' verdict keeps its own stop: no crash-floor finding, not in the crash test (issue #7)", () => {
   const p = profile();
   const base = gtt.audit(snapOf(fixture('kite-book.json'), p), null, p);

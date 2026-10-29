@@ -14,7 +14,7 @@ function stageReached(plan, indexLevel) {
 // auditRows from gtt.audit; returns hold names whose stop is above the crash floor.
 function stopReview(auditRows, policy) {
   return auditRows
-    .filter((r) => r.class === 'hold' && r.stop !== null && r.stop_distance_pct !== null && r.stop_distance_pct < policy.min_stop_distance_pct)
+    .filter((r) => r.class === 'hold' && !r.issues.some((i) => i.code === 'stop_kept') && r.stop !== null && r.stop_distance_pct !== null && r.stop_distance_pct < policy.min_stop_distance_pct)
     .map((r) => ({ symbol: r.symbol, stop: r.stop, distance_pct: r.stop_distance_pct, proposal: `analyze first: if the company is strong and the fall is macro, widen to about ${policy.crash_floor_pct}% below price; if the company is weakening, keep the stop and let it exit (never tighten in a fall)` }));
 }
 

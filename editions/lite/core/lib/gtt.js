@@ -40,7 +40,13 @@ function median(xs) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-function audit(snap, prev, profile, { corporateActions = [] } = {}) {
+// A recorded "keep the stop" decision holds until review_by (inclusive); no review_by means until revoked.
+function stopKept(v, today) {
+  const r = v && v.stop_review;
+  return !!(r && r.decision === 'keep' && (!r.review_by || !today || r.review_by >= today));
+}
+
+function audit(snap, prev, profile, { corporateActions = [], today = null } = {}) {
   const pol = profile.gtt_policy;
   const kite = (snap.brokers && snap.brokers.kite) || { holdings: [], gtts: [] };
   const holdings = (kite.holdings || []).filter((h) => h.type === 'equity' || h.type === 'etf');
@@ -56,7 +62,12 @@ function audit(snap, prev, profile, { corporateActions = [] } = {}) {
     const issues = [];
     let stop = null;
     let target = null;
-    for (const g of mine) {
+    // Several GTTs on a hold name: one that already meets policy at full quantity is the keeper.
+    const keep = cls === 'hold' && mine.length > 1 ? mine.find((g) => {
+      const l = legsOf(g, h.ltp);
+      return l.stop !== null && h.ltp && (100 * (h.ltp - l.stop)) / h.ltp >= pol.min_stop_distance_pct && sellQty(g) >= h.qty;
+    }) : null;
+    for (const g of keep ? [keep] : mine) {
       const l = legsOf(g, h.ltp);
       if (l.stop !== null) stop = stop === null ? l.stop : Math.max(stop, l.stop);
       if (l.target !== null) target = target === null ? l.target : Math.min(target, l.target);
@@ -82,7 +93,10 @@ function audit(snap, prev, profile, { corporateActions = [] } = {}) {
     }
     if (cls === 'hold') {
       if (stop === null) issues.push({ code: 'no_crash_floor', severity: 'info', text: `no crash-floor stop (policy: about ${pol.crash_floor_pct}% below)` });
-      else if (dist < pol.min_stop_distance_pct) issues.push({ code: 'stop_too_tight', severity: 'warn', text: `stop ${round(dist, 1)}% below price; policy minimum ${pol.min_stop_distance_pct}%` });
+      else if (dist < pol.min_stop_distance_pct) {
+        if (stopKept(v, today)) issues.push({ code: 'stop_kept', severity: 'info', text: `stop ${round(dist, 1)}% below price, kept by decision on ${v.stop_review.at || 'an earlier date'}${v.stop_review.review_by ? ` (review by ${v.stop_review.review_by})` : ''}` });
+        else issues.push({ code: 'stop_too_tight', severity: 'warn', text: `stop ${round(dist, 1)}% below price; policy minimum ${pol.min_stop_distance_pct}%` });
+      }
     }
     if (stop !== null && dist !== null && dist >= 0 && dist <= NEAR_PCT) issues.push({ code: 'near_stop', severity: 'warn', text: `stop ${stop} is ${round(dist, 1)}% below live price` });
     if (target !== null && h.ltp && ((target - h.ltp) / h.ltp) * 100 <= NEAR_PCT && target >= h.ltp) issues.push({ code: 'near_target', severity: 'info', text: `target ${target} within ${NEAR_PCT}% of live price` });
@@ -100,7 +114,7 @@ function audit(snap, prev, profile, { corporateActions = [] } = {}) {
         });
       }
     }
-    rows.push({ symbol: h.symbol, class: cls, stance: v.stance, implicit_verdict: !!v.implicit, qty: h.qty, ltp: h.ltp, value: round(h.qty * h.ltp), stop, target, stop_distance_pct: dist === null ? null : round(dist, 1), gtt_ids: mine.map((g) => g.id), issues });
+    rows.push({ symbol: h.symbol, class: cls, stance: v.stance, implicit_verdict: !!v.implicit, qty: h.qty, ltp: h.ltp, value: round(h.qty * h.ltp), stop, target, stop_distance_pct: dist === null ? null : round(dist, 1), gtt_ids: mine.map((g) => g.id), keep_id: keep ? keep.id : null, issues });
   }
 
   // Outliers: stops much tighter than the book's own convention.
@@ -124,9 +138,11 @@ function audit(snap, prev, profile, { corporateActions = [] } = {}) {
     }
   }
 
+  const isKept = (r) => r.issues.some((i) => i.code === 'stop_kept');
   const crash = (pol.crash_test_pcts || []).map((p) => {
     const fires = rows.filter((r) => r.stop !== null && r.stop >= r.ltp * (1 - p / 100));
-    return { move_pct: -p, fires: fires.map((r) => ({ symbol: r.symbol, class: r.class, stop: r.stop })), hold_names_firing: fires.filter((r) => r.class === 'hold').map((r) => r.symbol) };
+    const holds = fires.filter((r) => r.class === 'hold');
+    return { move_pct: -p, fires: fires.map((r) => ({ symbol: r.symbol, class: r.class, stop: r.stop })), hold_names_firing: holds.filter((r) => !isKept(r)).map((r) => r.symbol), kept_names_firing: holds.filter(isKept).map((r) => r.symbol) };
   });
   const worst = crash[crash.length - 1];
   const summary = {
@@ -159,6 +175,11 @@ function plan(auditResult, snap, profile, { symbols } = {}) {
     const h = holdings.get(r.symbol);
     let want = null;
     let reason = '';
+    // A compliant GTT already covers the full quantity: only remove the duplicates.
+    if (r.keep_id && codes.has('double_coverage') && !['stop_too_tight', 'no_crash_floor', 'qty_short', 'no_gtt', 'etf_stop', 'exit_stop', 'exit_missing'].some((c) => codes.has(c))) {
+      for (const id of r.gtt_ids.filter((x) => x !== r.keep_id)) deletes.push({ action: 'delete', symbol: r.symbol, gtt_id: id, reason: `duplicate: #${r.keep_id} already meets policy` });
+      continue;
+    }
     if (r.class === 'etf' && codes.has('etf_stop')) {
       if (r.target !== null) { want = { stop: null, target: r.target }; reason = 'ETF: keep target, remove stop'; }
       else { notes.push(`${r.symbol}: ETF stop to remove; no target on file, so no replacement is placed`); }
@@ -168,7 +189,7 @@ function plan(auditResult, snap, profile, { symbols } = {}) {
       else notes.push(`${r.symbol}: ${r.stance.toUpperCase()} verdict has no exit_level; write one to plan this GTT`);
     } else if (r.class === 'hold' && (codes.has('stop_too_tight') || codes.has('no_crash_floor') || codes.has('qty_short') || codes.has('double_coverage') || codes.has('no_gtt'))) {
       const floor = tick(r.ltp * (1 - pol.crash_floor_pct / 100));
-      const keepStop = r.stop !== null && r.stop_distance_pct >= pol.min_stop_distance_pct ? r.stop : floor;
+      const keepStop = r.stop !== null && (r.stop_distance_pct >= pol.min_stop_distance_pct || codes.has('stop_kept')) ? r.stop : floor;
       want = { stop: keepStop, target: r.target };
       reason = codes.has('stop_too_tight') ? `widen stop to crash floor ${pol.crash_floor_pct}% below` : codes.has('no_crash_floor') || codes.has('no_gtt') ? 'add crash-floor stop' : 'match GTT quantity to holding';
     } else if (codes.has('qty_short') || codes.has('double_coverage')) {

@@ -77,7 +77,9 @@ If you already have a standalone Kite or Kotak connector, keep it or remove it; 
    - In a cloud chat linked to your PC, the PC accepts the cloud gate's approval only if you set `orders.allow_remote_approval = true`.
 2. **Always-on house rules** injected at session start.
 3. **No stale data presented as live**: every figure carries its time; carried data is labelled with how many runs it has gone unverified.
-4. **Analysis audit**: the fundamentals-analyst output is checked for sourced numbers and no buy/sell language.
+4. **Analysis audit**: the fundamentals-analyst output is checked for sourced numbers and no buy/sell language. A blocked primary source is reported in a fixed `Data gaps` line and marks the analysis PARTIAL.
+
+   In cloud sessions the analyst's web fetches ask for permission and can time out. Allow its sources once in your Claude settings (`permissions.allow`): `WebFetch(domain:www.screener.in)`, `WebFetch(domain:www.nseindia.com)`, `WebFetch(domain:www.bseindia.com)`, `WebFetch(domain:www.morningstar.in)`.
 
 ## What it does not do
 

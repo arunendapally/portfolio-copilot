@@ -3,6 +3,7 @@
 // portfolio-core: stdio MCP server (newline-delimited JSON-RPC). Zero dependencies.
 
 const readline = require('readline');
+const { manifest } = require('./lib/version');
 const { listTools, callTool, makeContext } = require('./tools');
 
 const SUPPORTED = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -21,7 +22,7 @@ function createServer(ctx = makeContext(), write = (s) => process.stdout.write(s
         return reply({
           protocolVersion: SUPPORTED.includes(asked) ? asked : SUPPORTED[0],
           capabilities: { tools: {} },
-          serverInfo: { name: 'portfolio-core', version: '0.5.1' },
+          serverInfo: { name: 'portfolio-core', version: manifest().version },
           instructions: 'Deterministic portfolio engine. Show each tool\'s `text` as is. Never compute portfolio numbers yourself.',
         });
       }
