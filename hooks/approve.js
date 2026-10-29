@@ -1,26 +1,47 @@
 #!/usr/bin/env node
 'use strict';
-// UserPromptSubmit: the only place an approval is recorded. It reads the investor's own
-// prompt, so the model cannot approve on the investor's behalf.
+// PostToolUse (AskUserQuestion): the only place an approval is recorded. It reads the
+// investor's own click ("Yes, place D7K2") from the question's result, so the model cannot
+// approve on the investor's behalf. Pre-filled answers are blocked by the order gate.
 
 const drafts = require('../core/lib/drafts');
 const { readStdin, candidateFolders } = require('./lib');
 
-function run(input) {
-  const prompt = String(input.prompt || '');
-  if (!drafts.APPROVE_RE.test(prompt)) return null;
-  drafts.APPROVE_RE.lastIndex = 0;
-  const approved = [];
-  let missing = null;
-  for (const folder of candidateFolders(input)) {
-    const r = drafts.approveFromPrompt(folder, prompt);
-    approved.push(...r.approved);
-    missing = missing === null ? r.missing : missing.filter((c) => r.missing.includes(c));
+// Codes the investor clicked "Yes, place <code>" for, in a question that names the code and
+// also offered a "No" option.
+function clickedYes(input) {
+  if (String(input.tool_name || '') !== 'AskUserQuestion') return [];
+  const res = input.tool_response && typeof input.tool_response === 'object' ? input.tool_response : {};
+  const questions = res.questions || (input.tool_input && input.tool_input.questions) || [];
+  const answers = res.answers || (input.tool_input && input.tool_input.answers) || {};
+  const codes = [];
+  for (const q of questions) {
+    const m = String(answers[q.question] || '').match(drafts.YES_RE);
+    if (!m) continue;
+    const code = m[1];
+    const labels = (q.options || []).map((o) => o.label);
+    if (!String(q.question).includes(code) && q.header !== code) continue;
+    if (!labels.includes(`Yes, place ${code}`) || !labels.some((l) => /^No\b/.test(l))) continue;
+    codes.push(code);
   }
+  return codes;
+}
+
+function run(input, now = new Date()) {
+  const codes = clickedYes(input);
+  if (!codes.length) return null;
   const parts = [];
-  if (approved.length) parts.push(`Investor approved ${approved.map((a) => `${a.code} (${a.rows} rows)`).join(', ')}. You may now call execute_draft for exactly these codes.`);
-  if (missing && missing.length) parts.push(`No open draft found for ${missing.join(', ')} on this machine; nothing was approved for it. If the draft was made on the investor's PC (a cloud session linked to a device), approval cannot be recorded from here: tell them to type the same approve line in Claude Code on the PC. Do not work around this.`);
-  return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: parts.join(' ') } };
+  for (const code of codes) {
+    let hit = null;
+    for (const folder of candidateFolders(input)) hit = hit || drafts.approve(folder, code, now);
+    if (hit) parts.push(`Investor approved ${code} (${hit.rows} rows). You may now call execute_draft with code ${code}.`);
+    else {
+      // The draft lives on a linked computer this hook cannot read: record the click for the gate.
+      drafts.recordRemote(code, now);
+      parts.push(`Investor approved ${code}. The draft is on the linked computer: call execute_draft with code ${code} and remote_approval true (allowed once).`);
+    }
+  }
+  return { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: parts.join(' ') } };
 }
 
 if (require.main === module) {
@@ -34,4 +55,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { run };
+module.exports = { run, clickedYes };

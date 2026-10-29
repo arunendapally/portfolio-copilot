@@ -8,18 +8,19 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
+    "PreToolUse": [
       {
+        "matcher": ".*(place|modify|delete|cancel)_(gtt_)?order$|.*execute_draft$|^AskUserQuestion$",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/approve.js\"", "timeout": 10 }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/order-gate.js\"", "timeout": 10 }
         ]
       }
     ],
-    "PreToolUse": [
+    "PostToolUse": [
       {
-        "matcher": ".*(place|modify|delete|cancel)_(gtt_)?order$|.*execute_draft$",
+        "matcher": "^AskUserQuestion$",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/order-gate.js\"", "timeout": 10 }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/approve.js\"", "timeout": 10 }
         ]
       }
     ],

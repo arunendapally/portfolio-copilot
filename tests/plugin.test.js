@@ -23,7 +23,7 @@ const NOT_ORDER_TOOLS = ['mcp__kite__get_gtts', 'mcp__kite__get_orders', 'mcp__k
 test('hooks.json has the documented {"hooks": {...}} shape and only command hooks guard orders', () => {
   const h = json('hooks/hooks.json');
   assert.ok(h.hooks && typeof h.hooks === 'object', 'missing top-level "hooks"');
-  for (const ev of ['SessionStart', 'UserPromptSubmit', 'PreToolUse']) assert.ok(Array.isArray(h.hooks[ev]), `${ev} missing`);
+  for (const ev of ['SessionStart', 'PostToolUse', 'PreToolUse']) assert.ok(Array.isArray(h.hooks[ev]), `${ev} missing`);
   for (const g of h.hooks.PreToolUse) for (const x of g.hooks) assert.strictEqual(x.type, 'command');
   for (const ev of Object.values(h.hooks)) for (const g of ev) for (const x of g.hooks) {
     if (x.type === 'command') {
@@ -103,7 +103,7 @@ test('T9 policy lint: no skill or agent asks for tight or trailing stops', () =>
 test('house rules: 8 numbered rules, consistent with constitution I-III', () => {
   const r = read('context/house-rules.md');
   assert.strictEqual((r.match(/^\d\. /gm) || []).length, 8);
-  assert.match(r, /approve <code>/);
+  assert.match(r, /Yes, place <code>/);
   assert.match(r, /Never suggest securities to buy/);
   assert.match(r, /Do not re-read them from disk/);
 });

@@ -169,3 +169,26 @@ test('duplicate GTTs: keep the compliant one, delete only the other (TMCV, 29-Oc
   const mine = gtt.plan(a, s, p, { symbols: ['LUPIN'] }).rows.filter((r) => r.symbol === 'LUPIN');
   assert.deepStrictEqual(mine.map((r) => [r.action, r.gtt_id]), [['delete', 8]]);
 });
+
+test("a 'trade' verdict keeps its own stop: no crash-floor finding, not in the crash test (issue #7)", () => {
+  const p = profile();
+  const base = gtt.audit(snapOf(fixture('kite-book.json'), p), null, p);
+  assert.ok(base.rows.find((r) => r.symbol === 'SBIN').issues.some((i) => i.code === 'stop_too_tight'));
+  p.verdicts.SBIN = { stance: 'trade', reason: 'technical trade, own stop' };
+  const a = gtt.audit(snapOf(fixture('kite-book.json'), p), null, p);
+  const row = a.rows.find((r) => r.symbol === 'SBIN');
+  assert.strictEqual(row.class, 'trade');
+  assert.ok(!row.issues.some((i) => i.code === 'stop_too_tight'));
+  assert.ok(a.crash.every((x) => !x.hold_names_firing.includes('SBIN')));
+  const plan = gtt.plan(a, snapOf(fixture('kite-book.json'), p), p, { symbols: ['SBIN'] });
+  assert.ok(!plan.rows.some((r) => r.action === 'place' && /widen/.test(r.reason)), 'trade stop is never widened');
+  assert.deepStrictEqual(profiles.validate(p), []);
+});
+
+test('check warns when hold stops would fire in the crash test, and says analyze first (issue #7)', async () => {
+  const { folder } = tmpEnv();
+  writeProfile(folder, fixture('profile.json'));
+  const brokers = fakeBrokers({ kite: { data: fixture('kite-book.json') }, kotak: { data: { holdings: [], cash: 0 } } });
+  const r = await callTool('refresh', { folder }, ctxAt('2026-10-14T05:00:00Z', brokers));
+  assert.match(r.text, /Needs attention[\s\S]*hold stop\(s\) would fire in a -20% fall \([^)]*SBIN[^)]*\): analyze each before changing/);
+});

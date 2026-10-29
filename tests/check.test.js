@@ -124,6 +124,36 @@ test('ingest adds a foreign broker with its FX rate and source', async () => {
   assert.match(c.text, /USD at 88 INR \(RBI ref/);
 });
 
+test('ingest on a new day keeps the other brokers, marked not pulled (issue #4)', async () => {
+  const { folder, brokers } = setup();
+  const day1 = await callTool('refresh', { folder }, ctxAt('2026-10-15T05:00:00Z', brokers));
+  const ctx = ctxAt('2026-10-26T03:53:00Z', brokers);
+  await callTool('ingest', { folder, broker: 'ibkr', currency: 'USD', fx_rate: 94.93, fx_source: 'BS', holdings: [{ symbol: 'VOO', qty: 1, ltp: 700 }] }, ctx);
+  const c = await callTool('check', { folder }, ctx);
+  assert.strictEqual(c.brokers.kite.value, day1.brokers.kite.value);
+  assert.strictEqual(c.brokers.kotak.value, day1.brokers.kotak.value);
+  assert.match(c.text, /kite: not pulled, showing data from 2026-10-15/);
+  assert.match(c.text, /ibkr: live/);
+  // A later live refresh replaces the carried Kite block and keeps the ingested IBKR one.
+  const r = await callTool('refresh', { folder }, ctx);
+  assert.match(r.text, /kite: live/);
+  assert.strictEqual(r.brokers.ibkr.value, 66451);
+});
+
+test('cash that drops to exactly 0 between snapshots is flagged; empty sector map is noted (issue #5)', async () => {
+  const { folder, brokers } = setup();
+  await callTool('refresh', { folder }, ctxAt('2026-10-15T05:00:00Z', brokers));
+  const next = fixture('kite-book.json');
+  next.margins = { equity: { net: 0, available: { cash: 0, live_balance: 0 } } };
+  brokers.kite.fetchAll = async () => next;
+  const p = fixture('profile.json');
+  p.sectors = {};
+  writeProfile(folder, p);
+  const r = await callTool('refresh', { folder }, ctxAt('2026-10-26T04:00:00Z', brokers));
+  assert.match(r.text, /Needs attention[\s\S]*kite cash is ₹0 as reported by kite, was ₹50,000/);
+  assert.match(r.text, /sector limit not checked/);
+});
+
 test('buffer held in the bank makes broker cash deployable', async () => {
   const { folder, brokers } = setup();
   const p = fixture('profile.json');

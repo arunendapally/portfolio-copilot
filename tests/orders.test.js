@@ -12,6 +12,15 @@ const gate = require('../hooks/order-gate');
 
 const NOW = '2026-10-14T05:00:00Z';
 
+// The inline question the skill asks, and the hook payload after the investor clicks.
+function question(code, { named = true, withNo = true } = {}) {
+  return { header: named ? code : 'GTT plan', question: named ? `Place GTT plan ${code}? 2 places, 2 deletes.` : 'Place the GTT plan?', multiSelect: false, options: [...(withNo ? [{ label: "No, don't place" }] : []), { label: `Yes, place ${code}` }] };
+}
+function click(folder, code, answer = `Yes, place ${code}`, opts) {
+  const q = question(code, opts);
+  return approve.run({ hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', cwd: folder, tool_input: { questions: [q] }, tool_response: { questions: [q], answers: { [q.question]: answer } } }, new Date(NOW));
+}
+
 async function planned() {
   const { folder } = tmpEnv();
   writeProfile(folder, fixture('profile.json'));
@@ -38,9 +47,9 @@ test('execute_draft refuses an unapproved draft', async () => {
   assert.strictEqual(brokers.calls.length, 0);
 });
 
-test('only the investor prompt approves; then execute places before deleting', async () => {
+test("only the investor's click approves; then execute places before deleting", async () => {
   const { folder, ctx, code, brokers, draft } = await planned();
-  const out = approve.run({ prompt: `ok approve ${code} please`, cwd: folder });
+  const out = click(folder, code);
   assert.match(out.hookSpecificOutput.additionalContext, new RegExp(`approved ${code}`));
   const r = await callTool('execute_draft', { folder, code }, ctx);
   assert.ok(r.ok, r.text);
@@ -50,15 +59,71 @@ test('only the investor prompt approves; then execute places before deleting', a
   assert.strictEqual(drafts.load(folder, code).status, 'executed');
 });
 
-test('a "yes" without the code approves nothing', async () => {
+test('"No", a question without the code, or one without a No option approves nothing', async () => {
   const { folder, code } = await planned();
-  assert.strictEqual(approve.run({ prompt: 'yes go ahead, fix my GTTs', cwd: folder }), null);
+  assert.strictEqual(click(folder, code, "No, don't place"), null);
+  assert.strictEqual(click(folder, code, `Yes, place ${code}`, { named: false }), null);
+  assert.strictEqual(click(folder, code, `Yes, place ${code}`, { withNo: false }), null);
+  assert.strictEqual(approve.run({ tool_name: 'Bash', cwd: folder, tool_response: { answers: { x: `Yes, place ${code}` } } }), null);
   assert.strictEqual(drafts.load(folder, code).status, 'draft');
+});
+
+test('order gate blocks an approval question sent with its answer pre-filled', () => {
+  const q = question('D5PZ2');
+  const ask = (input) => gate.decide({ tool_name: 'AskUserQuestion', tool_input: input }, [], new Date(NOW)).allow;
+  assert.strictEqual(ask({ questions: [q] }), true);
+  assert.strictEqual(ask({ questions: [q], answers: { [q.question]: 'Yes, place D5PZ2' } }), false);
+  assert.strictEqual(ask({ questions: [{ question: 'Which colour?', options: [{ label: 'Red' }, { label: 'Blue' }] }], answers: { 'Which colour?': 'Red' } }), true, 'other questions are not touched');
+});
+
+test('cloud chat linked to the PC: one call through the gate, PC opt-in required (issue #9)', async () => {
+  const { folder, ctx, code, brokers } = await planned();
+  const pcConfig = process.env.PORTFOLIO_COPILOT_CONFIG_DIR;
+  const cloud = fs.mkdtempSync(path.join(require('os').tmpdir(), 'pc-cloud-'));
+  const cloudCwd = path.join(cloud, 'cwd');
+  fs.mkdirSync(cloudCwd);
+  process.env.PORTFOLIO_COPILOT_CONFIG_DIR = path.join(cloud, 'config'); // the cloud container cannot see the PC
+  try {
+    const out = click(cloudCwd, code);
+    assert.match(out.hookSpecificOutput.additionalContext, /on the linked computer.*remote_approval true/);
+    const call = { tool_name: 'mcp__remote-devices__plugin_portfolio-copilot_portfolio-core__execute_draft', tool_input: { code, remote_approval: true } };
+    assert.strictEqual(gate.decide({ ...call, tool_input: { code } }, [cloudCwd], new Date(NOW)).allow, false, 'flag required');
+    assert.strictEqual(gate.decide(call, [cloudCwd], new Date(NOW)).allow, true, 'first call through');
+    assert.strictEqual(gate.decide(call, [cloudCwd], new Date(NOW)).allow, false, 'consumed: no replay');
+    assert.strictEqual(gate.decide({ ...call, tool_input: { code: 'DZZZZ', remote_approval: true } }, [cloudCwd], new Date(NOW)).allow, false, 'never clicked');
+  } finally {
+    process.env.PORTFOLIO_COPILOT_CONFIG_DIR = pcConfig;
+  }
+  // On the PC: refused while the opt-in is off, executed once it is on.
+  const off = await callTool('execute_draft', { folder, code, remote_approval: true }, ctx);
+  assert.strictEqual(off.ok, false);
+  assert.match(off.text, /switched off on this computer/);
+  assert.strictEqual(brokers.calls.length, 0);
+  const p = fixture('profile.json');
+  p.orders = { allow_remote_approval: true };
+  writeProfile(folder, p);
+  const on = await callTool('execute_draft', { folder, code, remote_approval: true }, ctx);
+  assert.ok(on.ok, on.text);
+  assert.strictEqual(drafts.load(folder, code).approved_via, 'inline question, cloud gate');
+});
+
+test('PC refuses a remote approval for a draft changed after it was shown', async () => {
+  const { folder, ctx, code, brokers } = await planned();
+  const p = fixture('profile.json');
+  p.orders = { allow_remote_approval: true };
+  writeProfile(folder, p);
+  const d = drafts.load(folder, code);
+  d.rows[0].args.quantity = (d.rows[0].args.quantity || d.rows[0].args.lower_quantity) + 100;
+  drafts.save(folder, d);
+  const r = await callTool('execute_draft', { folder, code, remote_approval: true }, ctx);
+  assert.strictEqual(r.ok, false);
+  assert.match(r.text, /changed since it was shown/);
+  assert.strictEqual(brokers.calls.length, 0);
 });
 
 test('a draft edited after approval is no longer approved', async () => {
   const { folder, ctx, code } = await planned();
-  approve.run({ prompt: `approve ${code}`, cwd: folder });
+  click(folder, code);
   const d = drafts.load(folder, code);
   d.rows[0].args.quantity = (d.rows[0].args.quantity || d.rows[0].args.lower_quantity) + 100;
   drafts.save(folder, d);
@@ -69,14 +134,14 @@ test('a draft edited after approval is no longer approved', async () => {
 
 test('approval expires after 24 hours', async () => {
   const { folder, brokers, code } = await planned();
-  drafts.approveFromPrompt(folder, `approve ${code}`, new Date(NOW));
+  drafts.approve(folder, code, new Date(NOW));
   const r = await callTool('execute_draft', { folder, code }, ctxAt('2026-10-15T06:00:00Z', brokers));
   assert.match(r.text, /older than 24 h/);
 });
 
 test('a failed placement deletes nothing (no holding left unprotected)', async () => {
   const { folder, ctx, code, brokers } = await planned();
-  approve.run({ prompt: `approve ${code}`, cwd: folder });
+  click(folder, code);
   brokers.kite.placeGtt = async () => { throw new Error('rejected'); };
   const r = await callTool('execute_draft', { folder, code }, ctx);
   assert.strictEqual(r.ok, false);
@@ -86,7 +151,7 @@ test('a failed placement deletes nothing (no holding left unprotected)', async (
 
 test('broken broker delete falls back to a manual delete list', async () => {
   const { folder, ctx, code, brokers } = await planned();
-  approve.run({ prompt: `approve ${code}`, cwd: folder });
+  click(folder, code);
   brokers.kite.deleteGtt = async () => { throw new Error("parameter 'trigger_id': is required"); };
   const r = await callTool('execute_draft', { folder, code }, ctx);
   assert.match(r.text, /Delete manually in Kite web \(Orders > GTT\): #/);
@@ -99,7 +164,7 @@ test('order gate: matching approved row allowed, any field changed denied', asyn
   const name = 'mcp__kite__place_gtt_order';
   const now = new Date(NOW);
   assert.strictEqual(gate.decide({ tool_name: name, tool_input: place.args }, [folder], now).allow, false, 'unapproved must be denied');
-  approve.run({ prompt: `approve ${code}`, cwd: folder });
+  click(folder, code);
   assert.strictEqual(gate.decide({ tool_name: name, tool_input: place.args }, [folder], now).allow, true);
   for (const field of Object.keys(place.args).filter((k) => /quantity|trigger_value|limit_price/.test(k))) {
     const changed = { ...place.args, [field]: place.args[field] + 1 };
@@ -115,7 +180,7 @@ test('order gate: execute_draft allowed only when approved', async () => {
   const { folder, code } = await planned();
   const call = { tool_name: 'mcp__plugin_portfolio-copilot_portfolio-core__execute_draft', tool_input: { code } };
   assert.strictEqual(gate.decide(call, [folder], new Date(NOW)).allow, false);
-  approve.run({ prompt: `approve ${code}`, cwd: folder });
+  click(folder, code);
   assert.strictEqual(gate.decide(call, [folder], new Date(NOW)).allow, true);
 });
 
@@ -133,7 +198,7 @@ test('order gate allows an approved basket row as a LIMIT buy only', async () =>
   await callTool('refresh', { folder }, ctx);
   const b = await callTool('draft_basket', { folder, amount: 100000 }, ctx);
   const row = drafts.load(folder, b.code).rows[0];
-  approve.run({ prompt: `approve ${b.code}`, cwd: folder });
+  click(folder, b.code);
   const ok = { tradingsymbol: row.symbol, transaction_type: 'BUY', quantity: row.qty, order_type: 'LIMIT', price: row.limit_price };
   assert.strictEqual(gate.decide({ tool_name: 'mcp__kite__place_order', tool_input: ok }, [folder], new Date(NOW)).allow, true);
   assert.strictEqual(gate.decide({ tool_name: 'mcp__kite__place_order', tool_input: { ...ok, order_type: 'MARKET' } }, [folder], new Date(NOW)).allow, false);
@@ -163,11 +228,4 @@ test('lite plan text tells the investor to enter GTTs themselves', async () => {
 test('drafts live in the working folder state, not the repo', async () => {
   const { folder, code } = await planned();
   assert.ok(fs.existsSync(path.join(folder, 'portfolio-copilot', 'drafts', `${code}.json`)));
-});
-
-test('approving a draft that lives on another machine says to approve on the PC', async () => {
-  const { folder } = tmpEnv();
-  const out = approve.run({ prompt: 'approve DABCD', cwd: folder });
-  assert.match(out.hookSpecificOutput.additionalContext, /No open draft found for DABCD on this machine/);
-  assert.match(out.hookSpecificOutput.additionalContext, /Claude Code on the PC/);
 });
