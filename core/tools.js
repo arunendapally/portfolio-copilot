@@ -16,6 +16,7 @@ const rates = require('./lib/rates');
 const log = require('./lib/log');
 const protection = require('./lib/protection');
 const gapLib = require('./lib/gap');
+const version = require('./lib/version');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
 
 const FOLDER = { folder: { type: 'string', description: "The investor's working folder (absolute path). Pass it on the first call; it is remembered." } };
@@ -49,7 +50,8 @@ async function brokerStatus(args, ctx) {
     rows.push([name, s.status, s.status === 'outage' ? `outage: ${s.detail}. Do not log in again; retry later.` : s.error || s.detail || s.user || '']);
   }
   if (profile.brokers.ibkr && profile.brokers.ibkr.enabled) rows.push(['ibkr', 'via connector', 'call get_account_summary (and positions) on the IBKR connector, then ingest']);
-  const text = [`**Broker status** · ${istStamp(ctx.now())}`, table(['Broker', 'Status', 'Detail'], rows), links.length ? `\nLog in (links come straight from each broker's login tool):\n- ${links.join('\n- ')}` : ''].join('\n');
+  const warn = version.mismatch({ plugin: args.hook_plugin, version: args.hook_version });
+  const text = [`**Broker status** · ${istStamp(ctx.now())}`, ...(warn ? [warn] : []), table(['Broker', 'Status', 'Detail'], rows), links.length ? `\nLog in (links come straight from each broker's login tool):\n- ${links.join('\n- ')}` : ''].join('\n');
   return { ok: true, brokers: out, text };
 }
 
@@ -465,7 +467,7 @@ async function executeDraft(args, ctx) {
 // ---------------------------------------------------------------------------------------
 
 const TOOLS = [
-  { name: 'broker_status', handler: brokerStatus, description: 'Check every enabled broker independently: live, needs_login (with a login link returned by that broker), outage, or disabled. Call first in every session.', props: {} },
+  { name: 'broker_status', handler: brokerStatus, description: 'Check every enabled broker independently: live, needs_login (with a login link returned by that broker), outage, or disabled. Call first in every session. Pass hook_plugin and hook_version from the session-start context so a version or edition mismatch is reported.', props: { hook_plugin: { type: 'string' }, hook_version: { type: 'string' } } },
   { name: 'broker_login', handler: brokerLogin, description: 'Start a broker login (kite: returns link; kotak: start returns link + QR steps, validate confirms after the investor scans).', props: { broker: { type: 'string', enum: ['kite', 'kotak'] }, step: { type: 'string', enum: ['start', 'validate'] }, ucc: { type: 'string' } }, required: ['broker'] },
   { name: 'refresh', handler: refresh, description: "Pull all live brokers, save today's snapshot, and return the consolidated portfolio check (totals, cash, alerts, trade audit, changes since last snapshot).", props: { brokers: { type: 'array', items: { type: 'string' } } } },
   { name: 'ingest', handler: ingest, description: "Add holdings from a broker core does not connect to (IBKR connector output, or a holdings CSV statement) to today's snapshot. Foreign currency needs fx_rate and fx_source.", props: { broker: { type: 'string' }, holdings: { type: 'array', items: { type: 'object' } }, csv_path: { type: 'string' }, cash: { type: 'number' }, currency: { type: 'string' }, fx_rate: { type: 'number' }, fx_source: { type: 'string' }, source: { type: 'string' } }, required: ['broker'] },
