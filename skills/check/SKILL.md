@@ -15,6 +15,9 @@ Read with the broker MCPs, no limits or paging: Kite `get_holdings`, `get_gtts`,
 - `not_connected`: that broker's MCP is not available in this chat. Say which, and go on with the others.
 - Never write a login URL yourself.
 
+## Profile when the chat is not linked to the PC
+If the investor's folder is not reachable, ask them to attach `profile.json` (kept in the claude.ai Project). Save it into a scratch folder, pass that as `--folder`, and tell them plainly: "the profile is a copy". After any `profile_update` or `log_append`, hand the changed file back for them to re-upload; the copy is stale until they do.
+
 ## 2. Pull
 Run `pc refresh`. If an IBKR connector is available, call its `get_account_summary` (primary), then `get_account_positions`, and pass them to `ingest` with `broker: "ibkr"`, `currency: "USD"`, and `fx_rate` + `fx_source` (a dated USD/INR rate; say where it came from). If summary fails, ingest positions and say the cash figure is last known.
 For a broker with no connection, "import my holdings": ask for a CSV export and call `ingest` with `csv_path`.
