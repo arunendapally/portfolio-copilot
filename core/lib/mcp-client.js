@@ -89,7 +89,7 @@ class McpHttpClient {
     this.sessionId = null;
     const res = await this.post({
       jsonrpc: '2.0', id: this.nextId++, method: 'initialize',
-      params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: this.clientName, version: '0.5.1' } },
+      params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: this.clientName, version: '0.6.0' } },
     });
     if (res && res.error) throw new TransportError(`initialize failed: ${res.error.message}`);
     await this.post({ jsonrpc: '2.0', method: 'notifications/initialized' });

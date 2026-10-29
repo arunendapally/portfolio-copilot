@@ -1,6 +1,6 @@
 {
   "name": "portfolio-copilot-lite",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Analysis-and-drafting edition: reads Zerodha/Kotak Neo, audits GTTs against your policy, drafts GTT plans and baskets that you enter yourself. Cannot place orders. Not investment advice.",
   "author": {
     "name": "Arun Kumar"
