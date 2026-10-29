@@ -456,7 +456,7 @@ async function reportGap(args, ctx) {
   let filed = null;
   let why = '';
   if (gh && gh.token) {
-    try { filed = await gapLib.fileGap(gap, gh, ctx.now()); } catch (e) { why = ` GitHub filing failed (${e.message}).`; }
+    try { filed = await gapLib.fileGap(gap, gh, ctx.now(), args.folder); } catch (e) { why = ` GitHub filing failed (${e.message}).`; }
   }
   const file = gapLib.logLocal(args.folder, gap, ctx.now(), filed && filed.url);
   const text = filed

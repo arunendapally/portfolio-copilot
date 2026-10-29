@@ -14,7 +14,9 @@ function fakeGithub(open = []) {
   const fetch = async (url, init = {}) => {
     calls.push({ url, method: init.method || 'GET', body: init.body ? JSON.parse(init.body) : null });
     const made = (init.method || 'GET') === 'POST' && url.endsWith('/issues');
-    return { ok: true, status: 200, json: async () => (made ? { html_url: 'https://github.com/x/y/issues/99' } : (init.method === 'POST' ? {} : open)) };
+    if (made) return { ok: true, status: 200, json: async () => ({ number: 99, html_url: 'https://github.com/x/y/issues/99' }) };
+    if (/\/issues\/\d+$/.test(url)) return { ok: true, status: 200, json: async () => ({ number: 99, state: 'open', html_url: 'https://github.com/x/y/issues/99' }) };
+    return { ok: true, status: 200, json: async () => (init.method === 'POST' ? {} : open) };
   };
   return { calls, gh: { token: 't', repo: 'x/y', fetch } };
 }
@@ -36,7 +38,7 @@ test('report_gap files an issue labelled gap, or comments on an open duplicate',
   assert.strictEqual(made.filed.action, 'created');
   assert.deepStrictEqual(a.calls[1].body.labels, ['gap']);
   const b = fakeGithub([{ number: 7, title: 'no sip endpoint', html_url: 'https://github.com/x/y/issues/7' }]);
-  const dup = await callTool('report_gap', { folder, title: 'No SIP endpoint', missing: 'SIP list' }, { ...ctxAt(NOW), github: b.gh });
+  const dup = await callTool('report_gap', { folder: tmpEnv().folder, title: 'No SIP endpoint', missing: 'SIP list' }, { ...ctxAt(NOW), github: b.gh });
   assert.strictEqual(dup.filed.action, 'commented');
   assert.match(b.calls[1].url, /issues\/7\/comments$/);
 });
@@ -82,4 +84,65 @@ test('verdict_notes renders reasons, exit levels and stop decisions', async () =
   const r = await callTool('verdict_notes', { folder }, ctxAt(NOW));
   assert.match(r.text, /- JIOFIN: EXIT, thesis broken; exit at 260/);
   assert.match(r.text, /- SBIN: ADD, core bank; stop kept \(2026-10-29, weakening, review by 2026-11-10\)/);
+});
+
+test('report_gap twice in a row comments on the first issue even if the GitHub list lags', async () => {
+  const { folder } = tmpEnv();
+  const a = fakeGithub([]); // the list never shows the new issue
+  const first = await callTool('report_gap', { folder, title: 'Same gap', missing: 'M' }, { ...ctxAt(NOW), github: a.gh });
+  const second = await callTool('report_gap', { folder, title: 'Same gap', missing: 'M' }, { ...ctxAt(NOW), github: a.gh });
+  assert.strictEqual(first.filed.action, 'created');
+  assert.strictEqual(second.filed.action, 'commented');
+  assert.match(a.calls.at(-1).url, /issues\/99\/comments$/);
+});
+
+function flaky(statuses) {
+  const calls = [];
+  const sleeps = [];
+  let t = 0;
+  const gh = {
+    token: 't', repo: 'x/y', sleep: async (ms) => { sleeps.push(ms); }, clock: () => t,
+    fetch: async (url, init = {}) => {
+      calls.push(url);
+      const s = statuses.length > 1 ? statuses.shift() : statuses[0];
+      if (s === 'throw') throw new Error('socket hang up');
+      const made = (init.method || 'GET') === 'POST' && url.endsWith('/issues');
+      return { ok: s === 200, status: s, json: async () => (made ? { number: 5, html_url: 'https://github.com/x/y/issues/5' } : []) };
+    },
+  };
+  return { gh, calls, sleeps, advance: (ms) => { t += ms; } };
+}
+
+test('GitHub calls retry with exponential backoff, then succeed', async () => {
+  const { folder } = tmpEnv();
+  const f = flaky([503, 'throw', 200]);
+  const r = await callTool('report_gap', { folder, title: 'Backoff', missing: 'M' }, { ...ctxAt(NOW), github: f.gh });
+  assert.strictEqual(r.filed.action, 'created');
+  assert.deepStrictEqual(f.sleeps, [500, 1000]);
+});
+
+test('circuit breaker: 3 retries then give up, then fail fast until the cooldown ends', async () => {
+  const { folder } = tmpEnv();
+  const f = flaky([503]);
+  const r = await callTool('report_gap', { folder, title: 'Down', missing: 'M' }, { ...ctxAt(NOW), github: f.gh });
+  assert.strictEqual(r.filed, null);
+  assert.match(r.text, /gave up after 3 retries/);
+  assert.strictEqual(f.calls.length, 4); // first try + 3 retries
+  assert.deepStrictEqual(f.sleeps, [500, 1000, 2000]);
+  assert.ok(fs.existsSync(r.logged), 'still logged locally');
+  const again = await callTool('report_gap', { folder, title: 'Down', missing: 'M' }, { ...ctxAt(NOW), github: f.gh });
+  assert.match(again.text, /circuit open/);
+  assert.strictEqual(f.calls.length, 4, 'no network while the breaker is open');
+  f.advance(61000);
+  await callTool('report_gap', { folder, title: 'Down', missing: 'M' }, { ...ctxAt(NOW), github: f.gh });
+  assert.ok(f.calls.length > 4, 'tries again after the cooldown');
+});
+
+test('a 4xx such as 401 is not retried', async () => {
+  const { folder } = tmpEnv();
+  const f = flaky([401]);
+  const r = await callTool('report_gap', { folder, title: 'Auth', missing: 'M' }, { ...ctxAt(NOW), github: f.gh });
+  assert.match(r.text, /GitHub 401/);
+  assert.strictEqual(f.calls.length, 1);
+  assert.deepStrictEqual(f.sleeps, []);
 });
