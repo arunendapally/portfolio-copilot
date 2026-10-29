@@ -24,30 +24,43 @@ function writeProfile(folder, profile) {
   fs.writeFileSync(p, JSON.stringify(profile, null, 2));
 }
 
-// Fake kite/kotak modules with the same interface as core/lib/brokers/*.
+// What the PostToolUse capture hook would have saved from the brokers' own MCP tools.
+// fakeBrokers describes the broker state; ctxAt seeds it (as of the context's clock).
 function fakeBrokers({ kite = {}, kotak = {} } = {}) {
+  const session = require('../core/lib/session');
   const calls = [];
-  return {
-    calls,
-    kite: {
-      status: async () => kite.status || { status: 'live' },
-      login: async () => ({ ok: true, link: 'https://mcp.kite.trade/authorize?session_id=test' }),
-      fetchAll: async () => kite.data,
-      ltp: async (inst) => Object.fromEntries(inst.map((i) => [i, (kite.ltp || {})[i]])),
-      placeGtt: async (args) => { calls.push(['place', args]); if (kite.placeFails) throw new Error('rejected'); return { trigger_id: 999 }; },
-      deleteGtt: async (id) => { calls.push(['delete', id]); if (kite.deleteFails) throw new Error("parameter 'trigger_id': is required"); return {}; },
-    },
-    kotak: {
-      status: async () => kotak.status || { status: 'live' },
-      loginStart: async () => ({ ok: true, link: 'https://kotak.example/login', instructions: 'scan' }),
-      loginValidate: async () => ({ ok: true }),
-      fetchAll: async () => kotak.data,
-    },
+  const seed = (now) => {
+    const rec = (tool, payload, failText) => {
+      if (failText) return session.record(tool, { isError: true, content: [{ type: 'text', text: failText }] }, now);
+      return session.record(tool, typeof payload === 'string' ? payload : JSON.stringify(payload), now);
+    };
+    const st = kite.status && kite.status.status;
+    if (st === 'needs_login') rec('mcp__kite__get_holdings', null, 'Invalid session: please log in');
+    else if (st === 'outage') rec('mcp__kite__get_holdings', null, 'upstream 502 bad gateway');
+    else if (kite.data) {
+      rec('mcp__kite__get_holdings', kite.data.holdings);
+      rec('mcp__kite__get_mf_holdings', kite.data.mf || []);
+      rec('mcp__kite__get_gtts', kite.data.gtts);
+      rec('mcp__kite__get_margins', kite.data.margins);
+      rec('mcp__kite__get_orders', kite.data.orders || []);
+      rec('mcp__kite__get_trades', kite.data.trades || []);
+    }
+    if (kite.ltp) rec('mcp__kite__get_ltp', Object.fromEntries(Object.entries(kite.ltp).map(([k, v]) => [k, { last_price: v }])));
+    const ks = kotak.status && kotak.status.status;
+    if (ks === 'needs_login') rec('mcp__kotak-neo__get_holdings', null, 'Session expired, please login again');
+    else if (ks === 'outage') rec('mcp__kotak-neo__get_holdings', null, 'upstream 502 bad gateway');
+    else if (kotak.data) {
+      rec('mcp__kotak-neo__get_holdings', kotak.data.text);
+      rec('mcp__kotak-neo__get_limits', { Net: kotak.data.cash });
+    }
   };
+  return { calls, seed, kite, kotak };
 }
 
 function ctxAt(iso, brokers, edition = 'full') {
-  return { edition, brokers, now: () => new Date(iso) };
+  const now = new Date(iso);
+  if (brokers && brokers.seed) brokers.seed(now);
+  return { edition, now: () => now };
 }
 
 module.exports = { tmpEnv, fixture, writeProfile, fakeBrokers, ctxAt };

@@ -5,17 +5,21 @@ description: Portfolio check across all brokers, and working through the investo
 
 # Check
 
-All numbers come from portfolio-core tools. Show each tool's `text` as is; never recompute.
+All numbers come from the portfolio engine, a plain script (the session context gives its exact `node .../pc.js COMMAND` line; `pc` below). Show its text as is; never recompute. Broker data comes from the brokers' own MCP tools: you call their read tools and a hook saves what they return, so you never retype a broker number.
 
 ## 1. Connect (one message)
-Call `broker_status` (pass `folder` = the investor's working folder on the first call).
+Read with the broker MCPs, no limits or paging: Kite `get_holdings`, `get_gtts`, `get_margins`, `get_mf_holdings`, `get_orders`, `get_trades`; Kotak Neo `get_holdings`, `get_limits`. Then run `pc broker_status` (pass `--folder` = the investor's folder, and the hook plugin and version from the session context).
 - Live brokers: say nothing more.
-- `needs_login`: show only the links in the tool text, then wait for "done". Kotak: after "done", call `broker_login` with `broker: kotak, step: validate`.
+- `needs_login`: Kite: call the Kite MCP `login` tool, show its link only, wait for "done", read again. Kotak: its `get_login` with the UCC from the profile, the QR step, then `validate_login`, read again.
 - `outage`: say the broker is down and do not ask for a login.
+- `not_connected`: that broker's MCP is not available in this chat. Say which, and go on with the others.
 - Never write a login URL yourself.
 
+## Profile when the chat is not linked to the PC
+If the investor's folder is not reachable, ask them to attach `profile.json` (kept in the claude.ai Project). Save it into a scratch folder, pass that as `--folder`, and tell them plainly: "the profile is a copy". After any `profile_update` or `log_append`, hand the changed file back for them to re-upload; the copy is stale until they do.
+
 ## 2. Pull
-Call `refresh`. If an IBKR connector is available, call its `get_account_summary` (primary), then `get_account_positions`, and pass them to `ingest` with `broker: "ibkr"`, `currency: "USD"`, and `fx_rate` + `fx_source` (a dated USD/INR rate; say where it came from). If summary fails, ingest positions and say the cash figure is last known.
+Run `pc refresh`. If an IBKR connector is available, call its `get_account_summary` (primary), then `get_account_positions`, and pass them to `ingest` with `broker: "ibkr"`, `currency: "USD"`, and `fx_rate` + `fx_source` (a dated USD/INR rate; say where it came from). If summary fails, ingest positions and say the cash figure is last known.
 For a broker with no connection, "import my holdings": ask for a CSV export and call `ingest` with `csv_path`.
 
 ## 3. Macro (morning and mid-day only)

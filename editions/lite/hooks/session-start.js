@@ -10,9 +10,10 @@ const { manifest } = require('../core/lib/version');
 try {
   const rules = fs.readFileSync(path.join(__dirname, '..', 'context', 'house-rules.md'), 'utf8');
   const m = manifest();
+  const pc = `node "${path.join(__dirname, '..', 'core', 'bin', 'pc.js')}"`;
   const handshake = `
 
-portfolio-copilot hooks: plugin ${m.name}, version ${m.version}. When you call broker_status, pass hook_plugin="${m.name}" and hook_version="${m.version}" so a version or edition mismatch is reported. If more than one 'portfolio-copilot hooks:' line is in your context, two editions or versions are loaded: tell the investor once, naming the extra one to remove.`;
+portfolio-copilot hooks: plugin ${m.name}, version ${m.version}. Portfolio engine (no server; reads come from the broker MCPs): run ${pc} COMMAND --folder "INVESTOR_FOLDER" [--json '{...}']; COMMAND list shows them. When you run broker_status, add --hook_plugin ${m.name} --hook_version ${m.version} so a version or edition mismatch is reported. If more than one 'portfolio-copilot hooks:' line is in your context, two editions or versions are loaded: tell the investor once, naming the extra one to remove.`;
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: rules + handshake } }));
 } catch (err) {
   // Fail open for the session, but tell the model protection is degraded so it says so.

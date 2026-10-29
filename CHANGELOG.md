@@ -2,6 +2,21 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
+## [0.7.0] - 2026-10-30
+
+Daily use from a plain claude.ai chat (#23): the plugin now works through the brokers' own MCPs, with no server of its own.
+
+### Breaking
+- `portfolio-core` (the MCP server), its Kite and Kotak clients and `.mcp.json` are removed. Tools are now commands of the plain script `core/bin/pc.js`; the session hook prints the exact line. `broker_login` and `execute_draft` are gone: log in with the broker MCP's own login, and orders are placed with the broker MCP's own tools.
+- `orders.allow_remote_approval` is gone. Drafts, the click and the calls happen in the same chat.
+
+### Added
+- `hooks/capture.js` saves what the broker MCPs return (matched by tool-name suffix, any prefix), so broker numbers are never retyped.
+- The order gate matches broker write tools by name suffix, requires the arguments to match an approved draft row exactly, and allows each row once. It also covers IBKR `create_order_instruction` and `submit_order`, and `modify_order` and `cancel_order`.
+- Drafts carry the exact tool and arguments per row; basket drafts become Kite `place_order` rows. `draft_orders` drafts IBKR instructions and cancels.
+- Kite "Invalid session" is reported as a login request, never as an outage; stale or missing captures are reported as such.
+- Lite edition: the same gate in deny-all-writes mode.
+
 ## [0.6.1] - 2026-10-29
 
 - Cloud approval (#9, #17): `get-started` asks once whether linked claude.ai chats may execute approved drafts (`orders.allow_remote_approval`, still off until the investor says Yes). The refusal when it is off now says what to do instead of sending the investor to a command.

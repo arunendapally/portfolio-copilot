@@ -6,7 +6,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { stateDir, configDir, readJson, writeJson } = require('./state');
+const { stateDir, readJson, writeJson } = require('./state');
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_RE = /^D[A-HJ-NP-Z2-9]{4}$/;
@@ -61,39 +61,21 @@ function approve(folder, code, now = new Date(), via = 'inline question') {
   return { code, rows: d.rows.length };
 }
 
-// ---- remote approvals (cloud session linked to the investor's PC, issue #9) --------------
-// The hook runs in the cloud and cannot see drafts kept on the PC. It records the click here;
-// the order gate lets exactly one matching execute_draft through and consumes the record.
-
-function remoteFile() {
-  return path.join(configDir(), 'approvals.json');
+// Each row of an approved draft may be used for exactly one broker call. The marker file is
+// created exclusively, so two parallel calls cannot both claim the same row.
+function claimRow(folder, code, idx) {
+  try {
+    fs.mkdirSync(draftsDir(folder), { recursive: true });
+    fs.closeSync(fs.openSync(path.join(draftsDir(folder), `${code}.row${idx}.used`), 'wx'));
+    return true;
+  } catch (e) {
+    if (e.code === 'EEXIST') return false;
+    throw e;
+  }
 }
 
-function recordRemote(code, now = new Date()) {
-  const all = readJson(remoteFile(), {});
-  all[code] = { approved_at: now.toISOString() };
-  writeJson(remoteFile(), all, 0o600);
-}
-
-function consumeRemote(code, now = new Date()) {
-  const all = readJson(remoteFile(), {});
-  const r = all[code];
-  if (!r) return false;
-  delete all[code];
-  writeJson(remoteFile(), all, 0o600);
-  return now - new Date(r.approved_at) <= TTL_MS;
-}
-
-// Server side: accept an approval the cloud gate passed through. Only for an untouched draft
-// younger than the TTL; the caller checks the profile opt-in first.
-function acceptRemote(folder, code, now = new Date()) {
-  const d = load(folder, code);
-  if (!d) return { ok: false, reason: `no draft ${code}` };
-  if (d.status !== 'draft') return { ok: false, reason: `draft ${code} is ${d.status}` };
-  if (now - new Date(d.created_at) > TTL_MS) return { ok: false, reason: `draft ${code} is older than 24 h` };
-  if (!d.created_hash || hashRows(d.rows) !== d.created_hash) return { ok: false, reason: `draft ${code} changed since it was shown (or predates v0.5.1): draft it again` };
-  approve(folder, code, now, 'inline question, cloud gate');
-  return { ok: true };
+function rowUsed(folder, code, idx) {
+  return fs.existsSync(path.join(draftsDir(folder), `${code}.row${idx}.used`));
 }
 
 function verify(folder, code, now = new Date()) {
@@ -111,4 +93,4 @@ function approvedDrafts(folder, now = new Date()) {
   return names.map((f) => verify(folder, f.slice(0, -5), now)).filter((v) => v.ok).map((v) => v.draft);
 }
 
-module.exports = { CODE_RE, YES_RE, create, load, save, approve, verify, approvedDrafts, hashRows, draftsDir, recordRemote, consumeRemote, acceptRemote };
+module.exports = { CODE_RE, YES_RE, create, load, save, approve, verify, approvedDrafts, hashRows, draftsDir, claimRow, rowUsed };

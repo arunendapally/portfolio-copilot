@@ -17,16 +17,16 @@ Stops protect against a broken thesis, not a market-wide fall.
    - A `trade` verdict keeps its own stop and target; the crash-floor rule does not apply to it.
 6. GTT quantity equals held quantity.
 7. A hold name whose stop is tighter than the minimum but carries `verdicts.<SYMBOL>.stop_review` with `decision: "keep"` is shown as "kept by decision" until its `review_by` date; the audit, crash test and plan leave that stop alone. After `review_by` it is flagged again.
-This policy lives in portfolio-core; do not restate or improvise thresholds.
+This policy lives in the portfolio engine; do not restate or improvise thresholds.
 
 ## Steps
-1. If today's Kite data is not live, run `broker_status` and `refresh` first (see the check skill). Otherwise findings are unverified and say so.
+1. If today's Kite data is not live, read it with the Kite MCP and run `pc broker_status` and `pc refresh` first (see the check skill). Otherwise findings are unverified and say so.
 2. Optional: search held symbols for upcoming bonus/split/demerger; pass them as `corporate_actions`.
 3. Call `gtt_audit`. Show its text.
 4. If the investor wants fixes: for every hold name with a `stop_too_tight` finding, run the analyze skill first and classify it (policy 5). Then call `draft_gtt_plan` with `symbols` set to only the names to widen, plus any quantity or ETF/exit fixes. Show the full plan text. New GTTs are placed before old ones are deleted.
 5. Approval (full edition): ask with `AskUserQuestion`, exactly as the plan text says. Use header = the code. The question names the code and lists every row (action, symbol, qty, trigger/target, reason). Give two options in this order: "No, don't place", then "Yes, place <code>". Never pre-fill answers; only the investor's click counts, and a plain "yes" typed in chat approves nothing.
-6. After the hook confirms the approval: call `execute_draft` with the code. Add `remote_approval: true` only when the hook says the draft is on the linked computer. Show the result, then `refresh` and `gtt_audit` to verify. If deletes failed, give the listed ids for deletion in Kite web (Orders > GTT).
-7. Lite edition, or no approval: the investor enters the plan in Kite web; afterwards run `refresh` and `gtt_audit`.
+6. After the hook confirms the approval: make the Kite MCP calls listed in the plan, one per row, with exactly those arguments (`place_gtt_order` rows first, `delete_gtt_order` only after every place succeeded). The order gate allows each row once. If a delete fails in the MCP, delete only those ids in Kite web (Orders > GTT, the investor's logged-in tab), ticking exactly the planned ids and checking that "Delete N selected" equals the planned count. Never log in for them.
+7. Verify: read GTTs again, run `pc refresh` and `pc gtt_audit`: one GTT per holding at the held quantity. Lite edition, or no approval: the investor enters the plan in Kite web, then verify the same way.
 8. `log_append` what changed.
 
-Never call broker order tools directly; the order gate blocks anything that is not an approved draft.
+Broker order tools are called only for rows of an approved draft; the order gate blocks everything else, and a row that was already used.
