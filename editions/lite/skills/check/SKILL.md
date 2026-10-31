@@ -50,7 +50,7 @@ Call `log_append` with a 3-5 line entry (what was pulled, totals, what changed, 
 4. Complete the Todoist task (complete-tasks) only after the work is done and verified, and `log_append` it. An action no tool can do stays open: call `report_gap` for it.
 
 ## Gaps
-When a tool says "not supported", a known limitation, or errors with no fallback, call `report_gap` (title, what was attempted, what is missing, the error). Never put quantities, prices or P&L in it. Then tell the investor where it was logged.
+When a tool says "not supported", a known limitation, or errors with no fallback, call `report_gap` (title, what was attempted, what is missing, the error). Never put quantities, prices or P&L in it. If the result says no issue was filed (no token, or GitHub rejected it) and a GitHub MCP is connected in this chat, file it yourself: search open issues labelled `gap` for the same title and comment on it, otherwise create the issue with label `gap` in `arunendapally/portfolio-copilot`, using the same text report_gap logged and no investor numbers. Then tell the investor where it was logged and filed.
 
 ## Scheduled run (investor away)
 Do not wait for logins. Run `broker_status` once, then `check` (last snapshot, clearly dated) and the macro read, then one line per broker that needs login. Nothing is presented as live unless the tool says live.

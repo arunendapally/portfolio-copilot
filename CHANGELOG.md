@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: se
 
 ### Fixed (#25)
 - `ingest` reads the IBKR connector's `contract_description` as the symbol (also `ticker`, `tradingsymbol`) and refuses the whole call, naming the row indexes, when any row has no symbol. Before, rows collapsed into one `UNDEFINED` holding.
-- `report_gap` explains a 401/403 (rejected GitHub token) and points to the local `feedback.md` log.
+- `report_gap` explains a 401/403 (rejected GitHub token) and points to the local `feedback.md` log. The `check` skill now files the gap through a connected GitHub MCP when the token route fails, so a cloud chat needs no token.
 
 ### Added
 - `check` skill: documented stage, run, write-back flow for a cloud chat linked to the PC.
