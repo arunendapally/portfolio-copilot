@@ -2,6 +2,15 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
+## [Unreleased]
+
+### Fixed (#25)
+- `ingest` reads the IBKR connector's `contract_description` as the symbol (also `ticker`, `tradingsymbol`) and refuses the whole call, naming the row indexes, when any row has no symbol. Before, rows collapsed into one `UNDEFINED` holding.
+- `report_gap` explains a 401/403 (rejected GitHub token) and points to the local `feedback.md` log.
+
+### Added
+- `check` skill: documented stage, run, write-back flow for a cloud chat linked to the PC.
+
 ## [0.7.0] - 2026-10-30
 
 Daily use from a plain claude.ai chat (#23): the plugin now works through the brokers' own MCPs, with no server of its own.
