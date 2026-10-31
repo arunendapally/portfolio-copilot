@@ -136,6 +136,21 @@ test('ingest adds a foreign broker with its FX rate and source', async () => {
   assert.match(c.text, /USD at 88 INR \(RBI ref/);
 });
 
+test('ingest maps IBKR contract_description and fails loudly on a missing symbol', async () => {
+  const { folder, brokers } = setup();
+  const ctx = ctxAt('2026-10-14T05:00:00Z', brokers);
+  await callTool('refresh', { folder }, ctx);
+  const base = { folder, broker: 'ibkr', currency: 'USD', fx_rate: 88, fx_source: 'RBI ref' };
+  const bad = await callTool('ingest', { ...base, holdings: [{ contract_description: 'VWRA', position: 1, market_value: 100 }, { position: 2, market_value: 5 }] }, ctx);
+  assert.strictEqual(bad.ok, false);
+  assert.match(bad.text, /1/);
+  const r = await callTool('ingest', { ...base, holdings: [{ contract_description: 'vwra', position: 1, market_value: 100 }, { contract_description: 'CSPX', position: 2, market_value: 50 }] }, ctx);
+  assert.ok(r.ok, r.text);
+  const c = await callTool('check', { folder }, ctx);
+  assert.strictEqual(c.brokers.ibkr.count, 2);
+  assert.doesNotMatch(c.text, /UNDEFINED/);
+});
+
 test('ingest on a new day keeps the other brokers, marked not pulled (issue #4)', async () => {
   const { folder, brokers } = setup();
   const day1 = await callTool('refresh', { folder }, ctxAt('2026-10-15T05:00:00Z', brokers));

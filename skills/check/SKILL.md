@@ -18,6 +18,13 @@ Read with the broker MCPs, no limits or paging: Kite `get_holdings`, `get_gtts`,
 ## Profile when the chat is not linked to the PC
 If the investor's folder is not reachable, ask them to attach `profile.json` (kept in the claude.ai Project). Save it into a scratch folder, pass that as `--folder`, and tell them plainly: "the profile is a copy". After any `profile_update` or `log_append`, hand the changed file back for them to re-upload; the copy is stale until they do.
 
+## Profile when the chat is linked to the PC
+`pc.js` runs in the container and needs `--folder` there, so use stage, run, write back:
+1. Stage: through the device link, copy `profile.json`, `log.md` and the latest `snapshots` from the investor's folder into a scratch folder in the container.
+2. Run `pc` against the scratch folder.
+3. Write back: copy the changed `profile.json`, `log.md`, snapshots and `feedback.md` to the investor's folder on the PC before ending, and say which files were written. If the link drops, say the PC copy is stale.
+If the device shell can run Node, running `pc.js` on the PC directly (with the real folder) is simpler and needs no staging.
+
 ## 2. Pull
 Run `pc refresh`. If an IBKR connector is available, call its `get_account_summary` (primary), then `get_account_positions`, and pass them to `ingest` with `broker: "ibkr"`, `currency: "USD"`, and `fx_rate` + `fx_source` (a dated USD/INR rate; say where it came from). If summary fails, ingest positions and say the cash figure is last known.
 For a broker with no connection, "import my holdings": ask for a CSV export and call `ingest` with `csv_path`.
@@ -43,7 +50,7 @@ Call `log_append` with a 3-5 line entry (what was pulled, totals, what changed, 
 4. Complete the Todoist task (complete-tasks) only after the work is done and verified, and `log_append` it. An action no tool can do stays open: call `report_gap` for it.
 
 ## Gaps
-When a tool says "not supported", a known limitation, or errors with no fallback, call `report_gap` (title, what was attempted, what is missing, the error). Never put quantities, prices or P&L in it. Then tell the investor where it was logged.
+When a tool says "not supported", a known limitation, or errors with no fallback, call `report_gap` (title, what was attempted, what is missing, the error). Never put quantities, prices or P&L in it. If the result says no issue was filed (no token, or GitHub rejected it) and a GitHub MCP is connected in this chat, file it yourself: search open issues labelled `gap` for the same title and comment on it, otherwise create the issue with label `gap` in `arunendapally/portfolio-copilot`, using the same text report_gap logged and no investor numbers. Then tell the investor where it was logged and filed.
 
 ## Scheduled run (investor away)
 Do not wait for logins. Run `broker_status` once, then `check` (last snapshot, clearly dated) and the macro read, then one line per broker that needs login. Nothing is presented as live unless the tool says live.

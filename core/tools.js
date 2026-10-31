@@ -100,12 +100,17 @@ async function ingest(args, ctx) {
     const parsed = norm.kotakHoldings(fs.readFileSync(args.csv_path, 'utf8'), profile);
     holdings = parsed.map((h) => ({ ...h, broker, currency: args.currency || 'INR' }));
   } else {
-    holdings = (args.holdings || []).map((h) => {
+    const rows = args.holdings || [];
+    // IBKR's get_account_positions names the instrument contract_description, not symbol.
+    const symOf = (h) => String(h.symbol ?? h.contract_description ?? h.ticker ?? h.tradingsymbol ?? '').trim();
+    const bad = rows.map((h, i) => (symOf(h) ? null : i)).filter((i) => i !== null);
+    if (bad.length) return { ok: false, error: `no symbol on holding row(s) ${bad.join(', ')}`, text: `Nothing ingested: ${bad.length} row(s) have no symbol (looked for symbol, contract_description, ticker, tradingsymbol). Row index: ${bad.join(', ')}.` };
+    holdings = rows.map((h) => {
       const qty = norm.num(h.qty ?? h.quantity ?? h.position) || 0;
       const ltp = norm.num(h.ltp ?? h.last_price ?? h.market_price);
       const value = norm.num(h.value ?? h.market_value) ?? (ltp !== null ? qty * ltp : null);
       const avg = norm.num(h.avg ?? h.average_price ?? h.avg_cost);
-      return { broker, symbol: String(h.symbol).toUpperCase(), exchange: h.exchange || null, type: h.type || (args.currency && args.currency !== 'INR' ? 'foreign' : 'equity'), qty, avg, ltp, value, pnl: norm.num(h.pnl ?? h.unrealized_pnl) ?? (value !== null && avg !== null ? value - qty * avg : null), day_change: norm.num(h.day_change ?? h.daily_pnl), currency: h.currency || args.currency || 'INR' };
+      return { broker, symbol: symOf(h).toUpperCase(), exchange: h.exchange || null, type: h.type || (args.currency && args.currency !== 'INR' ? 'foreign' : 'equity'), qty, avg, ltp, value, pnl: norm.num(h.pnl ?? h.unrealized_pnl) ?? (value !== null && avg !== null ? value - qty * avg : null), day_change: norm.num(h.day_change ?? h.daily_pnl), currency: h.currency || args.currency || 'INR' };
     }).filter((h) => h.qty);
   }
   const snap = todaySnapshot(args.folder, now);
@@ -407,7 +412,10 @@ async function reportGap(args, ctx) {
   let filed = null;
   let why = '';
   if (gh && gh.token) {
-    try { filed = await gapLib.fileGap(gap, gh, ctx.now(), args.folder); } catch (e) { why = ` GitHub filing failed (${e.message}).`; }
+    try { filed = await gapLib.fileGap(gap, gh, ctx.now(), args.folder); } catch (e) {
+      const auth = /GitHub 40[13]\b/.test(e.message) ? ' The token was rejected: unset or replace PORTFOLIO_COPILOT_GITHUB_TOKEN (a cloud chat usually has none; the local log is the record).' : '';
+      why = ` GitHub filing failed (${e.message}).${auth}`;
+    }
   }
   const file = gapLib.logLocal(args.folder, gap, ctx.now(), filed && filed.url);
   const text = filed
