@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
-## [Unreleased]
+## [0.7.1] - 2026-10-31
 
 ### Fixed (#25)
 - `ingest` reads the IBKR connector's `contract_description` as the symbol (also `ticker`, `tradingsymbol`) and refuses the whole call, naming the row indexes, when any row has no symbol. Before, rows collapsed into one `UNDEFINED` holding.
