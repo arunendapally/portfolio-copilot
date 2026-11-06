@@ -6,7 +6,8 @@ const path = require('path');
 const { configDir, readJson, writeJson } = require('./state');
 
 // Session expired or not authorised: the broker wants a login, which is not an outage.
-const LOGIN_RE = /invalid session|session (has )?expired|please log ?in|not (yet )?authori[sz]ed|missing authentication|login required/i;
+// "failed to execute" is what the Kite MCP returns for a read while logged out.
+const LOGIN_RE = /invalid session|session (has )?expired|please log ?in|not (yet )?authori[sz]ed|missing authentication|login required|failed to execute/i;
 
 function sourceOf(toolName) {
   const n = String(toolName).toLowerCase();

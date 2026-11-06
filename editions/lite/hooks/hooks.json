@@ -30,6 +30,14 @@
         ]
       }
     ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "^mcp__.*([Kk]ite|[Kk]otak|[Ii]nteractive_[Bb]rokers|IBKR|ibkr).*__(get|list)_[a-z_]+$",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/capture.js\"", "timeout": 10 }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "matcher": "fundamentals-analyst",

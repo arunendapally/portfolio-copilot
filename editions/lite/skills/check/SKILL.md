@@ -8,11 +8,11 @@ description: Portfolio check across all brokers, and working through the investo
 All numbers come from the portfolio engine, a plain script (the session context gives its exact `node .../pc.js COMMAND` line; `pc` below). Show its text as is; never recompute. Broker data comes from the brokers' own MCP tools: you call their read tools and a hook saves what they return, so you never retype a broker number.
 
 ## 1. Connect (one message)
-Read with the broker MCPs, no limits or paging: Kite `get_holdings`, `get_gtts`, `get_margins`, `get_mf_holdings`, `get_orders`, `get_trades`; Kotak Neo `get_holdings`, `get_limits`. Then run `pc broker_status` (pass `--folder` = the investor's folder, and the hook plugin and version from the session context).
+Kotak Neo reads need the `sessionid` from its login, so start Kotak with `get_login` (UCC from the profile), the QR step, then `validate_login`. Then read with the broker MCPs, no limits or paging: Kite `get_holdings`, `get_gtts`, `get_margins`, `get_mf_holdings`, `get_orders`, `get_trades`; Kotak Neo `get_holdings`, `get_limits` (with the `sessionid`). Then run `pc broker_status` (pass `--folder` = the investor's folder, and the hook plugin and version from the session context).
 - Live brokers: say nothing more.
-- `needs_login`: Kite: call the Kite MCP `login` tool, show its link only, wait for "done", read again. Kotak: its `get_login` with the UCC from the profile, the QR step, then `validate_login`, read again.
+- `needs_login`, or any read that returned an error: Kite: call the Kite MCP `login` tool, show its link only, wait for "done", read again. Kotak: `get_login`, the QR step, `validate_login`, read again. If reads still fail right after a successful login, treat it as an outage; do not ask again.
 - `outage`: say the broker is down and do not ask for a login.
-- `not_connected`: that broker's MCP is not available in this chat. Say which, and go on with the others.
+- `not_connected`: only when that broker's MCP tools are not in this chat at all. Say which, and go on with the others. If the tools exist but a read errored, that is a login, above.
 - Never write a login URL yourself.
 
 ## Profile when the chat is not linked to the PC

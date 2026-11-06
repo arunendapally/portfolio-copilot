@@ -77,6 +77,23 @@ test('an expired Kite session is captured as a login request, then a good read c
   assert.strictEqual(inputs.pull('kite', profile, NOW).status, 'live');
 });
 
+// Claude Code fires PostToolUseFailure, not PostToolUse, when a broker read errors.
+function failHook(tool, error) {
+  return capture.run({ hook_event_name: 'PostToolUseFailure', tool_name: tool, tool_input: {}, error }, NOW);
+}
+
+test('a failed read while logged out is captured and asks for a login, not "not connected"', () => {
+  const { folder } = tmpEnv();
+  writeProfile(folder, fixture('profile.json'));
+  const profile = fixture('profile.json');
+  assert.ok(failHook('mcp__kite__get_holdings', 'Failed to execute get_holdings'));
+  assert.strictEqual(inputs.pull('kite', profile, NOW).status, 'needs_login');
+  failHook('mcp__kotak__get_holdings', 'Invalid session. Please login again');
+  assert.strictEqual(inputs.pull('kotak', profile, NOW).status, 'needs_login');
+  captureKite();
+  assert.strictEqual(inputs.pull('kite', profile, NOW).status, 'live');
+});
+
 test('prices asked for in pieces are merged, not overwritten', () => {
   tmpEnv();
   hook('mcp__kite__get_ltp', { 'NSE:NIFTY 50': { last_price: 22800 } });

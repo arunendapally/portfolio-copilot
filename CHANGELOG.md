@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
+## [0.7.2] - 2026-11-06
+
+### Fixed
+- Kite and Kotak Neo ask for a login again when you are logged out. Since 0.7.0 a failed broker read was never captured (Claude Code sends errors to `PostToolUseFailure`, not `PostToolUse`), so `broker_status` said "not connected" and the `check` skill skipped the broker. The capture hook now also runs on `PostToolUseFailure`, and the Kite MCP's "Failed to execute" is read as a login request.
+- `check` skill: Kotak starts with its login, since its reads need the `sessionid`; any errored read leads to a login, and "not connected" is only for a broker whose MCP is absent.
+
 ## [0.7.1] - 2026-10-31
 
 ### Fixed (#25)
