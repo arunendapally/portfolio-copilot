@@ -52,6 +52,13 @@ test('capture matcher covers broker read tools on any prefix and no writes', () 
   for (const n of ORDER_TOOL_NAMES.concat(['Bash', 'mcp__claude_ai_Gmail__list_drafts'])) assert.ok(!re.test(n), `captured by mistake: ${n}`);
 });
 
+test('failed broker reads reach the capture hook too, with the same matcher', () => {
+  const h = json('hooks/hooks.json').hooks;
+  const find = (ev) => (h[ev] || []).find((g) => g.hooks.some((x) => /capture\.js/.test(x.command)));
+  assert.ok(find('PostToolUseFailure'), 'no PostToolUseFailure capture hook');
+  assert.strictEqual(find('PostToolUseFailure').matcher, find('PostToolUse').matcher);
+});
+
 test('the plugin ships no MCP server and no broker client: brokers are reached through their own MCPs (#23)', () => {
   assert.ok(!fs.existsSync(path.join(ROOT, '.mcp.json')));
   for (const f of ['core/server.js', 'core/lib/mcp-client.js', 'core/lib/brokers/kite.js', 'core/lib/brokers/kotak.js']) assert.ok(!fs.existsSync(path.join(ROOT, f)), `${f} should be gone`);

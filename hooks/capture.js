@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 'use strict';
-// PostToolUse (broker read tools): saves what the broker's own MCP returned, so the pc script
-// computes from the real payload. Reads only; it never blocks and never calls a broker.
+// PostToolUse and PostToolUseFailure (broker read tools): saves what the broker's own MCP
+// returned, so the pc script computes from the real payload. A failed read is saved too, so a
+// logged-out broker shows as needs_login. Reads only; it never blocks and never calls a broker.
 
 const session = require('../core/lib/session');
 const { readStdin } = require('./lib');
@@ -9,7 +10,10 @@ const { readStdin } = require('./lib');
 function run(input, now = new Date()) {
   const tool = String(input.tool_name || '');
   if (!/__(get|list)_[a-z_]+$/.test(tool)) return null;
-  return session.record(tool, input.tool_response, now);
+  const resp = input.hook_event_name === 'PostToolUseFailure'
+    ? { isError: true, content: [{ type: 'text', text: String(input.error || 'tool call failed') }] }
+    : input.tool_response;
+  return session.record(tool, resp, now);
 }
 
 if (require.main === module) {
