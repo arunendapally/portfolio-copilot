@@ -1,0 +1,43 @@
+{
+  "feature": "ibkr-etf-bucket",
+  "lane": "bug",
+  "stage": 5,
+  "branch": "bug/ibkr-etf-bucket",
+  "createdAt": "2026-11-07T03:56:24.874Z",
+  "stages": {
+    "4": {
+      "enteredAt": "2026-11-07T03:56:24.874Z",
+      "leftAt": "2026-11-07T04:07:52.544Z"
+    },
+    "5": {
+      "enteredAt": "2026-11-07T04:07:52.544Z"
+    }
+  },
+  "gates": {
+    "4": {
+      "status": "approved",
+      "by": "checks: checks (repro red, gate green, small diff)",
+      "requestedAt": "2026-11-07T04:07:51.096Z",
+      "approvedAt": "2026-11-07T04:07:51.096Z",
+      "auto": true,
+      "fingerprint": "ffe6e2dd61b8f71e"
+    }
+  },
+  "retries": {},
+  "kinds": [],
+  "updatedAt": "2026-11-07T04:07:52.544Z",
+  "gateRuns": {
+    "4": {
+      "ok": true,
+      "count": 113,
+      "at": "2026-11-07T04:07:43.964Z",
+      "runs": 1,
+      "runtime": "v24.19.0"
+    }
+  },
+  "baseline": 113,
+  "baselineRuntime": "v24.19.0",
+  "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
+  "reproRedAt": "2026-11-07T04:06:24.209Z",
+  "sizeChecked": 30
+}
