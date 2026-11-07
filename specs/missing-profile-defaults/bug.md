@@ -21,13 +21,19 @@ core/tools.js `callTool`: when the profile file is missing, prepend one warning 
 ## Test results
 
 Repro: tests/missing-profile.test.js, 2 of 4 tests red on the base (38718ab: the warning test and the INF ISIN test), green on this commit; the other 2 are guards that passed before and after
-Suite: 109 passed, 0 failed, 0 skipped (baseline 109, run by `sdlc gate`)
-Gate: green, PR size 28 of 200 code lines (sdlc gate missing-profile-defaults)
+Suite: 111 passed, 0 failed, 0 skipped (baseline 111, run by `sdlc gate`)
+Gate: green, PR size 24 of 200 code lines (sdlc gate missing-profile-defaults)
 Removed, skipped or quarantined: none
 
 ## Pre-review
 
-<!-- Written by the pre-reviewer agent. -->
+Risk: medium, because it is a code change with repro tests that fail on the base (38718ab), no high-risk path, no data or contract change; the new text prefix and profile_missing field are additive.
+Open findings: 1 (F5, nit: a question for the human on warn vs refuse; no blocker, major or minor open)
+Look here first: core/tools.js:489 (F5: draft_gtt_plan and draft_basket still draft on defaults with only a warning; with no verdicts every name is default hold, the exact harm in #28; decide whether drafting should refuse without a profile), core/lib/brokers/normalize.js:35 (the INF rule: INF ISINs are fund units, so a demat unit of a non-ETF fund is now typed etf; judge whether etf typing and its GTT treatment is right for such units)
+Lenses run: correctness, simplicity, tests
+Revert: git revert of the merge commit, then rebuild editions/lite and the two .plugin bundles (node scripts/build.js) if the revert does not carry them; no data to back out (no profile, snapshot or state format change)
+Checked mechanically: checklist items 1, 2, 9, 13, 15, 16, 21, 22, 24 to 26; 2 of the original 4 repro tests fail on the base and the rest are named guards; full suite 111 of 111 pass; F1 to F3 re-checked in 38e8908; editions/lite core/tools.js and normalize.js identical to core; warning cannot break in-repo callers (core/bin/pc.js only prints text, nothing parses it); remembered-folder calls resolve the same profile path as the handler (both go through resolveFolder) and are now tested; no new dependency; no secrets; packet signals cleared (the .plugin bundles are build output)
+Could not check: a live run against the real investor folder in a cloud chat; the contents of the two .plugin bundles (not unpacked); that draft_gtt_plan and draft_basket return ok without a profile (the loop test asserts the warning only, ok is asserted for gtt_audit and check)
 
 ## Not verified
 
