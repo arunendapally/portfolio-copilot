@@ -16,13 +16,13 @@ Trap: bucketing decided by an instrument type that the caller can override, inst
 
 ## Fix
 
-core/lib/snapshot.js:33: also return `global_equity` when the holding's currency is not INR (1 line, plus a comment). A symbol mapped in the profile still wins, and INR ETFs still bucket by name; the second test in the same file pins both. CHANGELOG entry under Unreleased; regenerated lite edition and bundles; no version bump (the bug lane refuses package.json). Left alone: gold, silver and debt ETFs held in USD would also read as global_equity; map them in `allocation.symbol_buckets`.
+core/lib/snapshot.js:33: also return `global_equity` when the holding's currency is not INR (1 line, plus a comment). core/lib/rates.js:21 and core/tools.js:356: the same currency check in `classify`, so `rate_map` lists USD ETFs as foreign equity (found in pre-review). A profile mapping still wins and INR ETFs still bucket by name; two guard tests in the same file pin both. CHANGELOG entry under Unreleased; regenerated lite edition and bundles; no version bump (the bug lane refuses package.json). Left alone: gold, silver and debt ETFs held in USD also read as global_equity now; map them in `allocation.symbol_buckets` (noted in the CHANGELOG).
 
 ## Test results
 
-Repro: tests/ibkr-bucket.test.js, 1 of 2 tests red on the base (9aab563: the VOO and QQQM test), green on this commit; the other is a guard that passed before and after
-Suite: 113 passed, 0 failed, 0 skipped (baseline 113, run by `sdlc gate`)
-Gate: green, PR size 30 of 200 code lines (sdlc gate ibkr-etf-bucket)
+Repro: tests/ibkr-bucket.test.js, the allocation test and the rate_map test red on the base (9aab563), green on this commit; the two guard tests passed before and after
+Suite: 115 passed, 0 failed, 0 skipped (baseline 115, run by `sdlc gate`)
+Gate: green, PR size 44 of 200 code lines (sdlc gate ibkr-etf-bucket)
 Removed, skipped or quarantined: none
 
 ## Pre-review
