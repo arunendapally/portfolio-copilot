@@ -1,0 +1,52 @@
+{
+  "feature": "missing-profile-defaults",
+  "lane": "bug",
+  "stage": 5,
+  "branch": "bug/missing-profile-defaults",
+  "createdAt": "2026-11-07T03:05:29.101Z",
+  "stages": {
+    "4": {
+      "enteredAt": "2026-11-07T03:05:29.101Z",
+      "leftAt": "2026-11-07T03:26:55.209Z"
+    },
+    "5": {
+      "enteredAt": "2026-11-07T03:26:55.209Z"
+    }
+  },
+  "gates": {
+    "4": {
+      "status": "approved",
+      "by": "checks: checks (repro red, gate green, small diff)",
+      "requestedAt": "2026-11-07T03:26:53.251Z",
+      "approvedAt": "2026-11-07T03:26:53.251Z",
+      "auto": true,
+      "fingerprint": "5986215b86839386"
+    }
+  },
+  "retries": {},
+  "kinds": [],
+  "updatedAt": "2026-11-07T03:31:41.251Z",
+  "gateRuns": {
+    "4": {
+      "ok": true,
+      "count": 109,
+      "at": "2026-11-07T03:26:41.109Z",
+      "runs": 1,
+      "runtime": "v24.19.0"
+    },
+    "5": {
+      "ok": true,
+      "count": 111,
+      "at": "2026-11-07T03:31:41.094Z",
+      "runs": 1,
+      "runtime": "v24.19.0"
+    }
+  },
+  "baseline": 111,
+  "baselineRuntime": "v24.19.0",
+  "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
+  "reproRedAt": "2026-11-07T03:23:07.006Z",
+  "sizeChecked": 28,
+  "lastPacketHead": "38718ab",
+  "ledgerIds": []
+}

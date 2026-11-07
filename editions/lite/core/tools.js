@@ -477,11 +477,18 @@ function makeContext(overrides = {}) {
   return { edition: process.env.PORTFOLIO_EDITION || (/-lite$/.test(version.manifest().name) ? 'lite' : 'full'), now: () => new Date(), github: { token: process.env.PORTFOLIO_COPILOT_GITHUB_TOKEN || process.env.GITHUB_TOKEN, repo: process.env.PORTFOLIO_COPILOT_GAP_REPO || gapLib.DEFAULT_REPO, fetch: globalThis.fetch }, ...overrides };
 }
 
+// Tools that need no "profile missing" warning: they manage the profile themselves or never read it.
+// Every other tool computes from the profile, so it gets the warning (issues #28, #32).
+const PROFILE_TOOLS = new Set(['profile_get', 'profile_update', 'report_gap', 'log_append', 'draft_orders']);
+
 async function callTool(name, args, ctx) {
   const t = TOOLS.find((x) => x.name === name && !(x.fullOnly && ctx.edition === 'lite'));
   if (!t) return { ok: false, error: `unknown tool ${name}`, text: `Unknown tool ${name}` };
   try {
-    return await t.handler(args || {}, ctx);
+    const r = await t.handler(args || {}, ctx);
+    if (PROFILE_TOOLS.has(name) || !r || typeof r.text !== 'string' || profiles.load(args && args.folder).exists) return r;
+    const warn = `**No profile.json found (${profiles.profilePath(args && args.folder)}): using built-in defaults.** That means Kite only, no verdicts, no sector map (sector cap skipped), and ETFs known by name or ISIN only. GTT, allocation and sector findings below may be wrong. Point to the real investor folder before acting on them.`;
+    return { ...r, profile_missing: true, text: `${warn}\n\n${r.text}` };
   } catch (e) {
     return { ok: false, error: e.message, text: `Error in ${name}: ${e.message}` };
   }
