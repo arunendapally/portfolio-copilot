@@ -27,7 +27,13 @@ Removed, skipped or quarantined: none
 
 ## Pre-review
 
-<!-- Written by the pre-reviewer agent. -->
+Risk: medium, because it is a code change with tests that fail on the base; display only, no data, contract or high-risk path. Positions are computed at read time and are not in the JSON that check or refresh return, so nothing on disk changes.
+Open findings: 0 (nits open: F1, F2, F3)
+Look here first: core/tools.js:183 (the column header still says Symbol over a fund name; decide if that copy is fine), core/lib/snapshot.js:78 (the name comes from the last folio with a fund name; judge whether the h.name !== k guard is worth keeping, F1)
+Lenses run: correctness, simplicity, tests
+Revert: git revert of the merge commit; no data to back out (no stored format changes)
+Checked mechanically: checklist 1, 2, 3, 13, 21, 22, 24, 25, 26; suite 117 passed, 0 failed; both repro tests fail on the base by reading (base consolidate drops name, tools.js printed p.symbol); every consumer of consolidated positions (audit.js:26 by symbol, snapshot.js:118 alerts, tools.js:183) unaffected by the extra field; positions not in returned JSON; Kotak rows carry no name; missing fund falls back to the symbol; editions/lite copies identical to core; both .plugin bundles contain the new tools.js; no secrets; no new dependency; no version bump
+Could not check: a live Kite get_mf_holdings payload; the review packet lists core/lib/rates.js and tests/ibkr-bucket.test.js, which are not in the diff against 8c82aab, so its file list was built against another base and its signals were checked by hand instead; the Changes since table and audit output still print the ISIN (known, in Not verified)
 
 ## Not verified
 

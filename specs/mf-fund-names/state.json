@@ -25,7 +25,7 @@
   },
   "retries": {},
   "kinds": [],
-  "updatedAt": "2026-11-07T14:15:25.441Z",
+  "updatedAt": "2026-11-07T14:16:00.675Z",
   "gateRuns": {
     "4": {
       "ok": true,
@@ -39,5 +39,7 @@
   "baselineRuntime": "v24.19.0",
   "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
   "reproRedAt": "2026-11-07T14:14:00.883Z",
-  "sizeChecked": 58
+  "sizeChecked": 58,
+  "lastPacketHead": "6c13387",
+  "ledgerIds": []
 }
