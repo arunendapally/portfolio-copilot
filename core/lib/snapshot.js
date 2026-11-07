@@ -30,7 +30,8 @@ function fundHouse(h) {
 function bucketOf(h, profile) {
   const mapped = profile.allocation.symbol_buckets[h.symbol];
   if (mapped) return mapped;
-  if (h.type === 'foreign') return 'global_equity';
+  // Foreign-currency holdings (IBKR) are global whatever type the caller gave them (issue #29).
+  if (h.type === 'foreign' || (h.currency && h.currency !== 'INR')) return 'global_equity';
   const s = `${h.symbol} ${h.name || ''}`.toUpperCase();
   if (/GOLD/.test(s)) return 'gold';
   if (/SILVER/.test(s)) return 'silver';

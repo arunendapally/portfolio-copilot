@@ -353,7 +353,7 @@ async function rateMap(args) {
   for (const h of snapshotLib.allHoldings(snap)) {
     if (h.type === 'mf' || seen.has(h.symbol)) continue;
     seen.add(h.symbol);
-    const c = rates.classify(h.symbol, h.type, profile);
+    const c = rates.classify(h.symbol, h.type, profile, h.currency);
     groups[c.bucket].push({ symbol: h.symbol, value: h.value_inr, basis: c.basis });
   }
   const line = (k) => groups[k].sort((a, b) => b.value - a.value).map((x) => `${x.symbol} (${x.basis})`).join(', ') || 'none';

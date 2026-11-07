@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: se
 
 ## [Unreleased]
 
+### Fixed (#29)
+- Holdings in a foreign currency (IBKR US ETFs such as VOO and QQQM, ingested with `type: etf`) are bucketed `global_equity`, not `india_equity`. Before, only `type: foreign` was global, so the global gap was overstated. `rate_map` likewise lists them as foreign equity instead of unclassified. A USD gold or debt ETF also reads as global equity now; map it in `allocation.symbol_buckets`.
+
 ### Fixed (#28, #32)
 - With no `profile.json` in the investor folder, every tool that computes from the profile now opens with a warning that it is using defaults (Kite only, no verdicts, no sector map) and that GTT, allocation and sector findings may be wrong. Before, only `profile_get` said so, and a stale folder copy produced wrong GTT drafts without a word.
 - A Kite holding with an `INF` ISIN is typed `etf` even when its name has no ETF marker and the profile does not list it.
