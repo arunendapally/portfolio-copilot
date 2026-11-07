@@ -21,16 +21,28 @@
       "approvedAt": "2026-11-07T14:15:23.917Z",
       "auto": true,
       "fingerprint": "c74c2f8b0c4120ac"
+    },
+    "5": {
+      "status": "waiting",
+      "requestedAt": "2026-11-07T14:19:59.120Z",
+      "fingerprint": "c74c2f8b0c4120ac"
     }
   },
   "retries": {},
   "kinds": [],
-  "updatedAt": "2026-11-07T14:16:00.675Z",
+  "updatedAt": "2026-11-07T14:20:00.234Z",
   "gateRuns": {
     "4": {
       "ok": true,
       "count": 117,
       "at": "2026-11-07T14:14:56.446Z",
+      "runs": 1,
+      "runtime": "v24.19.0"
+    },
+    "5": {
+      "ok": true,
+      "count": 117,
+      "at": "2026-11-07T14:19:55.317Z",
       "runs": 1,
       "runtime": "v24.19.0"
     }
@@ -40,6 +52,57 @@
   "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
   "reproRedAt": "2026-11-07T14:14:00.883Z",
   "sizeChecked": 58,
-  "lastPacketHead": "6c13387",
-  "ledgerIds": []
+  "lastPacketHead": "67fee5f",
+  "ledgerIds": [
+    "F1",
+    "F2",
+    "F3"
+  ],
+  "riskTier": "medium",
+  "reviewedSha": "67fee5fb9f225fb30483c7a8feed1273bbbfcde0",
+  "reviewedFiles": [
+    "CHANGELOG.md",
+    "core/lib/brokers/normalize.js",
+    "core/lib/rates.js",
+    "core/lib/snapshot.js",
+    "core/tools.js",
+    "editions/lite/core/lib/brokers/normalize.js",
+    "editions/lite/core/lib/rates.js",
+    "editions/lite/core/lib/snapshot.js",
+    "editions/lite/core/tools.js",
+    "portfolio-copilot-lite.plugin",
+    "portfolio-copilot.plugin",
+    "specs/ibkr-etf-bucket/bug.md",
+    "specs/ibkr-etf-bucket/review-packet.md",
+    "specs/ibkr-etf-bucket/review.md",
+    "specs/ibkr-etf-bucket/state.json",
+    "specs/mf-fund-names/bug.md",
+    "specs/mf-fund-names/review-packet.md",
+    "specs/mf-fund-names/review.md",
+    "specs/mf-fund-names/state.json",
+    "specs/missing-profile-defaults/bug.md",
+    "specs/missing-profile-defaults/review-packet.md",
+    "specs/missing-profile-defaults/review.md",
+    "specs/missing-profile-defaults/state.json",
+    "tests/ibkr-bucket.test.js",
+    "tests/mf-names.test.js",
+    "tests/missing-profile.test.js",
+    ".ai-sdlc/config.json"
+  ],
+  "reviewedHashes": {
+    "CHANGELOG.md": "19aa3defdc389306",
+    "core/lib/brokers/normalize.js": "875f9fc79ef53ab4",
+    "core/lib/rates.js": "b1daa5dcce2736ec",
+    "core/lib/snapshot.js": "659bb3bd2e694af7",
+    "core/tools.js": "f10e071c0901c255",
+    "editions/lite/core/lib/brokers/normalize.js": "875f9fc79ef53ab4",
+    "editions/lite/core/lib/rates.js": "b1daa5dcce2736ec",
+    "editions/lite/core/lib/snapshot.js": "659bb3bd2e694af7",
+    "editions/lite/core/tools.js": "f10e071c0901c255",
+    "portfolio-copilot-lite.plugin": "84a912f892a6508b",
+    "portfolio-copilot.plugin": "318e996310d85a58",
+    "tests/ibkr-bucket.test.js": "ce7f2f5f6ab8eeb2",
+    "tests/mf-names.test.js": "b282cd271ed05aed",
+    "tests/missing-profile.test.js": "5ac8e4599dd4fd24"
+  }
 }
