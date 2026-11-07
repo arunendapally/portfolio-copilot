@@ -74,14 +74,15 @@ function consolidate(snap, profile) {
   const bySymbol = new Map();
   for (const h of holdings) {
     const k = h.symbol;
-    const cur = bySymbol.get(k) || { symbol: k, type: h.type, value: 0, brokers: new Set() };
+    const cur = bySymbol.get(k) || { symbol: k, type: h.type, name: null, value: 0, brokers: new Set() };
+    if (h.type === 'mf' && h.name && h.name !== k) cur.name = h.name; // Kite keys funds by ISIN (issue #30)
     cur.value += h.value_inr || 0;
     cur.brokers.add(h.broker);
     bySymbol.set(k, cur);
   }
   const directEquity = holdings.filter((h) => h.type === 'equity').reduce((a, h) => a + (h.value_inr || 0), 0);
   const positions = [...bySymbol.values()].map((p) => ({
-    symbol: p.symbol, type: p.type, value: round(p.value),
+    symbol: p.symbol, ...(p.name ? { name: p.name } : {}), type: p.type, value: round(p.value),
     pct_of_book: book ? round((100 * p.value) / book, 2) : null,
     brokers: [...p.brokers].sort(),
   })).sort((a, b) => b.value - a.value || a.symbol.localeCompare(b.symbol));

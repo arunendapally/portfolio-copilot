@@ -1,0 +1,43 @@
+{
+  "feature": "mf-fund-names",
+  "lane": "bug",
+  "stage": 5,
+  "branch": "bug/mf-fund-names",
+  "createdAt": "2026-11-07T04:42:08.943Z",
+  "stages": {
+    "4": {
+      "enteredAt": "2026-11-07T04:42:08.943Z",
+      "leftAt": "2026-11-07T14:15:25.440Z"
+    },
+    "5": {
+      "enteredAt": "2026-11-07T14:15:25.440Z"
+    }
+  },
+  "gates": {
+    "4": {
+      "status": "approved",
+      "by": "checks: checks (repro red, gate green, small diff)",
+      "requestedAt": "2026-11-07T14:15:23.917Z",
+      "approvedAt": "2026-11-07T14:15:23.917Z",
+      "auto": true,
+      "fingerprint": "c74c2f8b0c4120ac"
+    }
+  },
+  "retries": {},
+  "kinds": [],
+  "updatedAt": "2026-11-07T14:15:25.441Z",
+  "gateRuns": {
+    "4": {
+      "ok": true,
+      "count": 117,
+      "at": "2026-11-07T14:14:56.446Z",
+      "runs": 1,
+      "runtime": "v24.19.0"
+    }
+  },
+  "baseline": 117,
+  "baselineRuntime": "v24.19.0",
+  "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
+  "reproRedAt": "2026-11-07T14:14:00.883Z",
+  "sizeChecked": 58
+}

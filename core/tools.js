@@ -180,7 +180,7 @@ async function check(args, ctx) {
   L.push('\n**Brokers**');
   L.push(table(['Broker', 'Value', 'P&L', 'Day', 'Cash', 'Holdings'], Object.entries(c.brokers).map(([n, b]) => [n, inr(b.value), inr(b.pnl), b.day_change === null ? 'n/a' : inr(b.day_change), b.cash === null ? 'n/a' : inr(b.cash), b.count])));
   L.push('\n**Largest positions** (% of book)');
-  L.push(table(['Symbol', 'Type', 'Value', '% of book'], c.positions.slice(0, 10).map((p) => [p.symbol, p.type, inr(p.value), pct(p.pct_of_book)])));
+  L.push(table(['Symbol', 'Type', 'Value', '% of book'], c.positions.slice(0, 10).map((p) => [p.name || p.symbol, p.type, inr(p.value), pct(p.pct_of_book)])));
   if (c.sectors.length > 1 || c.unclassified_sector_count) L.push(`\nSectors (% of direct equity): ${c.sectors.map((s) => `${s.sector} ${pct(s.pct_of_direct_equity)}`).join(', ')}`);
   L.push('\n**Allocation** (% of book)');
   L.push(table(['Bucket', 'Value', '% of book', 'Target', 'Drift (pp)'], c.allocation.map((a) => [a.bucket, inr(a.value), pct(a.pct_of_book), a.target_pct === null ? '-' : `${a.target_pct}%`, a.drift_pp === null ? '-' : a.drift_pp])));
