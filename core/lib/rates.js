@@ -15,10 +15,11 @@ const SYMBOL_PATTERNS = [
   [/^(NIFTYBEES|JUNIORBEES|SETFNIF50|BANKBEES)$/, 'mixed', 'large-cap index'],
 ];
 
-function classify(symbol, type, profile) {
+function classify(symbol, type, profile, currency) {
   const sym = symbol.toUpperCase();
   if (profile.rate_overrides[sym]) return { bucket: profile.rate_overrides[sym], basis: 'your override' };
-  if (type === 'foreign') return { bucket: 'least', basis: 'foreign equity' };
+  // Foreign currency means foreign equity whatever type the caller gave the row (issue #29).
+  if (type === 'foreign' || (currency && currency !== 'INR')) return { bucket: 'least', basis: 'foreign equity' };
   for (const [re, bucket, basis] of SYMBOL_PATTERNS) if (re.test(sym)) return { bucket, basis };
   const sector = (profile.sectors[sym] || '').toLowerCase();
   if (sector && SECTOR_DEFAULT[sector]) return { bucket: SECTOR_DEFAULT[sector], basis: `sector: ${sector}` };
