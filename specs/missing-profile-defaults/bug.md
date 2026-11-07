@@ -28,7 +28,7 @@ Removed, skipped or quarantined: none
 ## Pre-review
 
 Risk: medium, because it is a code change with repro tests that fail on the base (38718ab), no high-risk path, no data or contract change; the new text prefix and profile_missing field are additive.
-Open findings: 1 (F5, nit: a question for the human on warn vs refuse; no blocker, major or minor open)
+Open findings: 0 (open nit F5: a question for the human on warn vs refuse; no blocker, major or minor open)
 Look here first: core/tools.js:489 (F5: draft_gtt_plan and draft_basket still draft on defaults with only a warning; with no verdicts every name is default hold, the exact harm in #28; decide whether drafting should refuse without a profile), core/lib/brokers/normalize.js:35 (the INF rule: INF ISINs are fund units, so a demat unit of a non-ETF fund is now typed etf; judge whether etf typing and its GTT treatment is right for such units)
 Lenses run: correctness, simplicity, tests
 Revert: git revert of the merge commit, then rebuild editions/lite and the two .plugin bundles (node scripts/build.js) if the revert does not carry them; no data to back out (no profile, snapshot or state format change)

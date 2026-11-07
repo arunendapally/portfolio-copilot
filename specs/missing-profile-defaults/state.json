@@ -25,7 +25,7 @@
   },
   "retries": {},
   "kinds": [],
-  "updatedAt": "2026-11-07T03:31:41.251Z",
+  "updatedAt": "2026-11-07T03:34:41.697Z",
   "gateRuns": {
     "4": {
       "ok": true,
@@ -47,6 +47,21 @@
   "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
   "reproRedAt": "2026-11-07T03:23:07.006Z",
   "sizeChecked": 28,
-  "lastPacketHead": "38718ab",
-  "ledgerIds": []
+  "lastPacketHead": "dfd9644",
+  "ledgerIds": [
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5"
+  ],
+  "riskTier": "medium",
+  "reviewRounds": 1,
+  "lastRefusal": {
+    "stage": 5,
+    "at": "2026-11-07T03:34:41.697Z",
+    "reasons": [
+      "the pre-review still has open findings (\"Open findings: 0\" is required)"
+    ]
+  }
 }
