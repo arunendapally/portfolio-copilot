@@ -31,7 +31,8 @@ function kiteHoldings(payload, profile) {
     const avg = num(h.average_price);
     return {
       broker: 'kite', symbol, exchange: h.exchange || 'NSE', isin: h.isin || null,
-      type: isEtf(symbol, profile) ? 'etf' : 'equity',
+      // An INF ISIN is a fund unit (ETF), whatever the symbol is called (issue #32).
+      type: isEtf(symbol, profile) || /^INF/i.test(h.isin || '') ? 'etf' : 'equity',
       qty, avg, ltp,
       value: ltp !== null ? qty * ltp : null,
       pnl: ltp !== null && avg !== null ? qty * (ltp - avg) : num(h.pnl),

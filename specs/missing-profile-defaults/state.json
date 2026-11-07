@@ -1,0 +1,92 @@
+{
+  "feature": "missing-profile-defaults",
+  "lane": "bug",
+  "stage": 5,
+  "branch": "bug/missing-profile-defaults",
+  "createdAt": "2026-11-07T03:05:29.101Z",
+  "stages": {
+    "4": {
+      "enteredAt": "2026-11-07T03:05:29.101Z",
+      "leftAt": "2026-11-07T03:26:55.209Z"
+    },
+    "5": {
+      "enteredAt": "2026-11-07T03:26:55.209Z"
+    }
+  },
+  "gates": {
+    "4": {
+      "status": "approved",
+      "by": "checks: checks (repro red, gate green, small diff)",
+      "requestedAt": "2026-11-07T03:26:53.251Z",
+      "approvedAt": "2026-11-07T03:26:53.251Z",
+      "auto": true,
+      "fingerprint": "5986215b86839386"
+    },
+    "5": {
+      "status": "waiting",
+      "requestedAt": "2026-11-07T03:35:23.760Z",
+      "fingerprint": "15d5a713f2432743"
+    }
+  },
+  "retries": {},
+  "kinds": [],
+  "updatedAt": "2026-11-07T03:35:26.810Z",
+  "gateRuns": {
+    "4": {
+      "ok": true,
+      "count": 109,
+      "at": "2026-11-07T03:26:41.109Z",
+      "runs": 1,
+      "runtime": "v24.19.0"
+    },
+    "5": {
+      "ok": true,
+      "count": 111,
+      "at": "2026-11-07T03:31:41.094Z",
+      "runs": 1,
+      "runtime": "v24.19.0"
+    }
+  },
+  "baseline": 111,
+  "baselineRuntime": "v24.19.0",
+  "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
+  "reproRedAt": "2026-11-07T03:23:07.006Z",
+  "sizeChecked": 28,
+  "lastPacketHead": "2708717",
+  "ledgerIds": [
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5"
+  ],
+  "riskTier": "medium",
+  "reviewRounds": 1,
+  "reviewedSha": "27087173d62f55d8f13052cef8c36f2bd625cbca",
+  "reviewedFiles": [
+    ".ai-sdlc/audit.jsonl",
+    "CHANGELOG.md",
+    "core/lib/brokers/normalize.js",
+    "core/tools.js",
+    "editions/lite/core/lib/brokers/normalize.js",
+    "editions/lite/core/tools.js",
+    "portfolio-copilot-lite.plugin",
+    "portfolio-copilot.plugin",
+    "specs/missing-profile-defaults/bug.md",
+    "specs/missing-profile-defaults/review-packet.md",
+    "specs/missing-profile-defaults/review.md",
+    "specs/missing-profile-defaults/state.json",
+    "tests/missing-profile.test.js",
+    ".ai-sdlc/config.json"
+  ],
+  "reviewedHashes": {
+    "CHANGELOG.md": "82c2da8e8470fff8",
+    "core/lib/brokers/normalize.js": "875f9fc79ef53ab4",
+    "core/tools.js": "b3d5cae5e98a3d8c",
+    "editions/lite/core/lib/brokers/normalize.js": "875f9fc79ef53ab4",
+    "editions/lite/core/tools.js": "b3d5cae5e98a3d8c",
+    "portfolio-copilot-lite.plugin": "84e8a4b9b3192da8",
+    "portfolio-copilot.plugin": "c9030065f2ce986b",
+    "tests/missing-profile.test.js": "5ac8e4599dd4fd24"
+  }
+}

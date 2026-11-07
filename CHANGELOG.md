@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
+## [Unreleased]
+
+### Fixed (#28, #32)
+- With no `profile.json` in the investor folder, every tool that computes from the profile now opens with a warning that it is using defaults (Kite only, no verdicts, no sector map) and that GTT, allocation and sector findings may be wrong. Before, only `profile_get` said so, and a stale folder copy produced wrong GTT drafts without a word.
+- A Kite holding with an `INF` ISIN is typed `etf` even when its name has no ETF marker and the profile does not list it.
+
 ## [0.7.2] - 2026-11-06
 
 ### Fixed
