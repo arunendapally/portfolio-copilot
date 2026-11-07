@@ -29,6 +29,14 @@ Removed, skipped or quarantined: none
 
 <!-- Written by the pre-reviewer agent. -->
 
+Risk: medium, because this is a code change in read-time classification only (allocation bucket and rate_map group), the tests fail on the base, and there is no data, schema, contract, auth or order path.
+Open findings: 0
+Look here first: core/lib/snapshot.js:34 (the currency rule runs before the gold, silver and debt name rules, so a USD gold or bond ETF now reads global_equity unless mapped in allocation.symbol_buckets; judge whether the CHANGELOG note is enough), core/lib/rates.js:22 (same order in rate_map: a USD bond ETF now reads least exposed as foreign equity although duration debt is most exposed; rate_overrides is the escape hatch)
+Lenses run: correctness, simplicity, tests
+Revert: git revert of the merge commit; no data to back out, since buckets and rate groups are computed when read and stored snapshots are unchanged
+Checked mechanically: checklist items 1, 2, 3, 13, 14, 16, 21, 22, 23, 24, 25, 26; tests 1 and 2 in tests/ibkr-bucket.test.js fail on base 9aab563 and pass here, the two guards pass on both; suite 115 of 115; editions/lite rates.js, snapshot.js and tools.js match core; the only classify caller (core/tools.js:356) passes currency; Kite and Kotak rows are always INR (normalize.js) and ingest refuses them; USD ETFs typed etf stay out of the type equity filters (direct equity, sectors, single-stock alert, audit); no new dependencies; no secrets
+Could not check: a live IBKR connector payload (whether rows carry their own currency field); that the two .plugin bundles equal a fresh node scripts/build.js (not run, it writes into the repo)
+
 ## Not verified
 
 A live ingest from the IBKR connector: only the test rows ran.
