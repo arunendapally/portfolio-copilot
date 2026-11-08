@@ -21,11 +21,16 @@
       "approvedAt": "2026-11-08T04:19:12.537Z",
       "auto": true,
       "fingerprint": "7e1aaa8a0e704fef"
+    },
+    "5": {
+      "status": "waiting",
+      "requestedAt": "2026-11-08T04:37:53.082Z",
+      "fingerprint": "4d509c3c6ab6b85d"
     }
   },
   "retries": {},
   "kinds": [],
-  "updatedAt": "2026-11-08T04:24:54.327Z",
+  "updatedAt": "2026-11-08T04:37:55.220Z",
   "gateRuns": {
     "4": {
       "ok": true,
@@ -37,7 +42,7 @@
     "5": {
       "ok": true,
       "count": 123,
-      "at": "2026-11-08T04:24:53.888Z",
+      "at": "2026-11-08T04:37:27.906Z",
       "runs": 1,
       "runtime": "v24.19.0"
     }
@@ -47,6 +52,79 @@
   "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
   "reproRedAt": "2026-11-08T04:17:41.296Z",
   "sizeChecked": 102,
-  "lastPacketHead": "2ad5972",
-  "ledgerIds": []
+  "lastPacketHead": "1fd551f",
+  "ledgerIds": [
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6"
+  ],
+  "riskTier": "medium",
+  "reviewedSha": "1fd551f5b0f926dd129930d15c3edb35ea6638fa",
+  "reviewedFiles": [
+    ".ai-sdlc/audit.jsonl",
+    "CHANGELOG.md",
+    "core/lib/brokers/normalize.js",
+    "core/lib/inputs.js",
+    "core/lib/rates.js",
+    "core/lib/session.js",
+    "core/lib/snapshot.js",
+    "core/tools.js",
+    "editions/lite/core/lib/brokers/normalize.js",
+    "editions/lite/core/lib/inputs.js",
+    "editions/lite/core/lib/rates.js",
+    "editions/lite/core/lib/session.js",
+    "editions/lite/core/lib/snapshot.js",
+    "editions/lite/core/tools.js",
+    "editions/lite/hooks/capture.js",
+    "hooks/capture.js",
+    "portfolio-copilot-lite.plugin",
+    "portfolio-copilot.plugin",
+    "specs/ibkr-etf-bucket/bug.md",
+    "specs/ibkr-etf-bucket/review-packet.md",
+    "specs/ibkr-etf-bucket/review.md",
+    "specs/ibkr-etf-bucket/state.json",
+    "specs/mf-fund-names/bug.md",
+    "specs/mf-fund-names/review-packet.md",
+    "specs/mf-fund-names/review.md",
+    "specs/mf-fund-names/state.json",
+    "specs/missing-profile-defaults/bug.md",
+    "specs/missing-profile-defaults/review-packet.md",
+    "specs/missing-profile-defaults/review.md",
+    "specs/missing-profile-defaults/state.json",
+    "specs/paged-reads-stale-msg/bug.md",
+    "specs/paged-reads-stale-msg/review-packet.md",
+    "specs/paged-reads-stale-msg/review.md",
+    "specs/paged-reads-stale-msg/state.json",
+    "tests/ibkr-bucket.test.js",
+    "tests/mf-names.test.js",
+    "tests/missing-profile.test.js",
+    "tests/paged-reads.test.js",
+    ".ai-sdlc/config.json"
+  ],
+  "reviewedHashes": {
+    "CHANGELOG.md": "778cb14492fa3bd9",
+    "core/lib/brokers/normalize.js": "875f9fc79ef53ab4",
+    "core/lib/inputs.js": "1ac61d626c6c5be6",
+    "core/lib/rates.js": "b1daa5dcce2736ec",
+    "core/lib/session.js": "1a4d95770431a643",
+    "core/lib/snapshot.js": "659bb3bd2e694af7",
+    "core/tools.js": "f10e071c0901c255",
+    "editions/lite/core/lib/brokers/normalize.js": "875f9fc79ef53ab4",
+    "editions/lite/core/lib/inputs.js": "1ac61d626c6c5be6",
+    "editions/lite/core/lib/rates.js": "b1daa5dcce2736ec",
+    "editions/lite/core/lib/session.js": "1a4d95770431a643",
+    "editions/lite/core/lib/snapshot.js": "659bb3bd2e694af7",
+    "editions/lite/core/tools.js": "f10e071c0901c255",
+    "editions/lite/hooks/capture.js": "7793f19b7d43e714",
+    "hooks/capture.js": "7793f19b7d43e714",
+    "portfolio-copilot-lite.plugin": "413bb35daac2c8f6",
+    "portfolio-copilot.plugin": "0eb18dce9ddf9ceb",
+    "tests/ibkr-bucket.test.js": "ce7f2f5f6ab8eeb2",
+    "tests/mf-names.test.js": "b282cd271ed05aed",
+    "tests/missing-profile.test.js": "5ac8e4599dd4fd24",
+    "tests/paged-reads.test.js": "d7d1440eb77dd497"
+  }
 }
