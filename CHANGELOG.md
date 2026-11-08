@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: se
 
 ## [Unreleased]
 
+### Fixed (#30)
+- "Largest positions" shows a Kite mutual fund by its fund name, not its ISIN. The position symbol stays the ISIN, so profile mappings and the change diff are unaffected.
+
 ### Fixed (#29)
 - Holdings in a foreign currency (IBKR US ETFs such as VOO and QQQM, ingested with `type: etf`) are bucketed `global_equity`, not `india_equity`. Before, only `type: foreign` was global, so the global gap was overstated. `rate_map` likewise lists them as foreign equity instead of unclassified. A USD gold or debt ETF also reads as global equity now; map it in `allocation.symbol_buckets`.
 
