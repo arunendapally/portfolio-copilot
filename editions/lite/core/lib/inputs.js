@@ -13,6 +13,9 @@ const NEEDED = {
   kotak: ['get_holdings', 'get_limits'],
 };
 
+// Optional reads go into the snapshot when present, so a paged one must not slip in as the full list.
+const OPTIONAL = { kite: ['get_mf_holdings', 'get_orders'], kotak: [] };
+
 const MCP_NAME = { kite: 'Kite', kotak: 'Kotak Neo' };
 
 // What the investor must do next, per broker, in plain words.
@@ -60,7 +63,8 @@ function pull(name, profile, now = new Date()) {
   if (missing.length) return { status: 'not_connected', detail: `missing ${missing.join(', ')}: ${HINT[name]}` };
   const oldest = new Date(Math.min(...recs.map(([, r]) => new Date(r.at).getTime())));
   // Name the exact reads to repeat, not all of them (issue #31).
-  const paged = recs.filter(([, r]) => r.paged);
+  const optional = OPTIONAL[name].map((s) => [s, session.read(name, s)]).filter(([, r]) => r);
+  const paged = [...recs, ...optional].filter(([, r]) => r.paged);
   if (paged.length) return { status: 'stale', detail: `${paged.map(([s, r]) => `${s} was read with ${r.paged}, so it holds part of the list`).join('; ')}: call the ${MCP_NAME[name]} MCP ${paged.map(([s]) => s).join(' and ')} again without limit or from`, as_of: oldest.toISOString() };
   const old = recs.filter(([, r]) => now - new Date(r.at) > MAX_AGE_MS);
   if (old.length) return { status: 'stale', detail: `${old.map(([s]) => s).join(' and ')} captured ${new Date(Math.min(...old.map(([, r]) => new Date(r.at).getTime()))).toISOString()}, older than 30 min: call the ${MCP_NAME[name]} MCP ${old.map(([s]) => s).join(' and ')}`, as_of: oldest.toISOString() };

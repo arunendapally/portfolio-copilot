@@ -42,7 +42,7 @@ function dir(source) {
 // A read made with a page size or an offset returns part of the list, never the whole of it (issue #31).
 function pagedBy(args) {
   if (!args || typeof args !== 'object') return null;
-  if (args.limit !== undefined && args.limit !== null) return `limit=${args.limit}`;
+  if (Number(args.limit) > 0) return `limit=${args.limit}`;
   if (Number(args.from) > 0) return `from=${args.from}`;
   return null;
 }
