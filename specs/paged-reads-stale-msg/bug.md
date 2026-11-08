@@ -27,7 +27,13 @@ Removed, skipped or quarantined: none
 
 ## Pre-review
 
-<!-- Written by the pre-reviewer agent. -->
+Risk: medium, because it changes when broker_status reports Kite or Kotak as live: a wrong paged rule would make every normal read stale or let a partial list through. No auth, money movement, data migration or contract change; the capture record only gains an optional field
+Open findings: 0 [nits F5: age message wording; F6: a failed optional read made with limit is reported as partial, not left out]
+Look here first: core/lib/session.js:45 (whether limit and from are the only Kite MCP page arguments, and whether a limit above the list size should count as paged; only a live MCP call settles it), core/lib/inputs.js:66 (a paged get_mf_holdings or get_orders now blocks the whole Kite status; judge whether optional reads should gate it), core/lib/inputs.js:70 (new stale wording the agent and investor read; the older than 30 min text is kept for tests/check.test.js:122)
+Lenses run: correctness, simplicity, tests
+Revert: git revert of the merge commit; the lite edition and both .plugin bundles are committed and revert with it. No data to back out: the old code ignores the paged field on stored captures
+Checked mechanically: checklist items 1, 2, 5, 9, 13, 21, 22, 24, 25, 26; 4 of the 6 tests in tests/paged-reads.test.js fail on base a58a46e and pass here (run by hand on the base source), the other 2 are guards; full suite 123 pass, 0 fail; a failed paged read is an outage; the get_ltp merge is untouched (no limit or from argument, not a needed read); Kotak sessionid reads are unaffected; captures without a paged field read as unpaged; detail callers (core/tools.js:36,74,83) only print or store it; editions/lite copies and both .plugin bundles match the sources; no new dependencies; no secrets; .ai-sdlc/config.json and audit.jsonl not committed
+Could not check: a live Kite MCP paged call (its argument names, what limit 0 or an oversized limit does, and which tools take paging), so the reported stays-stale symptom is still unexplained; the review packet lists files outside this change, so it was computed against an older base and git diff a58a46e..HEAD was reviewed instead; the pre-reviewer's own write of this section was blocked by the ai-sdlc hook, so the tech lead entered it from the pre-reviewer's report at the user's request
 
 ## Not verified
 
