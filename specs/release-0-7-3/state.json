@@ -1,0 +1,42 @@
+{
+  "feature": "release-0-7-3",
+  "lane": "task",
+  "stage": 5,
+  "branch": "task/release-0-7-3",
+  "createdAt": "2026-11-08T04:45:52.324Z",
+  "stages": {
+    "4": {
+      "enteredAt": "2026-11-08T04:45:52.324Z",
+      "leftAt": "2026-11-08T04:52:27.077Z"
+    },
+    "5": {
+      "enteredAt": "2026-11-08T04:52:27.077Z"
+    }
+  },
+  "gates": {
+    "4": {
+      "status": "approved",
+      "by": "checks: checks (gate green, small diff)",
+      "requestedAt": "2026-11-08T04:52:25.467Z",
+      "approvedAt": "2026-11-08T04:52:25.467Z",
+      "auto": true,
+      "fingerprint": "a571cca2fc8a8c1c"
+    }
+  },
+  "retries": {},
+  "kinds": [],
+  "updatedAt": "2026-11-08T04:52:27.077Z",
+  "gateRuns": {
+    "4": {
+      "ok": true,
+      "count": 123,
+      "at": "2026-11-08T04:51:35.293Z",
+      "runs": 1,
+      "runtime": "v24.19.0"
+    }
+  },
+  "baseline": 123,
+  "baselineRuntime": "v24.19.0",
+  "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
+  "sizeChecked": 116
+}

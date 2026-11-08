@@ -1,6 +1,6 @@
 {
   "name": "portfolio-copilot",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "private": true,
   "description": "Claude plugin: analysis-and-drafting copilot for DIY Indian investors. Zero runtime dependencies.",
   "license": "MIT",
