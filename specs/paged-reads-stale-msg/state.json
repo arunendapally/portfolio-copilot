@@ -25,7 +25,7 @@
   },
   "retries": {},
   "kinds": [],
-  "updatedAt": "2026-11-08T04:19:13.908Z",
+  "updatedAt": "2026-11-08T04:24:54.327Z",
   "gateRuns": {
     "4": {
       "ok": true,
@@ -33,11 +33,20 @@
       "at": "2026-11-08T04:18:42.464Z",
       "runs": 1,
       "runtime": "v24.19.0"
+    },
+    "5": {
+      "ok": true,
+      "count": 123,
+      "at": "2026-11-08T04:24:53.888Z",
+      "runs": 1,
+      "runtime": "v24.19.0"
     }
   },
-  "baseline": 120,
+  "baseline": 123,
   "baselineRuntime": "v24.19.0",
   "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
   "reproRedAt": "2026-11-08T04:17:41.296Z",
-  "sizeChecked": 102
+  "sizeChecked": 102,
+  "lastPacketHead": "2ad5972",
+  "ledgerIds": []
 }

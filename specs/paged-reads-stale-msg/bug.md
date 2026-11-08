@@ -16,13 +16,13 @@ Trap: a cache keyed by tool name that ignores the arguments which change what th
 
 ## Fix
 
-hooks/capture.js: pass `tool_input` to `record`. core/lib/session.js: `pagedBy` marks a read made with `limit` or with `from` above 0 as `paged` (record field only). core/lib/inputs.js: `pull` returns `stale` for a paged read and names it with the call to repeat; the stale message now lists only the reads that are older than 30 minutes. About 15 source lines. CHANGELOG entry under Unreleased; regenerated lite edition and bundles; no version bump (the bug lane refuses package.json). Left alone: the skill text, which already says to read with no limits or paging; pagination metadata inside responses is not parsed.
+hooks/capture.js: pass `tool_input` to `record`. core/lib/session.js: `pagedBy` marks a read made with `limit` above 0 or `from` above 0 as `paged` (record field only). core/lib/inputs.js: `pull` returns `stale` for a paged read, including the optional get_mf_holdings and get_orders, and names it with the call to repeat; the stale message now lists only the reads that are older than 30 minutes. About 20 source lines. CHANGELOG entry under Unreleased; regenerated lite edition and bundles; no version bump (the bug lane refuses package.json). Left alone: the skill text, which already says to read with no limits or paging; pagination metadata inside responses is not parsed.
 
 ## Test results
 
-Repro: tests/paged-reads.test.js, all 3 tests red on the base (a58a46e: 'live' for the paged read, all three reads named in the stale message), green on this commit
-Suite: 120 passed, 0 failed, 0 skipped (baseline 120, run by `sdlc gate`)
-Gate: green, PR size 102 of 200 code lines, about half of them the new test file (sdlc gate paged-reads-stale-msg)
+Repro: tests/paged-reads.test.js, 4 of 6 tests red on the base (a58a46e: 'live' for a paged read, all three reads named in the stale message), green on this commit; the other 2 are guards (unpaged reads stay live, a failed paged read is an outage) that passed before and after
+Suite: 123 passed, 0 failed, 0 skipped (baseline 123, run by `sdlc gate`)
+Gate: green, PR size 110 of 200 code lines, about two thirds of them the new test file (sdlc gate paged-reads-stale-msg)
 Removed, skipped or quarantined: none
 
 ## Pre-review
