@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: se
 
 ## [Unreleased]
 
+### Fixed (#31)
+- A broker read made with `limit` or `from` holds only part of the list, so `broker_status` no longer treats it as the full read: it reports the read as stale and names it ("get_gtts was read with limit=1 ... call it again without limit or from"). Before, a one-row `get_gtts` made Kite look live and the GTT audit would see every other holding as unprotected.
+- The stale message names only the reads that are old, not all three.
+
 ### Fixed (#30)
 - "Largest positions" shows a Kite mutual fund by its fund name, not its ISIN. The position symbol stays the ISIN, so profile mappings and the change diff are unaffected.
 

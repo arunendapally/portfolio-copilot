@@ -13,7 +13,7 @@ function run(input, now = new Date()) {
   const resp = input.hook_event_name === 'PostToolUseFailure'
     ? { isError: true, content: [{ type: 'text', text: String(input.error || 'tool call failed') }] }
     : input.tool_response;
-  return session.record(tool, resp, now);
+  return session.record(tool, resp, now, input.tool_input);
 }
 
 if (require.main === module) {

@@ -39,12 +39,22 @@ function dir(source) {
   return path.join(configDir(), 'captured', source);
 }
 
-function record(toolName, resp, now = new Date()) {
+// A read made with a page size or an offset returns part of the list, never the whole of it (issue #31).
+function pagedBy(args) {
+  if (!args || typeof args !== 'object') return null;
+  if (Number(args.limit) > 0) return `limit=${args.limit}`;
+  if (Number(args.from) > 0) return `from=${args.from}`;
+  return null;
+}
+
+function record(toolName, resp, now = new Date(), toolInput = null) {
   const source = sourceOf(toolName);
   if (!source) return null;
   const text = textOf(resp);
   const failed = (resp && resp.isError === true) || LOGIN_RE.test(text.slice(0, 400));
   const rec = { tool: toolName, at: now.toISOString(), ok: !failed, login: LOGIN_RE.test(text.slice(0, 400)), text };
+  const paged = pagedBy(toolInput);
+  if (paged) rec.paged = paged;
   // Prices are asked for in pieces (index, a few symbols): keep what earlier calls returned.
   if (suffixOf(toolName) === 'get_ltp' && !failed) {
     const before = read(source, 'get_ltp');
