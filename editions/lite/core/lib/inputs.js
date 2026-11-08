@@ -13,6 +13,8 @@ const NEEDED = {
   kotak: ['get_holdings', 'get_limits'],
 };
 
+const MCP_NAME = { kite: 'Kite', kotak: 'Kotak Neo' };
+
 // What the investor must do next, per broker, in plain words.
 const HINT = {
   kite: 'call the Kite MCP get_holdings, get_gtts and get_margins (get_mf_holdings, get_orders, get_trades if wanted)',
@@ -57,7 +59,11 @@ function pull(name, profile, now = new Date()) {
   if (bad) return { status: 'outage', detail: `${bad[0]} failed (${bad[1].text.slice(0, 120)}). Not a login problem: do not log in again, retry later` };
   if (missing.length) return { status: 'not_connected', detail: `missing ${missing.join(', ')}: ${HINT[name]}` };
   const oldest = new Date(Math.min(...recs.map(([, r]) => new Date(r.at).getTime())));
-  if (now - oldest > MAX_AGE_MS) return { status: 'stale', detail: `captured ${oldest.toISOString()}, older than 30 min: ${HINT[name]}`, as_of: oldest.toISOString() };
+  // Name the exact reads to repeat, not all of them (issue #31).
+  const paged = recs.filter(([, r]) => r.paged);
+  if (paged.length) return { status: 'stale', detail: `${paged.map(([s, r]) => `${s} was read with ${r.paged}, so it holds part of the list`).join('; ')}: call the ${MCP_NAME[name]} MCP ${paged.map(([s]) => s).join(' and ')} again without limit or from`, as_of: oldest.toISOString() };
+  const old = recs.filter(([, r]) => now - new Date(r.at) > MAX_AGE_MS);
+  if (old.length) return { status: 'stale', detail: `${old.map(([s]) => s).join(' and ')} captured ${new Date(Math.min(...old.map(([, r]) => new Date(r.at).getTime()))).toISOString()}, older than 30 min: call the ${MCP_NAME[name]} MCP ${old.map(([s]) => s).join(' and ')}`, as_of: oldest.toISOString() };
   const as_of = oldest.toISOString();
   const get = (s) => { const r = session.read(name, s); return r && r.ok ? session.asJson(r.text) ?? r.text : null; };
   if (name === 'kite') {
