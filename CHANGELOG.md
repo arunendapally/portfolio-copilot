@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
-## [Unreleased]
+## [0.7.3] - 2026-11-11
 
 ### Fixed (#31)
 - A broker read made with `limit` or `from` holds only part of the list, so `broker_status` no longer treats it as the full read: it reports the read as stale and names it ("get_gtts was read with limit=1 ... call it again without limit or from"). Before, a one-row `get_gtts` made Kite look live and the GTT audit would see every other holding as unprotected.
