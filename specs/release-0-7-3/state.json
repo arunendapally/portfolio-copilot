@@ -25,12 +25,19 @@
   },
   "retries": {},
   "kinds": [],
-  "updatedAt": "2026-11-08T04:53:11.774Z",
+  "updatedAt": "2026-11-11T16:08:09.679Z",
   "gateRuns": {
     "4": {
       "ok": true,
       "count": 123,
       "at": "2026-11-08T04:51:35.293Z",
+      "runs": 1,
+      "runtime": "v24.19.0"
+    },
+    "5": {
+      "ok": true,
+      "count": 123,
+      "at": "2026-11-11T16:07:23.167Z",
       "runs": 1,
       "runtime": "v24.19.0"
     }
@@ -39,6 +46,15 @@
   "baselineRuntime": "v24.19.0",
   "proofBase": "38718abc898557a969d82a242dba38fa6ed04f46",
   "sizeChecked": 116,
-  "lastPacketHead": "bd3c3a3",
-  "ledgerIds": []
+  "lastPacketHead": "2d36a71",
+  "ledgerIds": [],
+  "riskTier": "medium",
+  "reviewRounds": 1,
+  "lastRefusal": {
+    "stage": 5,
+    "at": "2026-11-11T16:08:09.679Z",
+    "reasons": [
+      "the pre-review says \"Risk: low\", but the change is medium: it changes code (.claude-plugin/plugin.json, core/lib/brokers/normalize.js, core/lib/inputs.js)"
+    ]
+  }
 }

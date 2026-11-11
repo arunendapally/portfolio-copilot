@@ -26,7 +26,7 @@ Removed, skipped or quarantined: none
 
 ## Pre-review
 
-Risk: low, because the diff against 2be4910 is three version strings, one changelog heading and two build bundles that rebuild byte-identical from HEAD; no source or test changes
+Risk: medium, because .claude-plugin/plugin.json and package.json are code, not documents (the pre-reviewer first scored this low, which the rubric does not allow); the diff against 2be4910 is three version strings, one changelog heading and two build bundles that rebuild byte-identical from HEAD; no source or test changes
 Open findings: 0
 Look here first: CHANGELOG.md:15 (#29 also moves USD gold and debt ETFs to global_equity; judge whether that bucket change fits a PATCH release under docs/release.md), CHANGELOG.md:5 (the date is 2026-11-11, the day of this PR; confirm it matches the day you tag and upload)
 Lenses run: correctness, simplicity, tests (inline: no test changed; the versioning test covers the bump)
