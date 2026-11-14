@@ -276,7 +276,7 @@ Every card that sells or switches shows the holding period per lot, the realised
 
 **Maintainer**
 
-- **FR-055**: Skills MUST stay within six, each under sixty lines; tool names in skill text MUST be generated from the table at build time.
+- **FR-055**: Skills MUST stay within six, each under sixty lines; skills MUST NOT name broker tools: they describe capabilities, and the exact calls come from `pc doctor` and from draft output, both generated from the tool map at run time.
 - **FR-056**: Tests MUST cover every tool name in the table for gate and capture, and the review state machine, on made-up or scrubbed fixtures.
 - **FR-057**: Gaps that could not be filed online MUST be queued and filed at the next session that can.
 

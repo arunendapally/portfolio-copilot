@@ -35,7 +35,7 @@ async function run(args) {
 
 test('the capture hook saves broker reads on any prefix and ignores everything else', () => {
   tmpEnv();
-  assert.deepStrictEqual(hook('mcp__kite__get_gtts', []), { source: 'kite', suffix: 'get_gtts', ok: true });
+  assert.deepStrictEqual(hook('mcp__kite__get_gtts', []), { source: 'kite', cap: 'gtts', tool: 'get_gtts', ok: true });
   assert.strictEqual(hook('mcp__remote-devices__kite__get_holdings', []).source, 'kite');
   assert.strictEqual(hook('mcp__claude_ai_Interactive_Brokers_IBKR__get_account_positions', []).source, 'ibkr');
   assert.strictEqual(hook('mcp__claude_ai_Gmail__list_drafts', []), null);

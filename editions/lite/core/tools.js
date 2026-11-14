@@ -18,6 +18,7 @@ const protection = require('./lib/protection');
 const gapLib = require('./lib/gap');
 const version = require('./lib/version');
 const inputs = require('./lib/inputs');
+const toolmap = require('./lib/brokers/toolmap');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
 
 const FOLDER = { folder: { type: 'string', description: "The investor's working folder (absolute path). Pass it on the first call; it is remembered." } };
@@ -35,7 +36,7 @@ async function brokerStatus(args, ctx) {
     out[name] = { status: r.status, as_of: r.as_of || null };
     rows.push([name, r.status.replace('_', ' '), r.status === 'live' ? `data ${istStamp(new Date(r.as_of))}` : r.detail]);
   }
-  if (profile.brokers.ibkr && profile.brokers.ibkr.enabled) rows.push(['ibkr', 'via connector', 'call get_account_summary (and positions) on the IBKR connector, then ingest']);
+  if (profile.brokers.ibkr && profile.brokers.ibkr.enabled) rows.push(['ibkr', 'via connector', `call the IBKR connector (${toolmap.readCalls('ibkr', 1).map(toolmap.show).join(', ')}), then ingest`]);
   const warn = version.mismatch({ plugin: args.hook_plugin, version: args.hook_version });
   const text = [`**Broker status** · ${istStamp(now)} · reads come from the brokers' own MCP tools, captured in this chat`, ...(warn ? [warn] : []), table(['Broker', 'Status', 'Detail'], rows)].join('\n');
   return { ok: true, brokers: out, text };
@@ -101,7 +102,7 @@ async function ingest(args, ctx) {
     holdings = parsed.map((h) => ({ ...h, broker, currency: args.currency || 'INR' }));
   } else {
     const rows = args.holdings || [];
-    // IBKR's get_account_positions names the instrument contract_description, not symbol.
+    // IBKR's positions read names the instrument contract_description, not symbol.
     const symOf = (h) => String(h.symbol ?? h.contract_description ?? h.ticker ?? h.tradingsymbol ?? '').trim();
     const bad = rows.map((h, i) => (symOf(h) ? null : i)).filter((i) => i !== null);
     if (bad.length) return { ok: false, error: `no symbol on holding row(s) ${bad.join(', ')}`, text: `Nothing ingested: ${bad.length} row(s) have no symbol (looked for symbol, contract_description, ticker, tradingsymbol). Row index: ${bad.join(', ')}.` };
@@ -234,7 +235,7 @@ function planText(d, ctx, notes = []) {
     : [r.step, 'DELETE', r.symbol, `#${r.gtt_id}`, '', '', r.reason]);
   const how = ctx.edition === 'lite'
     ? 'Enter these in Kite web (Orders > GTT): place every new GTT first, then delete the old ones, then read GTTs again and run refresh to verify.'
-    : `To execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. After Yes, call the Kite MCP tools below, places first and deletes only after every place succeeded. If a delete fails in the MCP, delete only those ids in Kite web (Orders > GTT, ticking exactly the planned ids). Then read GTTs again and run refresh and gtt_audit to verify.\n\n${callsBlock(d)}`;
+    : `To execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. After Yes, call the Kite MCP tools below, places first and deletes only after every place succeeded. If a delete fails in the MCP, delete only those ids in Kite web (Orders > GTT, ticking exactly the planned ids). Then read GTTs again and run refresh and gtt_audit to verify. If the broker answers that a call needs its own approval, show its approval link or step to the investor and wait; never approve it yourself.\n\n${callsBlock(d)}`;
   return [`**GTT plan ${d.code}** · ${d.rows.length} steps`, table(['#', 'Action', 'Symbol', 'Type / id', 'Trigger(s)', 'Qty', 'Why'], rows), notes.length ? `\nNot planned: ${notes.join('; ')}` : '', `\n${how}`].join('\n');
 }
 
@@ -246,7 +247,8 @@ async function draftGttPlan(args, ctx) {
   const a = gtt.audit(snap, prev, profile, { corporateActions: args.corporate_actions || [], today: istDate(ctx.now()) });
   const p = gtt.plan(a, snap, profile, { symbols: args.symbols });
   if (!p.rows.length) return { ok: true, code: null, text: `No GTT changes needed under your policy.${p.notes.length ? ` Not planned: ${p.notes.join('; ')}` : ''}` };
-  const rows = p.rows.map((r) => (r.action === 'place' ? { ...r, tool: 'place_gtt_order' } : { ...r, tool: 'delete_gtt_order', args: { trigger_id: Number(r.gtt_id) } }));
+  const gen = inputs.genOf('kite');
+  const rows = p.rows.map((r) => ({ ...r, cap: 'gtt_write', ...(r.action === 'place' ? toolmap.writeCall('kite', 'gtt_write', 'place', r.args, gen) : toolmap.writeCall('kite', 'gtt_write', 'delete', { trigger_id: Number(r.gtt_id) }, gen)) }));
   const d = drafts.create(args.folder, 'gtt_plan', rows);
   return { ok: true, code: d.code, rows: d.rows.length, text: planText(d, ctx, p.notes) };
 }
@@ -291,16 +293,17 @@ async function draftBasket(args, ctx) {
   const prices = pricesFor(destinations.map((d) => d.symbol.toUpperCase()), snap);
   const kite = snap && snap.brokers.kite;
   const b = basket.build({ amount, destinations, prices, cash: kite ? kite.cash : null, profile });
-  const orders = b.rows.map((r) => ({ ...r, tool: 'place_order', args: { variety: 'regular', exchange: r.exchange, tradingsymbol: r.symbol, transaction_type: 'BUY', quantity: r.qty, product: 'CNC', order_type: 'LIMIT', price: r.limit_price } }));
+  const gen = inputs.genOf('kite');
+  const orders = b.rows.map((r) => ({ ...r, cap: 'order_write', ...toolmap.writeCall('kite', 'order_write', 'place', { variety: 'regular', exchange: r.exchange, tradingsymbol: r.symbol, transaction_type: 'BUY', quantity: r.qty, product: 'CNC', order_type: 'LIMIT', price: r.limit_price }, gen) }));
   const d = drafts.create(args.folder, 'basket', orders, { amount, label });
   const L = [`**Basket draft ${d.code}** · ${label} · ${istStamp(ctx.now())}`];
   if (b.conflicts.length) L.push(`⚠️ ${b.conflicts.join('; ')}`);
   L.push(table(['Symbol', 'Exch', 'Qty', 'LIMIT', 'Amount', 'Basis'], b.rows.map((r) => [r.symbol, r.exchange, r.qty, r.limit_price, inr(r.amount), r.basis])));
   L.push(`Total ${inr(b.total)}${b.cash_left !== null ? ` · Kite cash after ${inr(b.cash_left)}` : ''}`);
-  if (b.missing_prices.length) L.push(`No live price for: ${b.missing_prices.join(', ')} (not included). Call the Kite MCP get_ltp for ${b.missing_prices.map((x) => `NSE:${x}`).join(', ')} and draft again.`);
+  if (b.missing_prices.length) L.push(`No live price for: ${b.missing_prices.join(', ')} (not included). Call the Kite MCP ${toolmap.show(toolmap.ltpCall('kite', gen, b.missing_prices.map((x) => `NSE:${x}`)))} and draft again.`);
   L.push(ctx.edition === 'lite'
     ? '\nEnter in Kite web: Orders > Baskets > New basket, add each row with type LIMIT at the price shown. Review and press Execute yourself.'
-    : `\nTo execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. After Yes, call the Kite MCP place_order once per row with exactly the arguments below (the order gate allows each once). Then read orders again to confirm, and run gtt_audit: new shares need a GTT.\n\n${callsBlock(d)}`);
+    : `\nTo execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. After Yes, make the Kite MCP calls below, once per row, with exactly these arguments (the order gate allows each once). If the broker answers that the order needs its own approval, show its approval link or step to the investor and wait; never approve it yourself. Then read orders again to confirm, and run gtt_audit: new shares need a GTT.\n\n${callsBlock(d)}`);
   return { ok: true, code: d.code, total: b.total, conflicts: b.conflicts, text: L.join('\n') };
 }
 
@@ -311,8 +314,8 @@ async function crashCheck(args, ctx) {
   let source = 'given';
   if (!level) {
     level = inputs.ltp()['NSE:NIFTY 50'];
-    source = 'Kite get_ltp, captured in this chat';
-    if (!level) return { ok: false, error: 'index level unknown', text: 'Give index_level, or call the Kite MCP get_ltp for NSE:NIFTY 50 first.' };
+    source = 'Kite price read, captured in this chat';
+    if (!level) return { ok: false, error: 'index level unknown', text: `Give index_level, or call the Kite MCP ${toolmap.show(toolmap.ltpCall('kite', inputs.genOf('kite'), ['NSE:NIFTY 50']))} first.` };
   }
   const snap = state.latestSnapshot(args.folder);
   const L = [`**Crash check** · ${profile.deployment_plan.index} at ${level} (${source})`];
@@ -405,7 +408,32 @@ async function verdictNotes(args) {
   return { ok: true, text: `**Verdicts** (the profile is the source; paste into your notes file to keep it in step)\n${rows.map(line).join('\n')}` };
 }
 
+// Gaps the hooks queued (they have no network): file each one now, then clear the queue.
+async function flushGaps(args, ctx) {
+  const queued = gapLib.takePending();
+  if (!queued.length) return { ok: true, flushed: 0, text: 'No queued gaps.' };
+  const out = [];
+  for (const g of queued) out.push((await reportGap({ ...g, folder: args.folder, flush: false }, ctx)).text);
+  return { ok: true, flushed: queued.length, text: `Filed ${queued.length} queued gap(s):\n${out.map((t) => `- ${t}`).join('\n')}` };
+}
+
+// What each enabled broker's MCP offers right now, from the tool names the model can see.
+async function doctor(args, ctx) {
+  const { profile } = profiles.load(args.folder);
+  const tools = Array.isArray(args.tools) ? args.tools.map(String) : [];
+  if (!tools.length) return { ok: false, error: 'tools required', text: 'Pass tools: every broker MCP tool name you can see in this chat (full names, for example the Kite and Kotak Neo tools).' };
+  const d = toolmap.doctor(tools, profile);
+  const yes = (v) => (v === null ? 'n/a' : v ? 'yes' : 'NO');
+  const rows = d.map((b) => [b.broker, b.generation, yes(b.read_path), yes(b.write_path), b.missing.join(', ') || '-', b.unknown.map((n) => n.split('__').pop()).join(', ') || '-']);
+  const L = [`**Broker tools** · ${istStamp(ctx.now())}`, table(['Broker', 'Tools gen', 'Can read', 'Can write', 'Missing', 'Unknown to the plugin'], rows)];
+  for (const b of d) L.push(`${b.mcp} reads: ${b.calls.filter((c) => c.required).map((c) => c.text).join(' · ')}${b.calls.some((c) => !c.required) ? ` (optional: ${b.calls.filter((c) => !c.required).map((c) => c.text).join(' · ')})` : ''}`);
+  if (d.some((b) => b.unknown.length)) L.push('Unknown tools on Kite or IBKR are blocked by the order gate until the plugin knows them; report_gap with the names.');
+  if (d.some((b) => b.read_path === false)) L.push('A broker that cannot read is not connected in this chat, or its tools changed: reconnect it, or report_gap with this table.');
+  return { ok: true, brokers: d, text: L.join('\n') };
+}
+
 async function reportGap(args, ctx) {
+  if (args.flush) return flushGaps(args, ctx);
   if (!args.title || !args.missing) return { ok: false, error: 'title and missing required', text: 'report_gap needs a title and what is missing.' };
   const gap = { title: String(args.title), attempted: args.attempted, missing: String(args.missing), output: args.output };
   const gh = ctx.github;
@@ -430,17 +458,35 @@ async function logAppend(args, ctx) {
 }
 
 // Rows for orders the plan builders do not draft (IBKR instructions, cancel or modify an open order).
-const ORDER_TOOLS = ['place_order', 'modify_order', 'cancel_order', 'create_order_instruction', 'submit_order'];
+// A row names the broker and the operation, and the tool map writes the call; or it gives the
+// call itself, which must be an order write the map knows.
+const ORDER_OPS = ['place', 'modify', 'cancel', 'delete'];
+
+function orderRow(r, i) {
+  const base = { step: i + 1, symbol: r.symbol || '', reason: r.reason || '' };
+  if (r.op) {
+    if (!ORDER_OPS.includes(r.op)) return { error: `op must be one of ${ORDER_OPS.join(', ')}` };
+    const broker = r.broker || 'kite';
+    try {
+      return { ...base, cap: 'order_write', ...toolmap.writeCall(broker, 'order_write', r.op, r.args || {}, broker === 'kite' ? inputs.genOf('kite') : 1) };
+    } catch (e) { return { error: e.message }; }
+  }
+  const tool = String(r.tool || '');
+  const args = r.args || {};
+  const m = toolmap.resolve(r.broker ? `mcp__${r.broker}__${tool}` : tool, args);
+  if (m.kind !== 'write' || m.cap !== 'order_write' || m.mode === 'permissions') return { error: `${tool}${m.mode ? ` mode ${m.mode}` : ''} is not an order call portfolio-copilot drafts` };
+  return { ...base, cap: 'order_write', tool, args };
+}
 
 async function draftOrders(args, ctx) {
-  const rows = (args.rows || []).map((r, i) => ({ step: i + 1, tool: String(r.tool || ''), symbol: r.symbol || '', reason: r.reason || '', args: r.args || {} }));
-  if (!rows.length) return { ok: false, error: 'rows required', text: 'Give rows: [{tool, args, symbol?, reason?}].' };
-  const bad = rows.find((r) => !ORDER_TOOLS.includes(r.tool));
-  if (bad) return { ok: false, error: `tool ${bad.tool} not allowed`, text: `Row ${bad.step}: tool must be one of ${ORDER_TOOLS.join(', ')}.` };
+  if (!(args.rows || []).length) return { ok: false, error: 'rows required', text: 'Give rows: [{broker, op, args, symbol?, reason?}].' };
+  const rows = args.rows.map(orderRow);
+  const badIdx = rows.findIndex((r) => r.error);
+  if (badIdx >= 0) return { ok: false, error: rows[badIdx].error, text: `Row ${badIdx + 1}: ${rows[badIdx].error}.` };
   const d = drafts.create(args.folder, 'orders', rows, { label: args.label || 'orders' });
   const how = ctx.edition === 'lite'
     ? 'Enter these at the broker yourself.'
-    : `To execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. After Yes, make the calls below.\n\n${callsBlock(d)}`;
+    : `To execute: ask the investor with AskUserQuestion. Header "${d.code}"; question naming ${d.code} with one line per row above; options in this order: "No, don't place", then "Yes, place ${d.code}". Never pre-fill answers. After Yes, make the calls below. If the broker answers that a call needs its own approval, show its approval link or step to the investor and wait; never approve it yourself.\n\n${callsBlock(d)}`;
   return { ok: true, code: d.code, rows: rows.length, text: [`**Order draft ${d.code}** · ${d.label}`, table(['#', 'Tool', 'Symbol', 'Arguments', 'Why'], rows.map((r) => [r.step, r.tool, r.symbol, JSON.stringify(r.args), r.reason])), `\n${how}`].join('\n') };
 }
 
@@ -460,9 +506,10 @@ const TOOLS = [
   { name: 'profile_update', handler: profileUpdate, description: 'Set one dotted path in the profile (e.g. cash.buffer_location = "bank", verdicts.SBIN = {stance, reason}). Validated before saving. Only on the investor\'s instruction.', props: { path: { type: 'string' }, value: {} }, required: ['path'] },
   { name: 'protection_check', handler: protectionCheck, description: "Report the emergency fund against 6-12 months of expenses, term and health cover, and the SIP list, all from the investor's saved profile inputs.", props: {} },
   { name: 'verdict_notes', handler: verdictNotes, description: 'Render the saved verdicts (with reasons, exit levels and stop decisions) as text the investor can paste into their notes file.', props: {} },
-  { name: 'report_gap', handler: reportGap, description: 'Record something the plugin cannot do: always logged to the feedback file, and filed as a GitHub issue labelled gap (or commented on an open duplicate) when a token is configured. Never include quantities, prices or P&L.', props: { title: { type: 'string' }, attempted: { type: 'string' }, missing: { type: 'string' }, output: { type: 'string' } }, required: ['title', 'missing'] },
+  { name: 'report_gap', handler: reportGap, description: 'Record something the plugin cannot do: always logged to the feedback file, and filed as a GitHub issue labelled gap (or commented on an open duplicate) when a token is configured. Never include quantities, prices or P&L. flush: true files the gaps the hooks queued (unknown broker tools) instead.', props: { title: { type: 'string' }, attempted: { type: 'string' }, missing: { type: 'string' }, output: { type: 'string' }, flush: { type: 'boolean' } } },
+  { name: 'doctor', handler: doctor, description: 'Check which broker MCP tools this chat has: per enabled broker, whether it can read and write, which tools the plugin does not know, and the exact read calls to make. Pass tools: every broker tool name you can see. Run at session start and whenever a broker read fails with an unknown tool.', props: { tools: { type: 'array', items: { type: 'string' } } }, required: ['tools'] },
   { name: 'log_append', handler: logAppend, description: 'Append a dated entry to the log and optionally rewrite the "Start here" block. Older months archive automatically.', props: { text: { type: 'string' }, start_here: { type: 'string' } } },
-  { name: 'draft_orders', handler: draftOrders, description: 'Draft explicit broker order calls (IBKR create_order_instruction, cancel or modify an open Kite order) so the order gate can allow exactly those calls once the investor clicks Yes.', props: { label: { type: 'string' }, rows: { type: 'array', items: { type: 'object', properties: { tool: { type: 'string' }, args: { type: 'object' }, symbol: { type: 'string' }, reason: { type: 'string' } } } } }, required: ['rows'] },
+  { name: 'draft_orders', handler: draftOrders, description: 'Draft explicit broker order calls (an IBKR order instruction, cancel or modify an open Kite order) so the order gate can allow exactly those calls once the investor clicks Yes. Each row gives broker (kite or ibkr), op (place, modify, cancel) and the order arguments; the engine names the broker tool.', props: { label: { type: 'string' }, rows: { type: 'array', items: { type: 'object', properties: { broker: { type: 'string' }, op: { type: 'string' }, tool: { type: 'string' }, args: { type: 'object' }, symbol: { type: 'string' }, reason: { type: 'string' } } } } }, required: ['rows'] },
 ];
 
 function listTools(edition) {

@@ -1,0 +1,32 @@
+{
+ "data": [
+  {
+   "exchange": "NSE",
+   "tradingsymbol": "ALPHA",
+   "instrument_token": 1001,
+   "t1_quantity": 0,
+   "quantity": 40
+  },
+  {
+   "exchange": "NSE",
+   "tradingsymbol": "BETA",
+   "instrument_token": 1002,
+   "t1_quantity": 0,
+   "quantity": 100
+  },
+  {
+   "exchange": "NSE",
+   "tradingsymbol": "GAMMAETF",
+   "instrument_token": 1003,
+   "t1_quantity": 0,
+   "quantity": 300
+  }
+ ],
+ "pagination": {
+  "from": 0,
+  "limit": 100,
+  "total": 3,
+  "has_more": false,
+  "returned": 3
+ }
+}

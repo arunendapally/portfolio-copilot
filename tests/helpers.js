@@ -30,14 +30,22 @@ function fakeBrokers({ kite = {}, kotak = {} } = {}) {
   const session = require('../core/lib/session');
   const calls = [];
   const seed = (now) => {
-    const rec = (tool, payload, failText) => {
-      if (failText) return session.record(tool, { isError: true, content: [{ type: 'text', text: failText }] }, now);
-      return session.record(tool, typeof payload === 'string' ? payload : JSON.stringify(payload), now);
+    const rec = (tool, payload, failText, input = null) => {
+      if (failText) return session.record(tool, { isError: true, content: [{ type: 'text', text: failText }] }, now, input);
+      return session.record(tool, typeof payload === 'string' ? payload : JSON.stringify(payload), now, input);
     };
     const st = kite.status && kite.status.status;
     if (st === 'needs_login') rec('mcp__kite__get_holdings', null, 'Invalid session: please log in');
     else if (st === 'outage') rec('mcp__kite__get_holdings', null, 'upstream 502 bad gateway');
-    else if (kite.data) {
+    else if (kite.data && kite.gen2) {
+      // Kite MCP tools as renamed on 11-Nov-2026: grouped tools selected by mode.
+      const page = (data) => ({ data, pagination: { from: 0, limit: 500, total: data.length, has_more: false, returned: data.length } });
+      rec('mcp__kite__portfolio', page(kite.data.holdings), null, { mode: 'holdings', type: 'full', limit: 500 });
+      rec('mcp__kite__mutual_funds', kite.data.mf || [], null, { mode: 'holdings' });
+      rec('mcp__kite__gtt', page(kite.data.gtts), null, { mode: 'list', limit: 500 });
+      rec('mcp__kite__portfolio', kite.data.margins, null, { mode: 'margins' });
+      rec('mcp__kite__orders', page(kite.data.orders || []), null, { mode: 'list', limit: 500 });
+    } else if (kite.data) {
       rec('mcp__kite__get_holdings', kite.data.holdings);
       rec('mcp__kite__get_mf_holdings', kite.data.mf || []);
       rec('mcp__kite__get_gtts', kite.data.gtts);
@@ -63,4 +71,13 @@ function ctxAt(iso, brokers, edition = 'full') {
   return { edition, now: () => now };
 }
 
-module.exports = { tmpEnv, fixture, writeProfile, fakeBrokers, ctxAt };
+// Run a hook script the way Claude Code does: JSON on stdin, JSON (or nothing) on stdout.
+function runHook(script, input, args = []) {
+  const { spawnSync } = require('child_process');
+  const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'hooks', script), ...args], { input: JSON.stringify(input), encoding: 'utf8', env: process.env });
+  let out = null;
+  if (r.stdout && r.stdout.trim()) { try { out = JSON.parse(r.stdout); } catch { out = r.stdout; } }
+  return { code: r.status, out, err: r.stderr };
+}
+
+module.exports = { tmpEnv, fixture, writeProfile, fakeBrokers, ctxAt, runHook };

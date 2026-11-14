@@ -1,0 +1,17 @@
+{
+ "data": {
+  "NSE:ALPHA": {
+   "instrument_token": 1001,
+   "last_price": 560.0
+  },
+  "NSE:NIFTY 50": {
+   "instrument_token": 256265,
+   "last_price": 24000.0
+  }
+ },
+ "meta": {
+  "as_of_available": false,
+  "missing_instruments": [],
+  "partial": false
+ }
+}

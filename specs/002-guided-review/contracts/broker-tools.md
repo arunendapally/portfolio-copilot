@@ -75,7 +75,8 @@ Reads need the `sessionid` from `get_login`. Unknown Kotak tools pass the gate a
 | Tool | Kind | Capability |
 |---|---|---|
 | `get_account_positions` | read | holdings |
-| `get_account_balances`, `get_account_summary` | read | margins |
+| `get_account_balances` | read | balances |
+| `get_account_summary` | read | summary |
 | `get_account_orders`, `get_account_trades`, `get_order_instructions` | read | orders |
 | `create_order_instruction`, `delete_order_instruction` | write | order_write |
 | `create_alert`, `update_alert`, `delete_alert`, `set_alert_status`, watchlist and screener tools | read | other (no order effect; pass) |

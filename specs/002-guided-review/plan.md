@@ -133,7 +133,7 @@ In a cloud chat the local server is reached through the desktop link like any lo
 
 ### 8. Skills and build
 
-`skills/check/SKILL.md` becomes the review entry: say "review", call `review_start`, loop on `review_next` doing what `next` says. Target: under 45 lines. Other skills lose their tool-name prose; `scripts/build.js` injects generated tool lists where a skill has `<!-- tools:broker=kite cap=gtt_write -->` markers (FR-055). Six skills stay six.
+`skills/check/SKILL.md` becomes the review entry: say "review", call `review_start`, loop on `review_next` doing what `next` says. Target: under 45 lines. Other skills lose their tool-name prose and describe capabilities; `pc doctor` and the drafts give the exact calls (FR-055). Six skills stay six.
 
 ## Project Structure
 

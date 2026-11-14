@@ -1,0 +1,115 @@
+{
+ "data": [
+  {
+   "id": 9001,
+   "type": "two-leg",
+   "status": "active",
+   "created_at": "2026-10-01T10:00:00+05:30",
+   "condition": {
+    "exchange": "NSE",
+    "tradingsymbol": "ALPHA",
+    "last_price": 520.0,
+    "trigger_values": [
+     390.0,
+     800.0
+    ]
+   },
+   "orders": [
+    {
+     "exchange": "NSE",
+     "tradingsymbol": "ALPHA",
+     "order_type": "LIMIT",
+     "transaction_type": "SELL",
+     "product": "CNC",
+     "quantity": 40,
+     "price": 388.0
+    },
+    {
+     "exchange": "NSE",
+     "tradingsymbol": "ALPHA",
+     "order_type": "LIMIT",
+     "transaction_type": "SELL",
+     "product": "CNC",
+     "quantity": 40,
+     "price": 798.0
+    }
+   ],
+   "meta": {
+    "rejection_reason": ""
+   }
+  },
+  {
+   "id": 9002,
+   "type": "two-leg",
+   "status": "active",
+   "created_at": "2026-10-01T10:00:00+05:30",
+   "condition": {
+    "exchange": "NSE",
+    "tradingsymbol": "BETA",
+    "last_price": 210.0,
+    "trigger_values": [
+     150.0,
+     320.0
+    ]
+   },
+   "orders": [
+    {
+     "exchange": "NSE",
+     "tradingsymbol": "BETA",
+     "order_type": "LIMIT",
+     "transaction_type": "SELL",
+     "product": "CNC",
+     "quantity": 100,
+     "price": 149.0
+    },
+    {
+     "exchange": "NSE",
+     "tradingsymbol": "BETA",
+     "order_type": "LIMIT",
+     "transaction_type": "SELL",
+     "product": "CNC",
+     "quantity": 100,
+     "price": 318.0
+    }
+   ],
+   "meta": {
+    "rejection_reason": ""
+   }
+  },
+  {
+   "id": 9003,
+   "type": "single",
+   "status": "active",
+   "created_at": "2026-10-01T10:00:00+05:30",
+   "condition": {
+    "exchange": "NSE",
+    "tradingsymbol": "GAMMAETF",
+    "last_price": 52.0,
+    "trigger_values": [
+     80.0
+    ]
+   },
+   "orders": [
+    {
+     "exchange": "NSE",
+     "tradingsymbol": "GAMMAETF",
+     "order_type": "LIMIT",
+     "transaction_type": "SELL",
+     "product": "CNC",
+     "quantity": 250,
+     "price": 79.0
+    }
+   ],
+   "meta": {
+    "rejection_reason": ""
+   }
+  }
+ ],
+ "pagination": {
+  "from": 0,
+  "limit": 100,
+  "total": 3,
+  "has_more": false,
+  "returned": 3
+ }
+}

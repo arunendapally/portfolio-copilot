@@ -1,0 +1,56 @@
+{
+ "data": [
+  {
+   "tradingsymbol": "ALPHA",
+   "exchange": "NSE",
+   "instrument_token": 1001,
+   "isin": "INE000A01001",
+   "product": "CNC",
+   "quantity": 40,
+   "t1_quantity": 0,
+   "average_price": 500.0,
+   "last_price": 560.0,
+   "close_price": 555.0,
+   "pnl": 2400.0,
+   "day_change": 5.0,
+   "day_change_percentage": 0.9
+  },
+  {
+   "tradingsymbol": "BETA",
+   "exchange": "NSE",
+   "instrument_token": 1002,
+   "isin": "INE000B01002",
+   "product": "CNC",
+   "quantity": 100,
+   "t1_quantity": 0,
+   "average_price": 200.0,
+   "last_price": 180.0,
+   "close_price": 181.0,
+   "pnl": -2000.0,
+   "day_change": -1.0,
+   "day_change_percentage": -0.5
+  },
+  {
+   "tradingsymbol": "GAMMAETF",
+   "exchange": "NSE",
+   "instrument_token": 1003,
+   "isin": "INF000C01003",
+   "product": "CNC",
+   "quantity": 300,
+   "t1_quantity": 0,
+   "average_price": 50.0,
+   "last_price": 55.0,
+   "close_price": 54.5,
+   "pnl": 1500.0,
+   "day_change": 0.5,
+   "day_change_percentage": 0.9
+  }
+ ],
+ "pagination": {
+  "from": 0,
+  "limit": 100,
+  "total": 3,
+  "has_more": false,
+  "returned": 3
+ }
+}

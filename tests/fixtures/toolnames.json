@@ -1,0 +1,654 @@
+{
+ "_note": "Made-up test data. One row per broker tool in specs/002-guided-review/contracts/broker-tools.md.",
+ "prefixes": {
+  "kite": [
+   "mcp__kite__",
+   "mcp__remote-devices__kite__",
+   "mcp__claude_ai_Kite__",
+   "mcp__claude_ai_Zerodha__"
+  ],
+  "kotak": [
+   "mcp__kotak-neo__",
+   "mcp__remote-devices__kotak-neo__"
+  ],
+  "ibkr": [
+   "mcp__claude_ai_Interactive_Brokers_IBKR__",
+   "mcp__Interactive_Brokers_IBKR__",
+   "mcp__ibkr__"
+  ]
+ },
+ "tools": [
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "session",
+   "mode": "status",
+   "kind": "session",
+   "cap": "session"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "session",
+   "mode": "logout",
+   "kind": "session",
+   "cap": "session"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "portfolio",
+   "mode": "profile",
+   "kind": "read",
+   "cap": "profile"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "portfolio",
+   "mode": "margins",
+   "kind": "read",
+   "cap": "margins"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "portfolio",
+   "mode": "holdings",
+   "kind": "read",
+   "cap": "holdings"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "portfolio",
+   "mode": "positions",
+   "kind": "read",
+   "cap": "positions"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "mutual_funds",
+   "mode": "holdings",
+   "kind": "read",
+   "cap": "mf"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "gtt",
+   "mode": "list",
+   "kind": "read",
+   "cap": "gtts"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "gtt",
+   "mode": "place",
+   "kind": "write",
+   "cap": "gtt_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "gtt",
+   "mode": "modify",
+   "kind": "write",
+   "cap": "gtt_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "gtt",
+   "mode": "delete",
+   "kind": "write",
+   "cap": "gtt_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "orders",
+   "mode": "list",
+   "kind": "read",
+   "cap": "orders"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "orders",
+   "mode": "all_trades",
+   "kind": "read",
+   "cap": "trades"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "orders",
+   "mode": "history",
+   "kind": "read",
+   "cap": "order_detail"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "orders",
+   "mode": "trades",
+   "kind": "read",
+   "cap": "order_detail"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "orders",
+   "mode": "approval_status",
+   "kind": "read",
+   "cap": "order_approval"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "orders",
+   "mode": "place",
+   "kind": "write",
+   "cap": "order_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "orders",
+   "mode": "modify",
+   "kind": "write",
+   "cap": "order_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "orders",
+   "mode": "cancel",
+   "kind": "write",
+   "cap": "order_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "orders",
+   "mode": "permissions",
+   "kind": "write",
+   "cap": "order_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "market",
+   "mode": "ltp",
+   "kind": "read",
+   "cap": "ltp"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "market",
+   "mode": "quote",
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "market",
+   "mode": "ohlc",
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "market",
+   "mode": "search",
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "market",
+   "mode": "option_chain",
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "market",
+   "mode": "historical",
+   "kind": "read",
+   "cap": "history"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "alerts",
+   "mode": "list",
+   "kind": "read",
+   "cap": "other"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "help",
+   "mode": null,
+   "kind": "read",
+   "cap": "other"
+  },
+  {
+   "broker": "kite",
+   "generation": 2,
+   "tool": "open_kite_view",
+   "mode": null,
+   "kind": "read",
+   "cap": "other"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "login",
+   "mode": null,
+   "kind": "session",
+   "cap": "session"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_profile",
+   "mode": null,
+   "kind": "read",
+   "cap": "profile"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_holdings",
+   "mode": null,
+   "kind": "read",
+   "cap": "holdings"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_mf_holdings",
+   "mode": null,
+   "kind": "read",
+   "cap": "mf"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_gtts",
+   "mode": null,
+   "kind": "read",
+   "cap": "gtts"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_margins",
+   "mode": null,
+   "kind": "read",
+   "cap": "margins"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_positions",
+   "mode": null,
+   "kind": "read",
+   "cap": "positions"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_orders",
+   "mode": null,
+   "kind": "read",
+   "cap": "orders"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_trades",
+   "mode": null,
+   "kind": "read",
+   "cap": "trades"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_order_history",
+   "mode": null,
+   "kind": "read",
+   "cap": "order_detail"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_order_trades",
+   "mode": null,
+   "kind": "read",
+   "cap": "order_detail"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_ltp",
+   "mode": null,
+   "kind": "read",
+   "cap": "ltp"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_ohlc",
+   "mode": null,
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_quotes",
+   "mode": null,
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "search_instruments",
+   "mode": null,
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "get_historical_data",
+   "mode": null,
+   "kind": "read",
+   "cap": "history"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "place_gtt_order",
+   "mode": null,
+   "kind": "write",
+   "cap": "gtt_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "modify_gtt_order",
+   "mode": null,
+   "kind": "write",
+   "cap": "gtt_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "delete_gtt_order",
+   "mode": null,
+   "kind": "write",
+   "cap": "gtt_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "place_order",
+   "mode": null,
+   "kind": "write",
+   "cap": "order_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "modify_order",
+   "mode": null,
+   "kind": "write",
+   "cap": "order_write"
+  },
+  {
+   "broker": "kite",
+   "generation": 1,
+   "tool": "cancel_order",
+   "mode": null,
+   "kind": "write",
+   "cap": "order_write"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_login",
+   "mode": null,
+   "kind": "session",
+   "cap": "session"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "validate_login",
+   "mode": null,
+   "kind": "session",
+   "cap": "session"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_logout",
+   "mode": null,
+   "kind": "session",
+   "cap": "session"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_holdings",
+   "mode": null,
+   "kind": "read",
+   "cap": "holdings"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_limits",
+   "mode": null,
+   "kind": "read",
+   "cap": "margins"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_margin",
+   "mode": null,
+   "kind": "read",
+   "cap": "other"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_positions",
+   "mode": null,
+   "kind": "read",
+   "cap": "positions"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_order_book",
+   "mode": null,
+   "kind": "read",
+   "cap": "orders"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_order_history",
+   "mode": null,
+   "kind": "read",
+   "cap": "order_detail"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_trade_book",
+   "mode": null,
+   "kind": "read",
+   "cap": "trades"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_quote",
+   "mode": null,
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "get_research",
+   "mode": null,
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "kotak",
+   "generation": 1,
+   "tool": "search_instrument",
+   "mode": null,
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "get_account_positions",
+   "mode": null,
+   "kind": "read",
+   "cap": "holdings"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "get_account_balances",
+   "mode": null,
+   "kind": "read",
+   "cap": "balances"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "get_account_summary",
+   "mode": null,
+   "kind": "read",
+   "cap": "summary"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "get_account_orders",
+   "mode": null,
+   "kind": "read",
+   "cap": "orders"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "get_account_trades",
+   "mode": null,
+   "kind": "read",
+   "cap": "trades"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "get_order_instructions",
+   "mode": null,
+   "kind": "read",
+   "cap": "order_detail"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "create_order_instruction",
+   "mode": null,
+   "kind": "write",
+   "cap": "order_write"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "delete_order_instruction",
+   "mode": null,
+   "kind": "write",
+   "cap": "order_write"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "create_alert",
+   "mode": null,
+   "kind": "read",
+   "cap": "other"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "delete_watchlist",
+   "mode": null,
+   "kind": "read",
+   "cap": "other"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "run_saved_screener",
+   "mode": null,
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "get_price_snapshot",
+   "mode": null,
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "search_contracts",
+   "mode": null,
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "whats_new",
+   "mode": null,
+   "kind": "read",
+   "cap": "market"
+  },
+  {
+   "broker": "ibkr",
+   "generation": 1,
+   "tool": "provide_customer_feedback",
+   "mode": null,
+   "kind": "read",
+   "cap": "other"
+  }
+ ]
+}
