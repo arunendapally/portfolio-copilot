@@ -67,7 +67,7 @@ Stops protect against a broken thesis, not a market-wide fall.
 | Interactive Brokers | Add the IBKR connector; the check skill passes its summary to the engine |
 | Any other | Holdings CSV: say "import my holdings" |
 
-The plugin works on the broker MCPs you already have, in a plain claude.ai chat or in Claude Code, and matches their tools by name so any prefix works. The order gate covers their order tools.
+The plugin works on the broker MCPs you already have, in a plain claude.ai chat or in Claude Code, and matches their tools by capability (holdings, GTTs, orders, ...) through one tool map, `core/lib/brokers/toolmap.js`, so any prefix and both Kite tool generations work. The order gate covers every Kite and IBKR write and blocks Kite and IBKR tools the map does not know. `pc doctor` names the exact read and write calls for each connected broker.
 
 ## Guardrails
 
