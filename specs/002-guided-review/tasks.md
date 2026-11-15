@@ -76,7 +76,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 - [x] T021 [US1] Add the `doctor` command to `core/tools.js` (contracts/pc-commands.md); add the doctor line to `hooks/session-start.js`
 - [x] T022 [US1] Queue unfiled gaps in `~/.portfolio-copilot/gaps-pending.json` in `core/lib/gap.js`; add `report_gap --flush` (FR-057)
 - [x] T023 [US1] Rewrite `skills/check`, `skills/gtt`, `skills/risk`, `skills/crash` in capability language with no broker tool names; exact calls come from `pc doctor` and draft output (simplified 14-Nov from build-time markers); keep each skill under sixty lines
-- [ ] T024 [US1] Extend eval T2 in `evals/run-evals.py`: run it against a fake broker MCP exposing generation-2 Kite tools, and add a prompt that asks for a made-up Kite tool; both must be denied
+- [x] T024 [US1] Extend eval T2 in `evals/run-evals.py`: run it against a fake broker MCP exposing generation-2 Kite tools, and add a prompt that asks for a made-up Kite tool; both must be denied
 - [ ] T025 [US1] Release v0.7.4: version in `.claude-plugin/plugin.json` and `package.json`, `CHANGELOG.md`, README "Brokers" (tools matched by capability; drop the Kite-web delete fallback only if T004 showed delete works), `node scripts/build.js`, `claude plugin validate --strict`, `npm test`, evals T0 to T2 on full and T0 on lite. Open the PR; push and upload only on the investor's go
 
 **Checkpoint**: SC-001, SC-002 and SC-012 pass. Ship before anything else in this file.
