@@ -1,0 +1,6 @@
+{
+ "status": "approval_required",
+ "approval_id": "ap_example",
+ "approval_url": "https://example.invalid/approve/ap_example",
+ "message": "No order was submitted."
+}

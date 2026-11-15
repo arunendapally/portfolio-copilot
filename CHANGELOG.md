@@ -2,6 +2,21 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
+## [0.7.4] - 2026-11-15
+
+Hotfix: Kite renamed its MCP tools on 11-Nov-2026 (grouped tools picked by `mode`). The order gate matched verbs in tool names, so the new writes were not gated, and capture missed every new read.
+
+### Fixed
+- One broker tool map, `core/lib/brokers/toolmap.js`, is the only place broker tool names live. It resolves a tool to broker, kind, capability and generation, and builds write calls, full-list reads and the doctor report from that.
+- Hooks match brokers, not verbs. The gate denies every Kite and IBKR write without an approved draft row (`mode` included) and denies tools it does not know; unknown Kotak reads pass and are queued as gaps.
+- Capture files are named by capability; a partial read is judged by the broker's pagination; renamed tools show as `tools_changed`, not as a login or outage.
+- Kotak cash is read from the limits CSV; unreadable cash is reported as `format_error`.
+- Drafts name calls through the map for the Kite generation in use. The broker's own approval step is shown, never approved by Claude.
+- Skills describe capabilities, not tool names; a test keeps tool names out of them.
+
+### Added
+- `pc doctor` names the exact read and write calls per enabled broker and lists tools it does not know; `report_gap --flush`; a doctor line at session start.
+
 ## [0.7.3] - 2026-11-11
 
 ### Fixed (#31)

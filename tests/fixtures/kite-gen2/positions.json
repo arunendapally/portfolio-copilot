@@ -1,0 +1,29 @@
+{
+ "data": [
+  {
+   "tradingsymbol": "ALPHA",
+   "exchange": "NSE",
+   "product": "CNC",
+   "quantity": 10,
+   "average_price": 558.0,
+   "last_price": 560.0,
+   "view": "day"
+  },
+  {
+   "tradingsymbol": "ALPHA",
+   "exchange": "NSE",
+   "product": "CNC",
+   "quantity": 10,
+   "average_price": 558.0,
+   "last_price": 560.0,
+   "view": "net"
+  }
+ ],
+ "pagination": {
+  "from": 0,
+  "limit": 100,
+  "total": 2,
+  "has_more": false,
+  "returned": 2
+ }
+}

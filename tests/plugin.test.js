@@ -10,15 +10,8 @@ const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const json = (p) => JSON.parse(read(p));
 
-// Every order-tool name seen in the field log (feedback.md, Jul-Oct 2026) plus core's own.
-const ORDER_TOOL_NAMES = [
-  'place_gtt_order', 'modify_gtt_order', 'delete_gtt_order', 'place_order', 'modify_order', 'cancel_order',
-  'mcp__kite__place_gtt_order', 'mcp__kite__delete_gtt_order', 'mcp__kite__place_order', 'mcp__kite__cancel_order',
-  'mcp__plugin_portfolio-copilot_kite__place_gtt_order', 'mcp__plugin_portfolio-copilot_kite__modify_gtt_order',
-  'mcp__remote-devices__kite__place_gtt_order', 'mcp__remote-devices__plugin_portfolio-copilot_kite__delete_gtt_order',
-  'mcp__claude_ai_Interactive_Brokers_IBKR__create_order_instruction', 'mcp__claude_ai_Interactive_Brokers_IBKR__submit_order',
-];
-const NOT_ORDER_TOOLS = ['mcp__kite__get_gtts', 'mcp__kite__get_orders', 'mcp__kite__get_order_history', 'mcp__claude_ai_Interactive_Brokers_IBKR__get_account_orders', 'Bash', 'mcp__kotak-neo__get_order_book'];
+// Matcher coverage for every broker tool name, and the order gate's decisions, are tested in
+// hooks-matchers.test.js and gate-toolmap.test.js (spec 002).
 
 test('hooks.json has the documented {"hooks": {...}} shape and only command hooks guard orders', () => {
   const h = json('hooks/hooks.json');
@@ -31,25 +24,6 @@ test('hooks.json has the documented {"hooks": {...}} shape and only command hook
       assert.ok(m && fs.existsSync(path.join(ROOT, 'hooks', m[1])), `hook script missing: ${x.command}`);
     }
   }
-});
-
-test('PreToolUse matcher covers every known order tool name and nothing else', () => {
-  const re = new RegExp(`^(?:${json('hooks/hooks.json').hooks.PreToolUse[0].matcher})$`);
-  for (const n of ORDER_TOOL_NAMES) assert.ok(re.test(n), `not gated: ${n}`);
-  for (const n of NOT_ORDER_TOOLS) assert.ok(!re.test(n), `gated by mistake: ${n}`);
-});
-
-test('gate script recognises the same names as the matcher', () => {
-  const { WRITE_RE } = require('../hooks/order-gate');
-  for (const n of ORDER_TOOL_NAMES) assert.ok(WRITE_RE.test(n), n);
-  for (const n of NOT_ORDER_TOOLS) assert.ok(!WRITE_RE.test(n), n);
-});
-
-test('capture matcher covers broker read tools on any prefix and no writes', () => {
-  const m = json('hooks/hooks.json').hooks.PostToolUse.find((g) => g.hooks.some((x) => /capture\.js/.test(x.command))).matcher;
-  const re = new RegExp(m);
-  for (const n of ['mcp__kite__get_holdings', 'mcp__kite__get_gtts', 'mcp__remote-devices__kite__get_margins', 'mcp__kotak-neo__get_limits', 'mcp__claude_ai_Interactive_Brokers_IBKR__get_account_positions']) assert.ok(re.test(n), n);
-  for (const n of ORDER_TOOL_NAMES.concat(['Bash', 'mcp__claude_ai_Gmail__list_drafts'])) assert.ok(!re.test(n), `captured by mistake: ${n}`);
 });
 
 test('failed broker reads reach the capture hook too, with the same matcher', () => {
@@ -131,7 +105,8 @@ test('analyze keeps source quotes end to end (eval T3, 15-Oct)', () => {
 test('repo contains no personal data', () => {
   const ignored = read('.gitignore');
   for (const p of ['portfolio-copilot/', 'portfolio-profile.md', 'portfolio-snapshots/', 'dist/']) assert.ok(ignored.includes(p), `${p} not ignored`);
-  const fixtures = fs.readdirSync(path.join(__dirname, 'fixtures')).map((f) => fs.readFileSync(path.join(__dirname, 'fixtures', f), 'utf8')).join('\n');
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  const fixtures = walk(path.join(__dirname, 'fixtures')).map((f) => fs.readFileSync(f, 'utf8')).join('\n');
   assert.doesNotMatch(fixtures, /JIR116|arun|@gmail/i);
 });
 

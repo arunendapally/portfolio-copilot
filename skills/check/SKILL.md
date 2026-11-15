@@ -8,10 +8,11 @@ description: Portfolio check across all brokers, and working through the investo
 All numbers come from the portfolio engine, a plain script (the session context gives its exact `node .../pc.js COMMAND` line; `pc` below). Show its text as is; never recompute. Broker data comes from the brokers' own MCP tools: you call their read tools and a hook saves what they return, so you never retype a broker number.
 
 ## 1. Connect (one message)
-Kotak Neo reads need the `sessionid` from its login, so start Kotak with `get_login` (UCC from the profile), the QR step, then `validate_login`. Then read with the broker MCPs, no limits or paging: Kite `get_holdings`, `get_gtts`, `get_margins`, `get_mf_holdings`, `get_orders`, `get_trades`; Kotak Neo `get_holdings`, `get_limits` (with the `sessionid`). Then run `pc broker_status` (pass `--folder` = the investor's folder, and the hook plugin and version from the session context).
+Run `pc doctor` with every broker MCP tool name you can see: it lists, per broker, the exact read calls for the tools this chat has (broker tools get renamed; never guess a name). Kotak Neo reads need the `sessionid` from its QR login (UCC from the profile), so log Kotak in first. Then make every read `doctor` lists: holdings (full), GTTs, cash/margins, funds and orders for Kite; holdings and limits for Kotak Neo (with the `sessionid`). Then run `pc broker_status` (pass `--folder` = the investor's folder, and the hook plugin and version from the session context).
 - Live brokers: say nothing more.
-- `needs_login`, or any read that returned an error: Kite: call the Kite MCP `login` tool, show its link only, wait for "done", read again. Kotak: `get_login`, the QR step, `validate_login`, read again. If reads still fail right after a successful login, treat it as an outage; do not ask again.
+- `needs_login`, or any read that returned an error: Kite: use the Kite MCP login or session tool, show its link only, wait for "done", read again. Kotak: its QR login, then its validate step, read again. If reads still fail right after a successful login, treat it as an outage; do not ask again.
 - `outage`: say the broker is down and do not ask for a login.
+- `tools_changed`: the broker renamed its tools. Run `pc doctor` again, make the calls it lists, and `report_gap` with its table. Not a login, not an outage.
 - `not_connected`: only when that broker's MCP tools are not in this chat at all. Say which, and go on with the others. If the tools exist but a read errored, that is a login, above.
 - Never write a login URL yourself.
 
@@ -26,7 +27,7 @@ If the investor's folder is not reachable, ask them to attach `profile.json` (ke
 If the device shell can run Node, running `pc.js` on the PC directly (with the real folder) is simpler and needs no staging.
 
 ## 2. Pull
-Run `pc refresh`. If an IBKR connector is available, call its `get_account_summary` (primary), then `get_account_positions`, and pass them to `ingest` with `broker: "ibkr"`, `currency: "USD"`, and `fx_rate` + `fx_source` (a dated USD/INR rate; say where it came from). If summary fails, ingest positions and say the cash figure is last known.
+Run `pc refresh`. If an IBKR connector is available, read its account summary (primary), then its positions (the calls `doctor` lists), and pass them to `ingest` with `broker: "ibkr"`, `currency: "USD"`, and `fx_rate` + `fx_source` (a dated USD/INR rate; say where it came from). If summary fails, ingest positions and say the cash figure is last known.
 For a broker with no connection, "import my holdings": ask for a CSV export and call `ingest` with `csv_path`.
 
 ## 3. Macro (morning and mid-day only)

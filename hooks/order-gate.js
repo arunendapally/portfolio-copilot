@@ -1,21 +1,20 @@
 #!/usr/bin/env node
 'use strict';
-// PreToolUse: deterministic order gate for the brokers' own MCP tools. A write call passes only
-// when its arguments match a row of a draft the investor approved, and each row passes once.
-// Tools are matched by name suffix, so mcp__kite__*, remote-device and hosted-connector prefixes
-// all work. No model judgment. Any internal error denies (fail closed).
+// PreToolUse: deterministic order gate for the brokers' own MCP tools. Every tool of a broker
+// reaches this script; the tool map says what it is. A write passes only when its tool and
+// arguments (mode included) match a row of a draft the investor approved, and each row passes
+// once. A tool the map does not know is denied on brokers that can take orders. No model
+// judgment. Any internal error denies (fail closed).
 
 const drafts = require('../core/lib/drafts');
+const toolmap = require('../core/lib/brokers/toolmap');
+const gap = require('../core/lib/gap');
 const { readStdin, candidateFolders } = require('./lib');
 
-const WRITE_RE = /(^|__)((place|modify|delete|cancel|submit)_(gtt_)?order|create_order_instruction)$/;
 const EPS = 0.01;
-// Informational fields: the live price moves, the tag is only a label.
-const IGNORE = new Set(['last_price', 'tag']);
-
-function suffixOf(tool) {
-  return String(tool).split('__').pop();
-}
+// Informational fields: the live price moves, the tag is only a label, and the broker's own
+// request id and approval method are added by its client.
+const IGNORE = new Set(['last_price', 'tag', '_app_request_id', 'approval_method']);
 
 function same(a, b) {
   if (a === undefined || a === null || a === '') return b === undefined || b === null || b === '';
@@ -44,10 +43,20 @@ function decide(input, folders, now = new Date(), opts = {}) {
     return answered && offersYes ? { allow: false, reason: 'Approval questions are answered by the investor in the question UI; never pre-fill answers.' } : { allow: true };
   }
 
-  if (!WRITE_RE.test(tool)) return { allow: true };
+  const r = toolmap.resolve(tool, args);
+  if (!r.broker) return { allow: true };
+  if (r.kind === 'unknown') {
+    const what = `${r.tool}${r.mode ? ` mode ${r.mode}` : ''}`;
+    if (r.order_capable || r.looks_write) {
+      return { allow: false, reason: `Blocked ${tool}: portfolio-copilot does not know this ${r.broker} tool (${what}), so it cannot tell a read from an order. Nothing was sent. Run the doctor command for the calls to use now.` };
+    }
+    try { gap.queuePending({ title: `Unknown ${r.broker} tool: ${what}`, attempted: tool, missing: 'tool map entry' }, now); } catch { /* the queue is best effort */ }
+    return { allow: true };
+  }
+  if (r.kind !== 'write') return { allow: true };
   if (opts.edition === 'lite') return { allow: false, reason: `Blocked ${tool}: the lite edition never places or changes orders. Draft the plan and enter it at the broker yourself.` };
 
-  const name = suffixOf(tool);
+  const name = r.tool;
   let usedBefore = null;
   const open = [];
   for (const f of folders) {
@@ -87,4 +96,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { decide, WRITE_RE, sameArgs, suffixOf };
+module.exports = { decide, sameArgs };

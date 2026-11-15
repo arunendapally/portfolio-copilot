@@ -10,7 +10,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": ".*(place|modify|delete|cancel|submit)_(gtt_)?order$|.*create_order_instruction$|^AskUserQuestion$",
+        "matcher": "^mcp__.*([Kk]ite|[Zz]erodha|[Kk]otak|[Ii]nteractive_[Bb]rokers|IBKR|ibkr).*__[A-Za-z0-9_-]+$|^AskUserQuestion$",
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/order-gate.js\"", "timeout": 10 }
         ]
@@ -18,7 +18,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "^mcp__.*([Kk]ite|[Kk]otak|[Ii]nteractive_[Bb]rokers|IBKR|ibkr).*__(get|list)_[a-z_]+$",
+        "matcher": "^mcp__.*([Kk]ite|[Zz]erodha|[Kk]otak|[Ii]nteractive_[Bb]rokers|IBKR|ibkr).*__[A-Za-z0-9_-]+$",
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/capture.js\"", "timeout": 10 }
         ]
@@ -32,7 +32,7 @@
     ],
     "PostToolUseFailure": [
       {
-        "matcher": "^mcp__.*([Kk]ite|[Kk]otak|[Ii]nteractive_[Bb]rokers|IBKR|ibkr).*__(get|list)_[a-z_]+$",
+        "matcher": "^mcp__.*([Kk]ite|[Zz]erodha|[Kk]otak|[Ii]nteractive_[Bb]rokers|IBKR|ibkr).*__[A-Za-z0-9_-]+$",
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/capture.js\"", "timeout": 10 }
         ]

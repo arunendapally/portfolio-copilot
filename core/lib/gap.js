@@ -4,7 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { stateDir, readJson, writeJson } = require('./state');
+const { stateDir, configDir, readJson, writeJson } = require('./state');
 const { istStamp } = require('./format');
 
 const DEFAULT_REPO = 'arunendapally/portfolio-copilot';
@@ -88,4 +88,21 @@ async function fileGap(gap, gh, now, folder) {
   return { action: 'created', url: made.html_url };
 }
 
-module.exports = { DEFAULT_REPO, feedbackPath, logLocal, fileGap };
+// Gaps found inside a hook (no network there): queued, then filed by report_gap --flush.
+function pendingPath() {
+  return path.join(configDir(), 'gaps-pending.json');
+}
+function queuePending(gap, now = new Date()) {
+  const list = readJson(pendingPath(), []);
+  if (list.some((g) => g.title === gap.title)) return false;
+  list.push({ ...gap, at: now.toISOString() });
+  writeJson(pendingPath(), list, 0o600);
+  return true;
+}
+function takePending() {
+  const list = readJson(pendingPath(), []);
+  writeJson(pendingPath(), [], 0o600);
+  return list;
+}
+
+module.exports = { pendingPath, queuePending, takePending, DEFAULT_REPO, feedbackPath, logLocal, fileGap };
