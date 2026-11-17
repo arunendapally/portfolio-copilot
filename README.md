@@ -28,6 +28,8 @@ Then say **"get started"** in a new chat.
 | Say | Get |
 |---|---|
 | "get started" | Profile setup (or import your existing notes), broker connection, first check |
+| "review" | The guided daily review: connects every broker first (all logins asked at once), pulls, researches what your rules need, then at most five tasks with the rule and numbers behind each. Approve, defer or decline each; approved ones are drafted (or given as steps), checked with a fresh read, and logged. Resumes if you stop |
+| "end of day" / "Friday review" | The same run: end of day lists tasks without acting; Friday is the full run |
 | "check my portfolio" / "daily briefing" / "EOD analysis" | All brokers in one book: totals, cash vs buffer, alerts, trades that contradict your rules, what changed since last time, allocation drift |
 | "audit my GTTs" | Per-symbol quantity gaps, policy violations, crash test at -10%/-20%, corporate-action risk; then a GTT plan to approve |
 | "risk check" / "review my MFs" / "basket for ₹1L" | Concentration with its base, rate sensitivity, fund screen, basket rows to enter |

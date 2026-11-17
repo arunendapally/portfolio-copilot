@@ -2,6 +2,22 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
+## [0.8.0] - 2026-11-17
+
+The guided daily review (spec 002, US2, US3, US6).
+
+### Added
+- `review`: one run per day through connect, pull, research, evaluate, propose, execute, verify and record, with each gate in code. At most five tasks, safety first, each with the rule and the measurements behind it (with their base and time). Approve, defer or decline; an approval authorises a draft, never an order. Approved tasks are drafted (the order still needs "Yes, place <code>") or given as numbered steps, then checked against a fresh broker read. The run resumes the same day; a deferred task stays away until its date. `end of day` and `Friday` runs; unattended runs stop after research.
+- `connect`: every broker live or skipped before any work; all logins asked at once. `broker_status` is now its alias.
+- One state wherever you chat: `state_export`, `state_import`, `state_writeback` (conflicts are reported, never overwritten).
+- Profile schema v2 (new fields default to empty; v1 profiles migrate on load). `log.path` can point at your own log file (append-only).
+- Every holding carries the time of its price; the fresher price wins across brokers; a holding priced at cost two runs in a row is valued at zero and listed (override in `valuation_overrides`); a fund at two brokers is one position; same-day buys count toward GTT coverage.
+
+### Changed
+- Drafting commands refuse without a real profile. A failed write (log, feedback, profile) fails the command.
+- The order gate also denies a review task question sent with its answer filled in.
+- Evals run against a fake generation-2 Kite MCP with no user settings loaded.
+
 ## [0.7.4] - 2026-11-15
 
 Hotfix: Kite renamed its MCP tools on 11-Nov-2026 (grouped tools picked by `mode`). The order gate matched verbs in tool names, so the new writes were not gated, and capture missed every new read.
