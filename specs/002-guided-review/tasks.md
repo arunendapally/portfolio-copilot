@@ -107,13 +107,13 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 
 **Independent Test**: spec.md US6.
 
-- [ ] T033 [P] [US6] `tests/bundle.test.js`: export and import round-trip; bundle under 150 KB on a 100-holding fixture; `state_writeback` lists only changed files; a changed source hash is reported as a conflict and nothing is returned for that file
-- [ ] T034 [P] [US6] `tests/write-failures.test.js`: `log_append`, `report_gap` and `profile_update` return `ok: false` on a read-only target; drafting commands return `ok: false` without a profile
-- [ ] T035 [US6] Create `core/lib/bundle.js` (data-model section 8)
-- [ ] T036 [US6] Add `state_export`, `state_import`, `state_writeback` to `core/tools.js` (contracts/pc-commands.md)
-- [ ] T037 [US6] Make `core/lib/log.js` and `core/lib/gap.js` throw on write failure; honour `profile.log.path` (FR-039, FR-041)
-- [ ] T038 [US6] In `callTool`, refuse `draft_gtt_plan`, `draft_basket`, `draft_orders`, `task_done` and execute-stage `review_next` without a real profile (FR-040)
-- [ ] T039 [US6] Replace the "Profile when the chat is linked to the PC" section of `skills/check/SKILL.md` with: load the bundle through the device link, run, write back with `state_writeback`, report conflicts
+- [x] T033 [P] [US6] `tests/bundle.test.js`: export and import round-trip; bundle under 150 KB on a 100-holding fixture; `state_writeback` lists only changed files; a changed source hash is reported as a conflict and nothing is returned for that file
+- [x] T034 [P] [US6] `tests/write-failures.test.js`: `log_append`, `report_gap` and `profile_update` return `ok: false` on a read-only target; drafting commands return `ok: false` without a profile
+- [x] T035 [US6] Create `core/lib/bundle.js` (data-model section 8)
+- [x] T036 [US6] Add `state_export`, `state_import`, `state_writeback` to `core/tools.js` (contracts/pc-commands.md)
+- [x] T037 [US6] Make `core/lib/log.js` and `core/lib/gap.js` throw on write failure; honour `profile.log.path` (FR-039, FR-041)
+- [x] T038 [US6] In `callTool`, refuse `draft_gtt_plan`, `draft_basket`, `draft_orders`, `task_done` and execute-stage `review_next` without a real profile (FR-040)
+- [x] T039 [US6] Replace the "Profile when the chat is linked to the PC" section of `skills/check/SKILL.md` with: load the bundle through the device link, run, write back with `state_writeback`, report conflicts
 
 **Checkpoint**: SC-009 and SC-010 pass on fixtures.
 

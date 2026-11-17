@@ -219,6 +219,7 @@ function update(folder, dotted, value) {
   const errors = validate(merge(DEFAULTS, next));
   if (errors.length) return { ok: false, errors };
   writeJson(profilePath(folder), next);
+  if (JSON.stringify(readJson(profilePath(folder), null)) !== JSON.stringify(next)) throw new Error(`profile write to ${profilePath(folder)} did not stick`);
   return { ok: true, value: getPath(next, dotted) };
 }
 

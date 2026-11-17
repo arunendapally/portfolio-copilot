@@ -29,7 +29,10 @@ function logLocal(folder, gap, now, filedUrl) {
   const file = feedbackPath(folder);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const head = fs.existsSync(file) ? '' : '# Feedback log\n';
-  fs.appendFileSync(file, `${head}\n### ${istStamp(now)} ${gap.title}\n${bodyOf(gap, now)}\n${filedUrl ? `Filed: ${filedUrl}\n` : ''}`);
+  const entry = `${head}\n### ${istStamp(now)} ${gap.title}\n${bodyOf(gap, now)}\n${filedUrl ? `Filed: ${filedUrl}\n` : ''}`;
+  const before = fs.existsSync(file) ? fs.statSync(file).size : 0;
+  fs.appendFileSync(file, entry);
+  if (fs.statSync(file).size !== before + Buffer.byteLength(entry)) throw new Error(`feedback write to ${file} did not stick`);
   return file;
 }
 

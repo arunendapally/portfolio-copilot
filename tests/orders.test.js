@@ -161,6 +161,7 @@ test('order gate allows an approved basket row as an exact LIMIT buy only', asyn
 
 test('draft_orders rows (IBKR instruction, cancel an open order) pass the gate once, only as shown', async () => {
   const { folder } = tmpEnv();
+  writeProfile(folder, { schema_version: 2 });
   const ctx = ctxAt(NOW, fakeBrokers());
   const bad = await callTool('draft_orders', { folder, rows: [{ tool: 'execute_anything', args: {} }] }, ctx);
   assert.strictEqual(bad.ok, false);

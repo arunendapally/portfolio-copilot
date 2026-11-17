@@ -21,7 +21,7 @@ async function seeded(withProfile) {
 
 test('without profile.json every policy tool says it is using defaults, and names what that skips', async () => {
   const { folder, ctx } = await seeded(false);
-  for (const tool of ['refresh', 'check', 'gtt_audit', 'draft_gtt_plan', 'draft_basket', 'crash_check', 'broker_status']) {
+  for (const tool of ['refresh', 'check', 'gtt_audit', 'crash_check', 'broker_status']) {
     const r = await callTool(tool, { folder, amount: 1000, index_level: 20000 }, ctx);
     assert.match(r.text, /No profile\.json/, `${tool} did not warn`);
     assert.match(r.text, /defaults/i, tool);
@@ -43,11 +43,13 @@ test('the warning is added in front of the tool output, which still follows, and
   assert.match(check.text, /base: all connected brokers/);
 });
 
-test('draft_orders never reads the profile, so it carries no profile warning', async () => {
+test('drafting commands refuse without a real profile (FR-040)', async () => {
   const { folder, ctx } = await seeded(false);
-  const r = await callTool('draft_orders', { folder, rows: [{ tool: 'mcp__kite__cancel_order', args: { order_id: '1' }, symbol: 'SBIN', reason: 'test' }] }, ctx);
-  assert.doesNotMatch(r.text, /No profile\.json/);
-  assert.ok(!r.profile_missing);
+  for (const tool of ['draft_gtt_plan', 'draft_basket', 'draft_orders']) {
+    const r = await callTool(tool, { folder, amount: 1000, rows: [{ tool: 'mcp__kite__cancel_order', args: { order_id: '1' }, symbol: 'SBIN', reason: 'test' }] }, ctx);
+    assert.strictEqual(r.ok, false, tool);
+    assert.match(r.text, /Not drafted: no profile\.json/, tool);
+  }
 });
 
 test('with a profile.json there is no such warning', async () => {

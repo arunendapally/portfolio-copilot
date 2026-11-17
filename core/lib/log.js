@@ -4,7 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { stateDir } = require('./state');
+const { stateDir, resolveFolder } = require('./state');
 const { istStamp } = require('./format');
 
 const HEADER = '# Portfolio log\n';
@@ -34,7 +34,19 @@ function render(start, entries) {
   return `${HEADER}\n${START}\n${start || '_Nothing yet._'}\n${body ? `\n${body}\n` : ''}`;
 }
 
-function append(folder, { text, startHere } = {}, now = new Date()) {
+// The investor's own log file (profile.log.path) is append-only: its format is theirs, so it is
+// never rewritten or rotated.
+function appendOwn(folder, name, { text, startHere }, now) {
+  const file = path.join(resolveFolder(folder), name);
+  const entry = `\n## ${istStamp(now)}\n${[text, startHere ? `Start here (updated):\n${String(startHere).trim()}` : ''].filter(Boolean).join('\n\n').trim()}\n`;
+  const before = fs.existsSync(file) ? fs.statSync(file).size : 0;
+  fs.appendFileSync(file, entry);
+  if (fs.statSync(file).size !== before + Buffer.byteLength(entry)) throw new Error(`log write to ${file} did not stick`);
+  return { path: file, archived: [], bytes: fs.statSync(file).size };
+}
+
+function append(folder, { text, startHere, path: own } = {}, now = new Date()) {
+  if (own) return appendOwn(folder, own, { text, startHere }, now);
   const file = logPath(folder);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const parsed = fs.existsSync(file) ? parse(fs.readFileSync(file, 'utf8')) : { start: '', entries: [] };
@@ -51,7 +63,10 @@ function append(folder, { text, startHere } = {}, now = new Date()) {
     archived.push(m);
   }
   if (text) keep.push({ month, lines: [`## ${stamp}`, String(text).trim()] });
-  fs.writeFileSync(file, render(startHere !== undefined ? String(startHere).trim() : parsed.start, keep));
+  const out = render(startHere !== undefined ? String(startHere).trim() : parsed.start, keep);
+  fs.writeFileSync(file, out);
+  // A staged or read-only copy can accept a write and keep nothing (30-Oct): check it stuck (FR-039).
+  if (fs.readFileSync(file, 'utf8') !== out) throw new Error(`log write to ${file} did not stick`);
   return { path: file, archived, bytes: fs.statSync(file).size };
 }
 

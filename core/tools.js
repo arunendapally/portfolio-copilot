@@ -20,6 +20,7 @@ const version = require('./lib/version');
 const inputs = require('./lib/inputs');
 const toolmap = require('./lib/brokers/toolmap');
 const connectLib = require('./lib/connect');
+const bundle = require('./lib/bundle');
 const session = require('./lib/session');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
 
@@ -457,8 +458,32 @@ async function reportGap(args, ctx) {
 }
 
 async function logAppend(args, ctx) {
-  const r = log.append(args.folder, { text: args.text, startHere: args.start_here }, ctx.now());
+  const { profile } = profiles.load(args.folder);
+  const r = log.append(args.folder, { text: args.text, startHere: args.start_here, path: profile.log && profile.log.path }, ctx.now());
   return { ok: true, ...r, text: `Logged to ${r.path}${r.archived.length ? ` (archived ${r.archived.join(', ')})` : ''}.` };
+}
+
+// State bundle (US6): one file the cloud chat and the computer share.
+async function stateExport(args, ctx) {
+  if (!args.out) return { ok: false, error: 'out required', text: 'Pass out: the bundle file to write.' };
+  const r = bundle.exportBundle(args.folder, args.out, ctx.now(), args.source || 'pc');
+  return { ok: true, ...r, text: `State bundle written: ${r.path} (${Math.round(r.bytes / 1024)} KB, ${r.files.length} files).` };
+}
+
+async function stateImport(args) {
+  if (!args.bundle || !args.into) return { ok: false, error: 'bundle and into required', text: 'Pass bundle (the file) and into (the folder to restore into).' };
+  const r = bundle.importBundle(args.bundle, args.into, !!args.force);
+  if (!r.ok) return { ok: false, error: 'newer copies in the target', newer: r.newer, text: `Not restored: ${r.newer.join(', ')} changed in ${args.into} after the bundle was made. Write those back first, or pass force to overwrite.` };
+  return { ok: true, ...r, text: `Restored ${r.restored.length} files into ${args.into}. Use this folder as --folder, then state_writeback before you finish.` };
+}
+
+async function stateWriteback(args, ctx) {
+  if (!args.bundle) return { ok: false, error: 'bundle required', text: 'Pass bundle: the bundle this folder was restored from.' };
+  const r = bundle.writeback(args.bundle, args.folder, args.source_hashes || {}, ctx.now());
+  const next = r.files.length ? [{ do: 'files', op: 'writeback', files: r.files }] : [];
+  const L = [r.files.length ? `Copy back ${r.files.length} changed file(s): ${r.files.map((f) => f.path).join(', ')}.` : 'Nothing changed since the bundle.'];
+  if (r.conflicts.length) L.push(`Conflicts (changed on the computer meanwhile, not copied): ${r.conflicts.join(', ')}. Tell the investor; do not overwrite.`);
+  return { ok: true, next, conflicts: r.conflicts, text: L.join('\n') };
 }
 
 // Rows for orders the plan builders do not draft (IBKR instructions, cancel or modify an open order).
@@ -513,6 +538,9 @@ const TOOLS = [
   { name: 'verdict_notes', handler: verdictNotes, description: 'Render the saved verdicts (with reasons, exit levels and stop decisions) as text the investor can paste into their notes file.', props: {} },
   { name: 'report_gap', handler: reportGap, description: 'Record something the plugin cannot do: always logged to the feedback file, and filed as a GitHub issue labelled gap (or commented on an open duplicate) when a token is configured. Never include quantities, prices or P&L. flush: true files the gaps the hooks queued (unknown broker tools) instead.', props: { title: { type: 'string' }, attempted: { type: 'string' }, missing: { type: 'string' }, output: { type: 'string' }, flush: { type: 'boolean' } } },
   { name: 'doctor', handler: doctor, description: 'Check which broker MCP tools this chat has: per enabled broker, whether it can read and write, which tools the plugin does not know, and the exact read calls to make. Pass tools: every broker tool name you can see. Run at session start and whenever a broker read fails with an unknown tool.', props: { tools: { type: 'array', items: { type: 'string' } } }, required: ['tools'] },
+  { name: 'state_export', handler: stateExport, description: "Write the investor's state (profile, last two snapshots, open drafts, today's runs, marks, journal tail, log) to one bundle file, for a cloud chat to work on.", props: { out: { type: 'string' }, source: { type: 'string' } }, required: ['out'] },
+  { name: 'state_import', handler: stateImport, description: 'Restore a state bundle into a folder. Refuses when the folder holds newer copies, unless force.', props: { bundle: { type: 'string' }, into: { type: 'string' }, force: { type: 'boolean' } }, required: ['bundle', 'into'] },
+  { name: 'state_writeback', handler: stateWriteback, description: 'List the files changed since a bundle was restored, as a files writeback step to copy to the computer. Pass source_hashes (path to sha256 of the computer copy) to catch conflicts. Writes nothing itself.', props: { bundle: { type: 'string' }, source_hashes: { type: 'object' } }, required: ['bundle'] },
   { name: 'log_append', handler: logAppend, description: 'Append a dated entry to the log and optionally rewrite the "Start here" block. Older months archive automatically.', props: { text: { type: 'string' }, start_here: { type: 'string' } } },
   { name: 'draft_orders', handler: draftOrders, description: 'Draft explicit broker order calls (an IBKR order instruction, cancel or modify an open Kite order) so the order gate can allow exactly those calls once the investor clicks Yes. Each row gives broker (kite or ibkr), op (place, modify, cancel) and the order arguments; the engine names the broker tool.', props: { label: { type: 'string' }, rows: { type: 'array', items: { type: 'object', properties: { broker: { type: 'string' }, op: { type: 'string' }, tool: { type: 'string' }, args: { type: 'object' }, symbol: { type: 'string' }, reason: { type: 'string' } } } } }, required: ['rows'] },
 ];
@@ -531,12 +559,17 @@ function makeContext(overrides = {}) {
 
 // Tools that need no "profile missing" warning: they manage the profile themselves or never read it.
 // Every other tool computes from the profile, so it gets the warning (issues #28, #32).
-const PROFILE_TOOLS = new Set(['profile_get', 'profile_update', 'report_gap', 'log_append', 'draft_orders']);
+const PROFILE_TOOLS = new Set(['profile_get', 'profile_update', 'report_gap', 'log_append', 'state_export', 'state_import', 'state_writeback']);
+// Drafting on defaults produced wrong orders (issues #28, #32): these refuse without a real profile (FR-040).
+const NEEDS_PROFILE = new Set(['draft_gtt_plan', 'draft_basket', 'draft_orders']);
 
 async function callTool(name, args, ctx) {
   const t = TOOLS.find((x) => x.name === name && !(x.fullOnly && ctx.edition === 'lite'));
   if (!t) return { ok: false, error: `unknown tool ${name}`, text: `Unknown tool ${name}` };
   try {
+    if (NEEDS_PROFILE.has(name) && !profiles.load(args && args.folder).exists) {
+      return { ok: false, error: 'no profile', text: `Not drafted: no profile.json at ${profiles.profilePath(args && args.folder)}. Drafts need the investor's real profile (GTT policy, verdicts). Point --folder at the investor's folder, or attach profile.json.` };
+    }
     const r = await t.handler(args || {}, ctx);
     if (PROFILE_TOOLS.has(name) || !r || typeof r.text !== 'string' || profiles.load(args && args.folder).exists) return r;
     const warn = `**No profile.json found (${profiles.profilePath(args && args.folder)}): using built-in defaults.** That means Kite only, no verdicts, no sector map (sector cap skipped), and ETFs known by name or ISIN only. GTT, allocation and sector findings below may be wrong. Point to the real investor folder before acting on them.`;
