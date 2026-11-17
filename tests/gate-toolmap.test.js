@@ -121,3 +121,11 @@ test('malformed input fails closed', () => {
   const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'hooks', 'order-gate.js')], { input: 'not json', encoding: 'utf8' });
   assert.strictEqual(JSON.parse(r.stdout).hookSpecificOutput.permissionDecision, 'deny');
 });
+
+test('a review task question sent with its answer filled in is denied (T057)', () => {
+  const q = { header: 't_9f2c4a1b2c3d', question: 'Raise ALPHA stop to cost?', options: [{ label: 'Approve' }, { label: 'Defer' }, { label: 'Decline' }] };
+  const ask = (tool_input) => gate.decide({ tool_name: 'AskUserQuestion', tool_input }, [], NOW).allow;
+  assert.strictEqual(ask({ questions: [q], answers: { [q.question]: 'Approve' } }), false);
+  assert.strictEqual(ask({ questions: [q] }), true, 'asking is fine');
+  assert.strictEqual(ask({ questions: [{ ...q, header: 'Broker' }], answers: { [q.question]: 'Approve' } }), true, 'other questions are not task decisions');
+});

@@ -127,27 +127,27 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 
 ### Tests for US3
 
-- [ ] T040 [P] [US3] `tests/review.test.js`: stages run in order; a failed gate stops with `reason` and `needs`; resume on the same day; a second `review_start` returns the same run; `eod` and `friday` stage lists; unattended stops after research; the profile hash is frozen for the run
-- [ ] T041 [P] [US3] `tests/tasks.test.js`: task ids are stable for the same situation across days; executor decided in code; cap of five with `also_due`; a deferred task is not proposed again before `defer_until`; a task with `needs_fresh` naming a non-live broker is shown but not executable
-- [ ] T042 [P] [US3] `tests/research.test.js`: finding validation per contracts/pc-commands.md; `not_found` satisfies the gate and never triggers; accepted findings are appended to `findings.jsonl`
+- [x] T040 [P] [US3] `tests/review.test.js`: stages run in order; a failed gate stops with `reason` and `needs`; resume on the same day; a second `review_start` returns the same run; `eod` and `friday` stage lists; unattended stops after research; the profile hash is frozen for the run
+- [x] T041 [P] [US3] `tests/tasks.test.js`: task ids are stable for the same situation across days; executor decided in code; cap of five with `also_due`; a deferred task is not proposed again before `defer_until`; a task with `needs_fresh` naming a non-live broker is shown but not executable
+- [x] T042 [P] [US3] `tests/research.test.js`: finding validation per contracts/pc-commands.md; `not_found` satisfies the gate and never triggers; accepted findings are appended to `findings.jsonl`
 - [ ] T043 [P] [US3] `tests/valuation.test.js`: a holding frozen at cost for two runs is valued at zero and listed separately; `valuation_overrides` wins; `price_as_of` on every holding; the fresher price is used for an instrument held at two brokers; a fund at two brokers is one position; same-day buys from positions count toward GTT coverage and are labelled "today"
-- [ ] T044 [P] [US3] `tests/verify.test.js`: each `expect` kind is checked against a fresh snapshot; an unconfirmed executed task blocks `closed`; a manual task is verified the same way
+- [x] T044 [P] [US3] `tests/verify.test.js`: each `expect` kind is checked against a fresh snapshot; an unconfirmed executed task blocks `closed`; a manual task is verified the same way
 
 ### Implementation for US3
 
 - [ ] T045 [US3] In `core/lib/brokers/normalize.js` and `core/lib/snapshot.js`: `price_as_of`, `price_source`, frozen valuation and `valuation_overrides` (FR-042, FR-043)
 - [ ] T046 [US3] Capture `positions`, compute `day_qty`, and count it in `gtt.audit` coverage with finding `today_buy_counted` (FR-044)
 - [ ] T047 [US3] In `snapshot.consolidate`: use the fresher price across brokers and merge funds by ISIN or normalised name (FR-043, FR-045)
-- [ ] T048 [US3] Create `core/lib/tasks.js` (data-model section 5): construction, id hashing, priority order, cap, `needs_fresh`
-- [ ] T049 [US3] Create `core/lib/decisions.js` and `core/lib/rules/gtt_gaps.js` turning `gtt.audit` findings (`no_gtt`, `qty_short`, `double_coverage`, `stop_too_tight`, `etf_stop`, `exit_stop`, `exit_missing`, `near_stop`, `corp_action`) into tasks with reasons and options
-- [ ] T050 [US3] Create `core/lib/manual_steps.js`: numbered step templates per task kind (GTT change in the broker's web app, basket entry, bank transfer, QR login), with placeholders filled from the task
-- [ ] T051 [US3] Create `core/lib/review.js`: the run file (data-model section 4), stage machine and gates per plan section 4
-- [ ] T052 [US3] Research stage in `review.js`: build the brief (held symbols with `next_results` within 14 days, symbols with tripwires, corporate-action check for all held stocks); validate with `research_submit`; append to `findings.jsonl`
-- [ ] T053 [US3] Execute stage: plugin tasks call the matching `draft_*` for that symbol only and record `draft_code`; investor tasks return `manual` steps; blocked tasks queue a gap
-- [ ] T054 [US3] Verify stage: request a fresh pull of the capabilities the tasks touch, then check each `expect`
-- [ ] T055 [US3] Record stage: `log_append`, journal lines for decided tasks, `state_export`, and Todoist ops (`create`, `update`, `complete`, external id `pc:<task id>`)
-- [ ] T056 [US3] Add `review_start`, `review_next`, `review_status`, `task_decide`, `task_done`, `research_submit` to `core/tools.js` (contracts/pc-commands.md)
-- [ ] T057 [US3] In `hooks/order-gate.js`, also deny an AskUserQuestion whose header is a task id (`t_…`) when its answers are pre-filled; test in `tests/gate-toolmap.test.js`
+- [x] T048 [US3] Create `core/lib/tasks.js` (data-model section 5): construction, id hashing, priority order, cap, `needs_fresh`
+- [x] T049 [US3] Create `core/lib/decisions.js` and `core/lib/rules/gtt_gaps.js` turning `gtt.audit` findings (`no_gtt`, `qty_short`, `double_coverage`, `stop_too_tight`, `etf_stop`, `exit_stop`, `exit_missing`, `near_stop`, `corp_action`) into tasks with reasons and options
+- [x] T050 [US3] Create `core/lib/manual_steps.js`: numbered step templates per task kind (GTT change in the broker's web app, basket entry, bank transfer, QR login), with placeholders filled from the task
+- [x] T051 [US3] Create `core/lib/review.js`: the run file (data-model section 4), stage machine and gates per plan section 4
+- [x] T052 [US3] Research stage in `review.js`: build the brief (held symbols with `next_results` within 14 days, symbols with tripwires, corporate-action check for all held stocks); validate with `research_submit`; append to `findings.jsonl`
+- [x] T053 [US3] Execute stage: plugin tasks call the matching `draft_*` for that symbol only and record `draft_code`; investor tasks return `manual` steps; blocked tasks queue a gap
+- [x] T054 [US3] Verify stage: request a fresh pull of the capabilities the tasks touch, then check each `expect`
+- [x] T055 [US3] Record stage: `log_append`, journal lines for decided tasks, `state_export`, and Todoist ops (`create`, `update`, `complete`, external id `pc:<task id>`)
+- [x] T056 [US3] Add `review_start`, `review_next`, `review_status`, `task_decide`, `task_done`, `research_submit` to `core/tools.js` (contracts/pc-commands.md)
+- [x] T057 [US3] In `hooks/order-gate.js`, also deny an AskUserQuestion whose header is a task id (`t_…`) when its answers are pre-filled; test in `tests/gate-toolmap.test.js`
 - [ ] T058 [US3] Rewrite `skills/check/SKILL.md` around the review loop (say "review", call `review_start`, do each `next`, call `review_next` until closed; task questions use "Approve", "Defer", "Decline", never "Yes, place"); cover end of day, Friday and unattended in one short section; under 45 lines
 - [ ] T059 [US3] Add eval T5 (guided review) to `evals/run-evals.py` on the fake broker: two tasks proposed with reasons, one approved and drafted, the Yes click simulated, one deferred, run closed; assert no order call happened outside the approved row
 - [ ] T060 [US3] Release v0.8.0 (US2, US3, US6): version, CHANGELOG, README "What you can say" (review, end of day, Friday), build, validate, tests, evals T0 to T2 and T5. Push and upload on the investor's go

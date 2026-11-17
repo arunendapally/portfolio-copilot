@@ -21,6 +21,8 @@ const inputs = require('./lib/inputs');
 const toolmap = require('./lib/brokers/toolmap');
 const connectLib = require('./lib/connect');
 const bundle = require('./lib/bundle');
+const review = require('./lib/review');
+const path = require('path');
 const session = require('./lib/session');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
 
@@ -486,6 +488,61 @@ async function stateWriteback(args, ctx) {
   return { ok: true, next, conflicts: r.conflicts, text: L.join('\n') };
 }
 
+// Guided review (US3): one run, stage by stage, gates in code.
+function reviewDeps(args, ctx) {
+  return {
+    edition: ctx.edition,
+    connect: connectLib.connect,
+    refresh: (folder) => refresh({ folder }, ctx),
+    latestSnapshot: state.latestSnapshot,
+    previousSnapshot: state.previousSnapshot,
+    draft: (folder, t) => draftGttPlan({ folder, symbols: [t.symbol], corporate_actions: args.corporate_actions || [] }, ctx),
+    log: (folder, text) => { const { profile } = profiles.load(folder); return log.append(folder, { text, path: profile.log && profile.log.path }, ctx.now()); },
+    exportBundle: (folder) => bundle.exportBundle(folder, path.join(state.stateDir(folder), 'bundle.json'), ctx.now()),
+  };
+}
+const runId = (args, ctx) => args.run || `${istDate(ctx.now())}-full`;
+
+async function reviewStart(args, ctx) {
+  const tools = Array.isArray(args.tools) ? args.tools.map(String) : [];
+  const { run, resumed } = review.start(args.folder, { kind: args.kind || 'full', unattended: !!args.unattended, tools }, ctx.now());
+  const r = await review.next(args.folder, run.id, ctx.now(), reviewDeps(args, ctx));
+  return { ...r, resumed, text: `${resumed ? 'Resuming' : 'Started'} ${run.id}.\n${r.text}` };
+}
+
+async function reviewNext(args, ctx) {
+  return review.next(args.folder, runId(args, ctx), ctx.now(), reviewDeps(args, ctx));
+}
+
+async function reviewStatus(args, ctx) {
+  const run = review.load(args.folder, runId(args, ctx));
+  if (!run) return { ok: false, error: 'no run', text: 'No review run today. Say "review" to start one.' };
+  const st = run.stages[run.stage] || {};
+  const L = [`**Review ${run.id}** · stage ${run.stage}${st.status === 'waiting' ? ` · waiting: ${st.reason}` : ''}`];
+  for (const t of run.tasks) L.push(`- ${t.title}: ${t.decision || 'undecided'}${t.outcome ? `, ${t.outcome}` : ''}`);
+  return { ok: true, run, text: L.join('\n') };
+}
+
+async function taskDecide(args, ctx) {
+  const r = review.decide(args.folder, runId(args, ctx), args, ctx.now());
+  if (!r.ok) return { ...r, text: r.error };
+  return { ok: true, task: r.task, text: `${r.task.title}: ${r.task.decision}.${r.task.decision === 'approved' ? ' This authorises a draft, not an order.' : ''} Call review_next when every task is decided.` };
+}
+
+async function taskDone(args, ctx) {
+  const r = review.done(args.folder, runId(args, ctx), args, ctx.now());
+  if (!r.ok) return { ...r, text: r.error };
+  return { ok: true, task: r.task, text: `${r.task.title}: ${r.task.outcome}. A fresh read will verify it.` };
+}
+
+async function researchSubmit(args, ctx) {
+  const r = review.submitResearch(args.folder, runId(args, ctx), { findings: args.findings || [], corporate_actions: args.corporate_actions }, ctx.now());
+  if (!r.ok) return { ...r, text: r.error };
+  const L = [`Accepted ${r.accepted.length} finding(s).`];
+  for (const x of r.rejected) L.push(`Rejected ${(x.finding && x.finding.symbol) || '?'} ${(x.finding && x.finding.metric) || ''}: ${x.reasons.join('; ')}`);
+  return { ok: true, ...r, text: L.join('\n') };
+}
+
 // Rows for orders the plan builders do not draft (IBKR instructions, cancel or modify an open order).
 // A row names the broker and the operation, and the tool map writes the call; or it gives the
 // call itself, which must be an order write the map knows.
@@ -541,6 +598,12 @@ const TOOLS = [
   { name: 'state_export', handler: stateExport, description: "Write the investor's state (profile, last two snapshots, open drafts, today's runs, marks, journal tail, log) to one bundle file, for a cloud chat to work on.", props: { out: { type: 'string' }, source: { type: 'string' } }, required: ['out'] },
   { name: 'state_import', handler: stateImport, description: 'Restore a state bundle into a folder. Refuses when the folder holds newer copies, unless force.', props: { bundle: { type: 'string' }, into: { type: 'string' }, force: { type: 'boolean' } }, required: ['bundle', 'into'] },
   { name: 'state_writeback', handler: stateWriteback, description: 'List the files changed since a bundle was restored, as a files writeback step to copy to the computer. Pass source_hashes (path to sha256 of the computer copy) to catch conflicts. Writes nothing itself.', props: { bundle: { type: 'string' }, source_hashes: { type: 'object' } }, required: ['bundle'] },
+  { name: 'review_start', handler: reviewStart, description: 'Start (or resume) the guided review for today. kind: full (default), eod or friday. tools: every broker MCP tool name you can see. Returns next: do each step, then call review_next, until stage is closed.', props: { kind: { type: 'string', enum: ['full', 'eod', 'friday'] }, unattended: { type: 'boolean' }, tools: { type: 'array', items: { type: 'string' } } } },
+  { name: 'review_next', handler: reviewNext, description: 'Run the current review stage once. Returns the gate, next steps and text. Loop: do next, call review_next, until stage is closed.', props: { run: { type: 'string' }, corporate_actions: { type: 'array', items: { type: 'object' } } } },
+  { name: 'review_status', handler: reviewStatus, description: 'Where the review run stands: stage, gate, each task with its decision and outcome. Read-only.', props: { run: { type: 'string' } } },
+  { name: 'task_decide', handler: taskDecide, description: "Record the investor's answer to a task question (Approve, Defer, Decline). Approving authorises a draft, never an order.", props: { run: { type: 'string' }, task: { type: 'string' }, decision: { type: 'string', enum: ['approved', 'deferred', 'declined'] }, reason: { type: 'string' }, defer_until: { type: 'string' }, option: { type: 'string' } }, required: ['task', 'decision'] },
+  { name: 'task_done', handler: taskDone, description: 'After the investor says done on a task they carry out themselves. result: done, could_not or skipped. A fresh read still verifies it.', props: { run: { type: 'string' }, task: { type: 'string' }, result: { type: 'string', enum: ['done', 'could_not', 'skipped'] }, note: { type: 'string' } }, required: ['task', 'result'] },
+  { name: 'research_submit', handler: researchSubmit, description: 'Submit research findings for the review brief: symbol, metric, value, period, source_url, source_quote, accessed, status (found, not_found, blocked_source). Pass corporate_actions (an array, empty when none) once checked.', props: { run: { type: 'string' }, findings: { type: 'array', items: { type: 'object' } }, corporate_actions: { type: 'array', items: { type: 'object' } } } },
   { name: 'log_append', handler: logAppend, description: 'Append a dated entry to the log and optionally rewrite the "Start here" block. Older months archive automatically.', props: { text: { type: 'string' }, start_here: { type: 'string' } } },
   { name: 'draft_orders', handler: draftOrders, description: 'Draft explicit broker order calls (an IBKR order instruction, cancel or modify an open Kite order) so the order gate can allow exactly those calls once the investor clicks Yes. Each row gives broker (kite or ibkr), op (place, modify, cancel) and the order arguments; the engine names the broker tool.', props: { label: { type: 'string' }, rows: { type: 'array', items: { type: 'object', properties: { broker: { type: 'string' }, op: { type: 'string' }, tool: { type: 'string' }, args: { type: 'object' }, symbol: { type: 'string' }, reason: { type: 'string' } } } } }, required: ['rows'] },
 ];
@@ -561,7 +624,7 @@ function makeContext(overrides = {}) {
 // Every other tool computes from the profile, so it gets the warning (issues #28, #32).
 const PROFILE_TOOLS = new Set(['profile_get', 'profile_update', 'report_gap', 'log_append', 'state_export', 'state_import', 'state_writeback']);
 // Drafting on defaults produced wrong orders (issues #28, #32): these refuse without a real profile (FR-040).
-const NEEDS_PROFILE = new Set(['draft_gtt_plan', 'draft_basket', 'draft_orders']);
+const NEEDS_PROFILE = new Set(['draft_gtt_plan', 'draft_basket', 'draft_orders', 'review_start', 'task_done']);
 
 async function callTool(name, args, ctx) {
   const t = TOOLS.find((x) => x.name === name && !(x.fullOnly && ctx.edition === 'lite'));

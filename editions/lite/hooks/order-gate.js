@@ -40,7 +40,9 @@ function decide(input, folders, now = new Date(), opts = {}) {
   if (tool === 'AskUserQuestion') {
     const answered = args.answers && typeof args.answers === 'object' && Object.keys(args.answers).length;
     const offersYes = (args.questions || []).some((q) => (q.options || []).some((o) => drafts.YES_RE.test(String(o.label))));
-    return answered && offersYes ? { allow: false, reason: 'Approval questions are answered by the investor in the question UI; never pre-fill answers.' } : { allow: true };
+    // Review task questions carry the task id as header (spec 002 T057): their answers are decisions too.
+    const isTask = (args.questions || []).some((q) => /^t_[0-9a-f]{6,}$/.test(String(q.header || '')));
+    return answered && (offersYes || isTask) ? { allow: false, reason: 'Approval questions are answered by the investor in the question UI; never pre-fill answers.' } : { allow: true };
   }
 
   const r = toolmap.resolve(tool, args);
