@@ -42,8 +42,8 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 
 ## Phase 2: Foundational (blocks US2 to US8; US1 does not depend on it)
 
-- [ ] T006 [P] Write `tests/profile-v2.test.js`: a v1 profile loads with v2 defaults; every validation rule in data-model section 1 rejects a bad value with a precise message; `profit_lock.enabled: true` with any null value is rejected; an unknown tripwire metric is rejected
-- [ ] T007 Implement profile schema v2 in `core/lib/profile.js`: defaults (all new thresholds null), migration on load, validation per data-model section 1. Keep every v1 field and default unchanged
+- [x] T006 [P] Write `tests/profile-v2.test.js`: a v1 profile loads with v2 defaults; every validation rule in data-model section 1 rejects a bad value with a precise message; `profit_lock.enabled: true` with any null value is rejected; an unknown tripwire metric is rejected
+- [x] T007 Implement profile schema v2 in `core/lib/profile.js`: defaults (all new thresholds null), migration on load, validation per data-model section 1. Keep every v1 field and default unchanged
 
 **Checkpoint**: `npm test` green; no behaviour change for an existing profile.
 
