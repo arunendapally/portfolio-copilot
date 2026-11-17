@@ -66,7 +66,9 @@ function priceMap(json) {
 function record(toolName, resp, now = new Date(), toolInput = null) {
   const args = toolInput && typeof toolInput === 'object' ? toolInput : {};
   const r = toolmap.resolve(toolName, args);
-  if (!r.broker || r.kind !== 'read' || !CAPTURED.has(r.cap)) return null;
+  // Kite's session status is kept too: connect reads it to decide between a read and a login.
+  const sessionStatus = r.kind === 'session' && r.mode === 'status';
+  if (!r.broker || !(sessionStatus || (r.kind === 'read' && CAPTURED.has(r.cap)))) return null;
   // Only the full holdings view carries prices and averages.
   if (r.cap === 'holdings' && args.type && args.type !== 'full') return null;
   const text = textOf(resp);

@@ -19,27 +19,31 @@ const gapLib = require('./lib/gap');
 const version = require('./lib/version');
 const inputs = require('./lib/inputs');
 const toolmap = require('./lib/brokers/toolmap');
+const connectLib = require('./lib/connect');
+const session = require('./lib/session');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
 
 const FOLDER = { folder: { type: 'string', description: "The investor's working folder (absolute path). Pass it on the first call; it is remembered." } };
 
 // ---------------------------------------------------------------------------------------
 
-async function brokerStatus(args, ctx) {
+// Connect first, then work (US2): the next broker calls, every manual step at once, `ready`.
+async function connect(args, ctx) {
   const { profile } = profiles.load(args.folder);
-  const now = ctx.now();
-  const rows = [];
-  const out = {};
-  for (const name of ['kite', 'kotak']) {
-    if (!profile.brokers[name] || !profile.brokers[name].enabled) { out[name] = { status: 'disabled' }; continue; }
-    const r = inputs.pull(name, profile, now);
-    out[name] = { status: r.status, as_of: r.as_of || null };
-    rows.push([name, r.status.replace('_', ' '), r.status === 'live' ? `data ${istStamp(new Date(r.as_of))}` : r.detail]);
-  }
-  if (profile.brokers.ibkr && profile.brokers.ibkr.enabled) rows.push(['ibkr', 'via connector', `call the IBKR connector (${toolmap.readCalls('ibkr', 1).map(toolmap.show).join(', ')}), then ingest`]);
+  const tools = Array.isArray(args.tools) ? args.tools.map(String) : [];
+  if (!tools.length) return { ok: false, error: 'tools required', text: 'Pass tools: every broker MCP tool name you can see in this chat (full names).' };
+  const skip = Array.isArray(args.skip) ? args.skip.map((s) => String(s).toLowerCase()) : [];
+  const r = connectLib.connect({ tools, skip, unattended: !!args.unattended, fromCaptures: !!args.from_captures }, profile, ctx.now());
   const warn = version.mismatch({ plugin: args.hook_plugin, version: args.hook_version });
-  const text = [`**Broker status** · ${istStamp(now)} · reads come from the brokers' own MCP tools, captured in this chat`, ...(warn ? [warn] : []), table(['Broker', 'Status', 'Detail'], rows)].join('\n');
-  return { ok: true, brokers: out, text };
+  return { ...r, text: [`**Connect** · ${istStamp(ctx.now())}`, ...(warn ? [warn] : []), r.text].join('\n') };
+}
+
+// Alias of connect, with the broker tools seen in this chat's captures.
+async function brokerStatus(args, ctx) {
+  const caps = [...session.CAPTURED, 'session'];
+  const seen = ['kite', 'kotak', 'ibkr'].flatMap((b) => caps.map((c) => session.read(b, c)).filter(Boolean).map((r) => r.tool));
+  const r = await connect({ ...args, tools: seen.length ? [...new Set(seen)] : ['none'], from_captures: true }, ctx);
+  return { ok: true, brokers: r.brokers, ready: r.ready, next: r.next, manual: r.manual, text: r.text };
 }
 
 function todaySnapshot(folder, now) {
@@ -493,7 +497,8 @@ async function draftOrders(args, ctx) {
 // ---------------------------------------------------------------------------------------
 
 const TOOLS = [
-  { name: 'broker_status', handler: brokerStatus, description: 'Report, per enabled broker, whether its reads were captured from the broker MCP in this chat: live, needs_login, not_connected, stale or outage. Call first in every session. Pass hook_plugin and hook_version from the session-start context so a version or edition mismatch is reported.', props: { hook_plugin: { type: 'string' }, hook_version: { type: 'string' } } },
+  { name: 'broker_status', handler: brokerStatus, description: 'Alias of connect, using the broker tools captured in this chat. Prefer connect with the tool names you can see. Pass hook_plugin and hook_version from the session-start context so a version or edition mismatch is reported.', props: { hook_plugin: { type: 'string' }, hook_version: { type: 'string' } } },
+  { name: 'connect', handler: connect, description: 'Connect every enabled broker before any work. Pass tools: every broker MCP tool name you can see. Returns next (the exact broker calls to make, in order), manual (every human step for all brokers at once: ask once) and ready. Repeat: do next, ask manual, call connect again, until ready; then show text. skip: brokers to leave out. unattended: true for scheduled runs (never asks for a login).', props: { tools: { type: 'array', items: { type: 'string' } }, skip: { type: 'array', items: { type: 'string' } }, unattended: { type: 'boolean' }, hook_plugin: { type: 'string' }, hook_version: { type: 'string' } }, required: ['tools'] },
   { name: 'refresh', handler: refresh, description: "Build today's snapshot from the broker reads captured in this chat (call the broker MCP read tools first), and return the consolidated portfolio check (totals, cash, alerts, trade audit, changes since last snapshot).", props: { brokers: { type: 'array', items: { type: 'string' } } } },
   { name: 'ingest', handler: ingest, description: "Add holdings from a broker core does not connect to (IBKR connector output, or a holdings CSV statement) to today's snapshot. Foreign currency needs fx_rate and fx_source.", props: { broker: { type: 'string' }, holdings: { type: 'array', items: { type: 'object' } }, csv_path: { type: 'string' }, cash: { type: 'number' }, currency: { type: 'string' }, fx_rate: { type: 'number' }, fx_source: { type: 'string' }, source: { type: 'string' } }, required: ['broker'] },
   { name: 'check', handler: check, description: 'Re-render the consolidated portfolio check from the latest snapshot without pulling brokers.', props: {} },

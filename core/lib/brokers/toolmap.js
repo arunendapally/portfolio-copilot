@@ -112,6 +112,12 @@ const READS = {
   kotak: { 1: [['holdings', 'get_holdings', {}, true], ['margins', 'get_limits', {}, true]] },
   ibkr: { 1: [['holdings', 'get_account_positions', {}, true], ['balances', 'get_account_balances', {}, true], ['summary', 'get_account_summary', {}, false]] },
 };
+// Session check and login start per broker and generation (connect).
+const SESSION = { kite: { 2: ['session', { mode: 'status' }] } };
+const LOGIN = { kotak: { 1: ['get_login', {}] } };
+function sessionCall(broker, gen) { const e = (SESSION[broker] || {})[gen]; return e ? { tool: e[0], args: { ...e[1] } } : null; }
+function loginCall(broker, gen = 1) { const e = (LOGIN[broker] || {})[gen]; return e ? { tool: e[0], args: { ...e[1] } } : null; }
+
 const LTP = { kite: { 1: ['get_ltp', {}], 2: ['market', { mode: 'ltp' }] } };
 
 const GROUPED = new Set(ROWS.filter((r) => r.mode).map((r) => `${r.broker}:${r.tool}`));
@@ -225,4 +231,4 @@ function doctor(present, profile) {
   });
 }
 
-module.exports = { BROKERS, ROWS, resolve, writeCall, readCalls, ltpCall, generation, doctor, show, known };
+module.exports = { BROKERS, ROWS, resolve, writeCall, readCalls, sessionCall, loginCall, ltpCall, generation, doctor, show, known };

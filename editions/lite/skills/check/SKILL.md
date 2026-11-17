@@ -7,14 +7,12 @@ description: Portfolio check across all brokers, and working through the investo
 
 All numbers come from the portfolio engine, a plain script (the session context gives its exact `node .../pc.js COMMAND` line; `pc` below). Show its text as is; never recompute. Broker data comes from the brokers' own MCP tools: you call their read tools and a hook saves what they return, so you never retype a broker number.
 
-## 1. Connect (one message)
-Run `pc doctor` with every broker MCP tool name you can see: it lists, per broker, the exact read calls for the tools this chat has (broker tools get renamed; never guess a name). Kotak Neo reads need the `sessionid` from its QR login (UCC from the profile), so log Kotak in first. Then make every read `doctor` lists: holdings (full), GTTs, cash/margins, funds and orders for Kite; holdings and limits for Kotak Neo (with the `sessionid`). Then run `pc broker_status` (pass `--folder` = the investor's folder, and the hook plugin and version from the session context).
-- Live brokers: say nothing more.
-- `needs_login`, or any read that returned an error: Kite: use the Kite MCP login or session tool, show its link only, wait for "done", read again. Kotak: its QR login, then its validate step, read again. If reads still fail right after a successful login, treat it as an outage; do not ask again.
-- `outage`: say the broker is down and do not ask for a login.
-- `tools_changed`: the broker renamed its tools. Run `pc doctor` again, make the calls it lists, and `report_gap` with its table. Not a login, not an outage.
-- `not_connected`: only when that broker's MCP tools are not in this chat at all. Say which, and go on with the others. If the tools exist but a read errored, that is a login, above.
-- Never write a login URL yourself.
+## 1. Connect (before any work)
+Run `pc connect` with `--folder` = the investor's folder, `tools` = every broker MCP tool name you can see (full names), and the hook plugin and version from the session context. Then loop:
+1. Make every call in `next`, in order, with exactly the tool and arguments given (broker tools get renamed; never guess a name or add arguments).
+2. If `manual` is not empty, ask the investor once for all of it; show any login link the broker returned, never one you wrote. Wait for "done".
+3. Call `pc connect` again. Repeat until `ready` is true, then show its `text`.
+The investor may say "skip <broker>": pass `skip`. If a read still fails right after a successful login, the engine reports an outage; do not ask again. On `tools_changed`, run `pc doctor` and `report_gap` with its table.
 
 ## Profile when the chat is not linked to the PC
 If the investor's folder is not reachable, ask them to attach `profile.json` (kept in the claude.ai Project). Save it into a scratch folder, pass that as `--folder`, and tell them plainly: "the profile is a copy". After any `profile_update` or `log_append`, hand the changed file back for them to re-upload; the copy is stale until they do.
@@ -54,4 +52,4 @@ Call `log_append` with a 3-5 line entry (what was pulled, totals, what changed, 
 When a tool says "not supported", a known limitation, or errors with no fallback, call `report_gap` (title, what was attempted, what is missing, the error). Never put quantities, prices or P&L in it. If the result says no issue was filed (no token, or GitHub rejected it) and a GitHub MCP is connected in this chat, file it yourself: search open issues labelled `gap` for the same title and comment on it, otherwise create the issue with label `gap` in `arunendapally/portfolio-copilot`, using the same text report_gap logged and no investor numbers. Then tell the investor where it was logged and filed.
 
 ## Scheduled run (investor away)
-Do not wait for logins. Run `broker_status` once, then `check` (last snapshot, clearly dated) and the macro read, then one line per broker that needs login. Nothing is presented as live unless the tool says live.
+Do not wait for logins. Make the reads `pc doctor` lists once, then run `connect` with `unattended: true` (it never asks for a login and skips what is not live), then `check` (last snapshot, clearly dated) and the macro read, then one line per broker that needs login. Nothing is presented as live unless the tool says live.

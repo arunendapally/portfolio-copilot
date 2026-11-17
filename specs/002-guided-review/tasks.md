@@ -89,13 +89,13 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 
 **Independent Test**: spec.md US2.
 
-- [ ] T026 [P] [US2] `tests/connect.test.js`: call order per broker (session, cheap read, full reads, login only after a login error); one `manual` list across brokers; `ready` text with one line per broker; `skip` carries data with its age; unattended never emits login steps; a refreshable expired Kite session yields a read, not a login
-- [ ] T027 [US2] Create `core/lib/connect.js` per contracts/pc-commands.md (connect)
-- [ ] T028 [US2] Add `connect` to `core/tools.js` (args `tools`, `skip`, `unattended`); make `broker_status` an alias
+- [x] T026 [P] [US2] `tests/connect.test.js`: call order per broker (session, cheap read, full reads, login only after a login error); one `manual` list across brokers; `ready` text with one line per broker; `skip` carries data with its age; unattended never emits login steps; a refreshable expired Kite session yields a read, not a login
+- [x] T027 [US2] Create `core/lib/connect.js` per contracts/pc-commands.md (connect)
+- [x] T028 [US2] Add `connect` to `core/tools.js` (args `tools`, `skip`, `unattended`); make `broker_status` an alias
 - [ ] T029 [US2] Kite session handling in `connect.js` from research R1 and the T005 record
-- [ ] T030 [US2] Kotak in `connect.js`: emit `get_login` with the UCC from the profile and the QR steps as one `manual` item; the engine never stores the session id
-- [ ] T031 [US2] IBKR in `connect.js`: the reads, then `ingest` with a dated FX rate and its source; without a dated rate IBKR is excluded from totals with a note (spec edge case)
-- [ ] T032 [US2] Replace step 1 of `skills/check/SKILL.md` with the connect loop (call `connect` with the tool names in the chat, do `next`, ask once for `manual`, repeat until `ready`, print `text`)
+- [x] T030 [US2] Kotak in `connect.js`: emit `get_login` with the UCC from the profile and the QR steps as one `manual` item; the engine never stores the session id
+- [x] T031 [US2] IBKR in `connect.js`: the reads, then `ingest` with a dated FX rate and its source; without a dated rate IBKR is excluded from totals with a note (spec edge case)
+- [x] T032 [US2] Replace step 1 of `skills/check/SKILL.md` with the connect loop (call `connect` with the tool names in the chat, do `next`, ask once for `manual`, repeat until `ready`, print `text`)
 
 **Checkpoint**: SC-003 passes on fixtures.
 

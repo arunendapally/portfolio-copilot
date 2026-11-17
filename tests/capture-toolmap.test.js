@@ -22,10 +22,11 @@ test('generation 1 and generation 2 reads land in the same capability file', () 
   assert.strictEqual(r.partial, false);
 });
 
-test('writes, session calls and market lookups are not captured', () => {
+test('writes and market lookups are not captured; Kite session status is (connect reads it)', () => {
   tmpEnv();
   assert.strictEqual(hook('mcp__kite__gtt', { mode: 'place' }, { ok: true }), null);
-  assert.strictEqual(hook('mcp__kite__session', { mode: 'status' }, g2('session-ok.json')), null);
+  assert.strictEqual(hook('mcp__kite__session', { mode: 'status' }, g2('session-ok.json')).cap, 'session');
+  assert.strictEqual(hook('mcp__kite__session', { mode: 'logout' }, {}), null);
   assert.strictEqual(hook('mcp__kite__market', { mode: 'search', query: 'x' }, { data: [] }), null);
   assert.strictEqual(hook('mcp__kite__orders', { mode: 'place' }, g2('orders-approval-required.json')), null);
   assert.strictEqual(hook('mcp__claude_ai_Gmail__list_drafts', {}, []), null);
