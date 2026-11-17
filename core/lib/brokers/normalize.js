@@ -59,6 +59,20 @@ function kiteMfHoldings(payload) {
   }).filter((m) => m.qty > 0);
 }
 
+// Same-day delivery buys (spec 002 FR-044): the day view of CNC positions, by symbol.
+function kitePositions(payload) {
+  const day = payload && Array.isArray(payload.day) ? payload.day : items(payload).filter((p) => !p.view || p.view === 'day');
+  const out = {};
+  for (const p of day) {
+    if (p.product && p.product !== 'CNC') continue;
+    const q = num(p.day_buy_quantity) ?? num(p.quantity);
+    if (!q || q <= 0) continue;
+    const symbol = String(p.tradingsymbol || '').toUpperCase();
+    out[symbol] = { symbol, exchange: p.exchange || 'NSE', day_qty: (out[symbol] ? out[symbol].day_qty : 0) + q, ltp: num(p.last_price) };
+  }
+  return Object.values(out);
+}
+
 function kiteGtts(payload) {
   return items(payload).map((g) => {
     const c = g.condition || {};
@@ -176,4 +190,4 @@ function kotakHoldings(text, profile) {
   }).filter((h) => h.qty > 0);
 }
 
-module.exports = { num, isEtf, items, kiteHoldings, kiteMfHoldings, kiteGtts, kiteCash, kiteOrders, parseDelimited, kotakHoldings };
+module.exports = { num, isEtf, items, kiteHoldings, kiteMfHoldings, kitePositions, kiteGtts, kiteCash, kiteOrders, parseDelimited, kotakHoldings };

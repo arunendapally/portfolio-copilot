@@ -49,7 +49,10 @@ function stopKept(v, today) {
 function audit(snap, prev, profile, { corporateActions = [], today = null } = {}) {
   const pol = profile.gtt_policy;
   const kite = (snap.brokers && snap.brokers.kite) || { holdings: [], gtts: [] };
-  const holdings = (kite.holdings || []).filter((h) => h.type === 'equity' || h.type === 'etf');
+  // Same-day buys count toward the quantity a GTT must cover (FR-044), labelled "today".
+  const dayBuys = new Map((kite.positions || []).map((p) => [p.symbol, p]));
+  const holdings = (kite.holdings || []).filter((h) => h.type === 'equity' || h.type === 'etf').map((h) => (dayBuys.has(h.symbol) ? { ...h, qty: h.qty + dayBuys.get(h.symbol).day_qty, day_qty: dayBuys.get(h.symbol).day_qty } : h));
+  for (const p of dayBuys.values()) if (!holdings.some((h) => h.symbol === p.symbol)) holdings.push({ symbol: p.symbol, exchange: p.exchange, type: 'equity', qty: p.day_qty, day_qty: p.day_qty, ltp: p.ltp });
   const gtts = kite.gtts || [];
   const active = gtts.filter((g) => g.status === ACTIVE);
   const rows = [];
@@ -59,7 +62,7 @@ function audit(snap, prev, profile, { corporateActions = [], today = null } = {}
     const mine = active.filter((g) => g.symbol === h.symbol && g.legs.some((l) => l.side === 'SELL'));
     const v = verdictOf(profile, h.symbol);
     const cls = h.type === 'etf' ? 'etf' : ['exit', 'reduce'].includes(v.stance) ? 'exit' : v.stance === 'trade' ? 'trade' : 'hold';
-    const issues = [];
+    const issues = h.day_qty ? [{ code: 'today_buy_counted', severity: 'info', text: `includes ${h.day_qty} bought today` }] : [];
     let stop = null;
     let target = null;
     // Several GTTs on a hold name: one that already meets policy at full quantity is the keeper.

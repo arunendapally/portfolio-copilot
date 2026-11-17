@@ -100,13 +100,14 @@ const WRITES = {
 // capture still checks the pagination the broker returns.
 const READS = {
   kite: {
-    1: [['holdings', 'get_holdings', {}, true], ['gtts', 'get_gtts', {}, true], ['margins', 'get_margins', {}, true], ['mf', 'get_mf_holdings', {}, false], ['orders', 'get_orders', {}, false]],
+    1: [['holdings', 'get_holdings', {}, true], ['gtts', 'get_gtts', {}, true], ['margins', 'get_margins', {}, true], ['mf', 'get_mf_holdings', {}, false], ['orders', 'get_orders', {}, false], ['positions', 'get_positions', {}, false]],
     2: [
       ['holdings', 'portfolio', { mode: 'holdings', type: 'full', limit: 500 }, true],
       ['gtts', 'gtt', { mode: 'list', limit: 500 }, true],
       ['margins', 'portfolio', { mode: 'margins' }, true],
       ['mf', 'mutual_funds', { mode: 'holdings' }, false],
       ['orders', 'orders', { mode: 'list', limit: 500 }, false],
+      ['positions', 'portfolio', { mode: 'positions', limit: 500 }, false],
     ],
   },
   kotak: { 1: [['holdings', 'get_holdings', {}, true], ['margins', 'get_limits', {}, true]] },

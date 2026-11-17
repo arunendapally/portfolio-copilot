@@ -1,54 +1,41 @@
 ---
 name: check
-description: Portfolio check across all brokers, and working through the investor's open action list. Use for "work through my to-dos", "do my open actions", "check my portfolio", "daily briefing", "morning briefing", "open session", "portfolio check", "pull my portfolio", "mid-day check", "EOD analysis", "macro brief", "import my holdings", or any portfolio question that needs live numbers. Also the scheduled daily run.
+description: The guided daily review across all brokers, and portfolio checks. Use for "review", "daily review", "work through my to-dos", "do my open actions", "check my portfolio", "daily briefing", "morning briefing", "open session", "portfolio check", "pull my portfolio", "mid-day check", "end of day", "EOD analysis", "Friday review", "macro brief", "import my holdings", or any portfolio question that needs live numbers. Also the scheduled daily run.
 ---
 
-# Check
+# Review and check
 
-All numbers come from the portfolio engine, a plain script (the session context gives its exact `node .../pc.js COMMAND` line; `pc` below). Show its text as is; never recompute. Broker data comes from the brokers' own MCP tools: you call their read tools and a hook saves what they return, so you never retype a broker number.
+All numbers come from the portfolio engine, a plain script (the session context gives its exact `node .../pc.js COMMAND` line; `pc` below). Show its text as is; never recompute. Broker data comes from the brokers' own MCP tools: you call them and a hook saves what they return, so you never retype a broker number.
 
-## 1. Connect (before any work)
-Run `pc connect` with `--folder` = the investor's folder, `tools` = every broker MCP tool name you can see (full names), and the hook plugin and version from the session context. Then loop:
-1. Make every call in `next`, in order, with exactly the tool and arguments given (broker tools get renamed; never guess a name or add arguments).
-2. If `manual` is not empty, ask the investor once for all of it; show any login link the broker returned, never one you wrote. Wait for "done".
-3. Call `pc connect` again. Repeat until `ready` is true, then show its `text`.
-The investor may say "skip <broker>": pass `skip`. If a read still fails right after a successful login, the engine reports an outage; do not ask again. On `tools_changed`, run `pc doctor` and `report_gap` with its table.
+## The review loop ("review", "daily briefing", "work through my to-dos")
+Run `pc review_start` with `--folder` = the investor's folder, `tools` = every broker MCP tool name you can see (full names), and `kind`: `full` (default), `eod` for "end of day", `friday` for "Friday review". Then repeat until `stage` is `closed`:
+1. Do every step in `next`, in order:
+   - `call`: make exactly that tool call with exactly those arguments. A call with `only_if` runs only after the investor clicked that answer.
+   - `ask`: send that question as is in the inline question UI. Never pre-fill answers. Pass the answer to the command in `then`: `task_decide` with Approve as `approved`, Defer as `deferred` (ask for a date), Decline as `declined`.
+   - `manual`: show the numbered steps; wait for "done", "couldn't" or "skip"; call `task_done`.
+   - `research`: look up each brief item (see below) and call `research_submit`.
+   - `todoist`: apply the ops with the Todoist tools, matching tasks by the external id in their description; skip silently if Todoist is not connected.
+   - `files`: copy the files back through the device link (below).
+2. Call `pc review_next`. Show its `text`.
+Task questions use Approve, Defer, Decline. Approving authorises a draft, never an order: an order runs only after "Yes, place <code>" on the draft itself. If the investor stops, the run resumes on the next "review" the same day.
+After the run, open Todoist actions that are not review tasks: take them one at a time with the skill that does each (GTT work `gtt`, a stock `analyze`, risk or rebalancing `risk`, SIP, cover and buffer inputs `protection_check`); complete one only when done and verified; one no tool can do gets `report_gap`.
 
-## Profile when the chat is not linked to the PC
-If the investor's folder is not reachable, ask them to attach `profile.json` (kept in the claude.ai Project). Save it into a scratch folder, pass that as `--folder`, and tell them plainly: "the profile is a copy". After any `profile_update` or `log_append`, hand the changed file back for them to re-upload; the copy is stale until they do.
+## Research
+For each brief item, find the latest reported value of each metric from the company's results or exchange filings: give `value`, `period`, `source_url`, a short `source_quote` and `accessed` (today). If you cannot find one, submit it with `status: not_found` (or `blocked_source`) and no value; never estimate. For corporate actions, search the held symbols for bonus, split or demerger ex-dates and pass them as `corporate_actions` (an empty list when none; unconfirmed dates with `confirmed: false`).
 
-## Profile when the chat is linked to the PC
-If the device shell can run Node, run `pc.js` on the PC with the real folder; nothing else is needed. Otherwise:
-1. On the PC, `pc state_export --out <file>`; copy that one file into the container.
-2. `pc state_import --bundle <file> --into <scratch>` and use `<scratch>` as `--folder`.
-3. Before ending, `pc state_writeback --bundle <file>` with `source_hashes` (sha256 of each bundled file on the PC now). Copy every file in its `next` step back through the device link, and say which. Report `conflicts` to the investor; never overwrite them. If the link drops, say the PC copy is stale.
+## Macro (morning and mid-day)
+Search: US close, Asian session, GIFT Nifty or Nifty, Brent, USD/INR, today's India events. Confirm each level's date is today; otherwise label it "not same-day". Give setups and levels, never direction calls. Lead with one verdict line that agrees with every number shown (the weaker of global and domestic wins).
 
-## 2. Pull
-Run `pc refresh`. If an IBKR connector is available, read its account summary (primary), then its positions (the calls `doctor` lists), and pass them to `ingest` with `broker: "ibkr"`, `currency: "USD"`, and `fx_rate` + `fx_source` (a dated USD/INR rate; say where it came from). If summary fails, ingest positions and say the cash figure is last known.
-For a broker with no connection, "import my holdings": ask for a CSV export and call `ingest` with `csv_path`.
+## Quick check ("check my portfolio", no decisions)
+`pc connect` with the tool names; do its `next`, ask its `manual` once, repeat until `ready`; then `pc refresh` and show its text. IBKR: pass its reads to `ingest` with `broker: "ibkr"`, `currency: "USD"`, `fx_rate` and `fx_source` (a dated USD/INR rate). No connection: "import my holdings" asks for a CSV and calls `ingest` with `csv_path`.
 
-## 3. Macro (morning and mid-day only)
-Search: US close, Asian session, GIFT Nifty or Nifty, Brent, USD/INR, today's India events. Before using any level, confirm its date is today's date; otherwise label it "not same-day" and keep it out of the verdict. Give setups and levels, never direction calls.
-Also search held stock symbols for upcoming bonus, split or demerger ex-dates. If any, run the `gtt` skill's audit with `corporate_actions` (mark unconfirmed dates as `confirmed: false`).
-
-## 4. Report
-1. One-line verdict that agrees with every number shown (re-read before sending; the weaker of global and domestic wins).
-2. The `refresh` text: broker lines, needs attention, changes since last snapshot, brokers, positions, allocation.
-3. Macro table (morning) and any corporate-action GTT risk.
-4. Close (EOD): add `gtt_audit` summary line.
-SIP status is not readable from any broker: call `protection_check` to show the SIPs the investor has confirmed; if none are saved, ask, don't infer, and save them with `profile_update` only after they confirm.
-
-## 5. Log
-Call `log_append` with a 3-5 line entry (what was pulled, totals, what changed, anything flagged). Rewrite `start_here` only when goals, next actions or decisions owed change. Never edit a verdict; log the contradiction.
-
-## Open actions ("work through my to-dos")
-1. Read the open actions: the Todoist project for portfolio actions (Todoist tools, find-tasks; ask which project if unclear), else the "Start here" block of the log.
-2. Take them one at a time. Map each to the skill or tool that does it: GTT work to `gtt`, a stock review to `analyze`, risk, buffer or rebalancing to `risk`, a number the investor holds to `profile_update`, SIP, cover and buffer inputs to `protection_check`.
-3. Run it. Ask the investor only for inputs the plugin cannot get (a number, a decision). Never guess one.
-4. Complete the Todoist task (complete-tasks) only after the work is done and verified, and `log_append` it. An action no tool can do stays open: call `report_gap` for it.
+## Where the investor's files are
+- The folder is reachable: use it as `--folder`.
+- A chat linked to the PC that cannot run Node there: on the PC `pc state_export --out <file>`; copy it in; `pc state_import --bundle <file> --into <scratch>`; use `<scratch>`. Before ending, `pc state_writeback --bundle <file>` with `source_hashes` of the PC copies; copy back every file it lists; report `conflicts` and never overwrite them.
+- Not linked: ask for `profile.json` (kept in the claude.ai Project); say plainly "the profile is a copy" and hand changed files back.
 
 ## Gaps
-When a tool says "not supported", a known limitation, or errors with no fallback, call `report_gap` (title, what was attempted, what is missing, the error). Never put quantities, prices or P&L in it. If the result says no issue was filed (no token, or GitHub rejected it) and a GitHub MCP is connected in this chat, file it yourself: search open issues labelled `gap` for the same title and comment on it, otherwise create the issue with label `gap` in `arunendapally/portfolio-copilot`, using the same text report_gap logged and no investor numbers. Then tell the investor where it was logged and filed.
+When a tool says "not supported" or errors with no fallback, call `report_gap` (title, attempted, missing, error), never with quantities, prices or P&L. If no issue was filed and a GitHub MCP is connected, file it yourself with label `gap` in `arunendapally/portfolio-copilot` (comment on an open one with the same title).
 
 ## Scheduled run (investor away)
-Do not wait for logins. Make the reads `pc doctor` lists once, then run `connect` with `unattended: true` (it never asks for a login and skips what is not live), then `check` (last snapshot, clearly dated) and the macro read, then one line per broker that needs login. Nothing is presented as live unless the tool says live.
+Make the reads `pc doctor` lists once, then `pc review_start` with `unattended: true`: it never asks for a login, skips what is not live, and stops after research. Then the macro read. Nothing is presented as live unless the engine says live.

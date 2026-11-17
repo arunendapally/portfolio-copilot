@@ -92,6 +92,7 @@ async function refresh(args, ctx) {
       snap.unverified[key] = ((prev && prev.unverified && prev.unverified[key]) || 0) + 1;
     }
   }
+  snapshotLib.valuate(snap, prev, profile);
   state.saveSnapshot(args.folder, date, snap);
   const report = await check({ folder: args.folder }, ctx);
   if (errors.length) report.text = `Profile problems: ${errors.join('; ')}\n\n${report.text}`;

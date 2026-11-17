@@ -40,6 +40,53 @@ function bucketOf(h, profile) {
   return 'india_equity';
 }
 
+// Prices carry their time; the fresher price wins for an instrument held at two brokers (FR-043).
+// A holding priced at its own cost in this and the previous snapshot is frozen (a suspended scrip,
+// R3): valued at zero and listed separately, unless the profile overrides its value (FR-042).
+function valuate(snap, prev, profile) {
+  const key = (h) => h.isin || `${h.exchange || ''}:${h.symbol}`;
+  const all = [];
+  for (const [broker, b] of Object.entries(snap.brokers || {})) {
+    for (const h of b.holdings || []) {
+      if (!h.price_as_of) h.price_as_of = b.as_of || snap.taken_at;
+      if (!h.price_source) h.price_source = broker === 'kotak' ? 'kotak (previous close)' : broker;
+      all.push(h);
+    }
+  }
+  const freshest = new Map();
+  for (const h of all) {
+    if (h.ltp === null || h.ltp === undefined || h.type === 'mf') continue;
+    const f = freshest.get(key(h));
+    if (!f || h.price_as_of > f.price_as_of) freshest.set(key(h), h);
+  }
+  for (const h of all) {
+    const f = freshest.get(key(h));
+    if (f && f !== h && f.price_as_of > h.price_as_of) {
+      Object.assign(h, { ltp: f.ltp, price_as_of: f.price_as_of, price_source: f.price_source, value: h.qty * f.ltp });
+      if (h.avg !== null && h.avg !== undefined) h.pnl = h.qty * (f.ltp - h.avg);
+    }
+  }
+  const was = new Map();
+  for (const [broker, b] of Object.entries((prev && prev.brokers) || {})) for (const h of b.holdings || []) was.set(`${broker}:${h.symbol}`, h);
+  for (const [broker, b] of Object.entries(snap.brokers || {})) {
+    for (const h of b.holdings || []) {
+      const override = profile.valuation_overrides && profile.valuation_overrides[h.symbol];
+      if (override !== undefined && override !== null) { Object.assign(h, { ltp: override, value: h.qty * override, price_source: 'profile override', frozen: false }); continue; }
+      const p = was.get(`${broker}:${h.symbol}`);
+      const atCost = (x) => x && x.avg && (x.frozen || x.ltp === x.avg);
+      if (atCost(h) && atCost(p)) Object.assign(h, { frozen: true, value: 0, pnl: null });
+    }
+  }
+  return snap;
+}
+
+// Funds are one position across brokers when the ISIN or the normalised name matches (FR-045).
+function positionKey(h) {
+  if (h.type !== 'mf') return h.symbol;
+  if (h.isin && /^INF/i.test(h.isin)) return h.isin.toUpperCase();
+  return (h.name || h.symbol).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').replace(/\b(FUND|PLAN|OPTION|GROWTH|DIRECT|REGULAR)\b/g, '').replace(/\s+/g, ' ').trim();
+}
+
 function allHoldings(snap) {
   const out = [];
   for (const [broker, b] of Object.entries(snap.brokers || {})) {
@@ -69,12 +116,14 @@ function consolidate(snap, profile) {
     if (hs.some((h) => h.value_inr === null && h.value !== null)) notes.push(`${name}: no FX rate for ${hs.find((h) => h.value_inr === null).currency}; excluded from totals`);
   }
   const invested = holdings.reduce((a, h) => a + (h.value_inr || 0), 0);
+  const frozen = holdings.filter((h) => h.frozen).map((h) => ({ broker: h.broker, symbol: h.symbol, qty: h.qty }));
+  if (frozen.length) notes.push(`valued at zero, priced at cost two runs in a row (suspended?): ${frozen.map((h) => `${h.symbol} (${h.broker})`).join(', ')}; set valuation_overrides to value them`);
   const book = invested + cashTotal;
 
   const bySymbol = new Map();
   for (const h of holdings) {
-    const k = h.symbol;
-    const cur = bySymbol.get(k) || { symbol: k, type: h.type, name: null, value: 0, brokers: new Set() };
+    const k = positionKey(h);
+    const cur = bySymbol.get(k) || { symbol: h.symbol, type: h.type, name: null, value: 0, brokers: new Set() };
     if (h.type === 'mf' && h.name && h.name !== k) cur.name = h.name; // Kite keys funds by ISIN (issue #30)
     cur.value += h.value_inr || 0;
     cur.brokers.add(h.broker);
@@ -194,4 +243,4 @@ function diff(prev, cur) {
   return { baseline: prev.taken_at, changes, folio_drops, frozen_prices: frozen };
 }
 
-module.exports = { consolidate, diff, floorCash, toInr, allHoldings, fundHouse };
+module.exports = { consolidate, diff, floorCash, toInr, allHoldings, fundHouse, valuate, positionKey };

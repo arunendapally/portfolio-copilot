@@ -12,7 +12,7 @@ const toolmap = require('./brokers/toolmap');
 
 // Capabilities a broker must have captured before its block is live; optional ones join when present.
 const NEEDED = { kite: ['holdings', 'gtts', 'margins'], kotak: ['holdings', 'margins'] };
-const OPTIONAL = { kite: ['mf', 'orders'], kotak: [] };
+const OPTIONAL = { kite: ['mf', 'orders', 'positions'], kotak: [] };
 
 const MCP_NAME = { kite: 'Kite', kotak: 'Kotak Neo' };
 
@@ -97,7 +97,7 @@ function pull(name, profile, now = new Date()) {
     const c = snapshotLib.floorCash(norm.kiteCash(get('margins')));
     return {
       status: 'live', as_of,
-      block: { status: 'live', as_of, holdings, gtts: norm.kiteGtts(get('gtts')), orders: norm.kiteOrders(get('orders') || []), cash: c.cash, cash_note: c.note, mf_folio_count: holdings.filter((h) => h.type === 'mf').length },
+      block: { status: 'live', as_of, holdings, gtts: norm.kiteGtts(get('gtts')), orders: norm.kiteOrders(get('orders') || []), positions: norm.kitePositions(get('positions') || []), cash: c.cash, cash_note: c.note, mf_folio_count: holdings.filter((h) => h.type === 'mf').length },
     };
   }
   const raw = (s) => session.read(name, s).text;
