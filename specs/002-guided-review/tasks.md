@@ -189,7 +189,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 - [ ] T076 [US5] Create `core/lib/journal.js`, the `journal_readback` command and the Friday stage step
 - [ ] T077 [US5] Add the `decisions` command to `core/tools.js`
 - [ ] T078 [US5] Update `skills/get-started/SKILL.md`: collect bands, sector map (including sector funds), classes, tripwires and the plan; "import my notes" shows a diff of what differs from the profile and saves each item only on confirmation
-- [ ] T079 [Investor] [US5] Loss-tolerance tracker card: blocked until the investor answers spec open decision 2; then add `core/lib/rules/loss_tolerance.js` with tests
+- [ ] T079 [US5] Loss-tolerance tracker card (decision 2 answered 17-Nov: realised plus open): add `core/lib/rules/loss_tolerance.js` with tests
 - [ ] T080 [US4] [US5] Release v0.9.0: version, CHANGELOG, README, build, validate, tests, evals T0 to T2 and T5. Push and upload on the investor's go
 
 ---

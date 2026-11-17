@@ -324,5 +324,5 @@ Every card that sells or switches shows the holding period per lot, the realised
 These do not block US1, US2, US3 or US6.
 
 1. **Profit-lock values** (US4): arm threshold, booking threshold, share to book, trail distance, cooling-off. The dry run in FR-031 exists to help choose. No defaults will be shipped.
-2. **Loss tolerance measure** (US5) [NEEDS CLARIFICATION: is the tolerance on play trades measured on realised losses only, or realised plus open, and from which date?]
+2. **Loss tolerance measure** (US5): decided 17-Nov-2026 by the investor: realised plus open losses on play trades (`loss_tolerance.measure: realised_plus_open`). The start date is the profile field `loss_tolerance.from`, set by the investor.
 3. **How the local engine reaches each broker** (US7) [NEEDS CLARIFICATION: research.md R6 lists the options per broker with a recommendation; choosing one amends constitution Principle IV and needs the investor's sign-off.]
