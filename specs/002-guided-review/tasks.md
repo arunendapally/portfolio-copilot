@@ -149,7 +149,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 - [x] T056 [US3] Add `review_start`, `review_next`, `review_status`, `task_decide`, `task_done`, `research_submit` to `core/tools.js` (contracts/pc-commands.md)
 - [x] T057 [US3] In `hooks/order-gate.js`, also deny an AskUserQuestion whose header is a task id (`t_…`) when its answers are pre-filled; test in `tests/gate-toolmap.test.js`
 - [x] T058 [US3] Rewrite `skills/check/SKILL.md` around the review loop (say "review", call `review_start`, do each `next`, call `review_next` until closed; task questions use "Approve", "Defer", "Decline", never "Yes, place"); cover end of day, Friday and unattended in one short section; under 45 lines
-- [ ] T059 [US3] Add eval T5 (guided review) to `evals/run-evals.py` on the fake broker: two tasks proposed with reasons, one approved and drafted, the Yes click simulated, one deferred, run closed; assert no order call happened outside the approved row
+- [x] T059 [US3] Add eval T5 (guided review) to `evals/run-evals.py` on the fake broker: two tasks proposed with reasons, one approved and drafted, the Yes click simulated, one deferred, run closed; assert no order call happened outside the approved row
 - [x] T060 [US3] Release v0.8.0 (US2, US3, US6): version, CHANGELOG, README "What you can say" (review, end of day, Friday), build, validate, tests, evals T0 to T2 and T5. Push and upload on the investor's go
 
 **Checkpoint**: SC-004, SC-006, SC-007 measured on the fixture run and recorded in the PR.

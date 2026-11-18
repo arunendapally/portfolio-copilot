@@ -11,13 +11,21 @@ const readline = require('readline');
 const toolmap = require('../core/lib/brokers/toolmap');
 const { callTool, makeContext } = require('../core/tools');
 const collect = require('./collect');
+const profiles = require('../core/lib/profile');
 
 const MAX_TEXT = 2000;
 
 const TOOLS = [
   { name: 'portfolio_status', description: 'Per broker: state and data time, an "All connected" line or the manual steps. Pass login { broker, request_token } to finish the daily Kite login.', inputSchema: { type: 'object', properties: { login: { type: 'object', properties: { broker: { type: 'string' }, request_token: { type: 'string' } } } } } },
   { name: 'portfolio_refresh', description: 'Pull every ready broker now, rebuild the snapshot, return the check summary.', inputSchema: { type: 'object', properties: { brokers: { type: 'array', items: { type: 'string' } } } } },
-  { name: 'portfolio_review', description: 'The guided review. action: start, next, status, decide, done or research, with that action\'s arguments (as for review_start, review_next, review_status, task_decide, task_done, research_submit). Returns text and the next steps only you can do.', inputSchema: { type: 'object', properties: { action: { type: 'string', enum: ['start', 'next', 'status', 'decide', 'done', 'research'] } }, required: ['action'], additionalProperties: true } },
+  { name: 'portfolio_review', description: 'The guided review. action: start (kind full, eod or friday), next, status, decide (task, decision approved | deferred | declined, reason, defer_until YYYY-MM-DD for deferred), done (task, result done | could_not | skipped), research (findings: array, corporate_actions: array, [] when none found). At record, next with record { todoist: synced, dashboard: updated }. Returns text and the next steps only you can do.', inputSchema: { type: 'object', properties: {
+    action: { type: 'string', enum: ['start', 'next', 'status', 'decide', 'done', 'research'] },
+    kind: { type: 'string', enum: ['full', 'eod', 'friday'] }, run: { type: 'string' },
+    task: { type: 'string' }, decision: { type: 'string', enum: ['approved', 'deferred', 'declined'] }, reason: { type: 'string' }, defer_until: { type: 'string' },
+    result: { type: 'string', enum: ['done', 'could_not', 'skipped'] }, note: { type: 'string' },
+    findings: { type: 'array', items: { type: 'object' } }, corporate_actions: { type: 'array', items: { type: 'object' } },
+    record: { type: 'object', properties: { todoist: { type: 'string', enum: ['synced', 'skipped'] }, dashboard: { type: 'string', enum: ['updated', 'skipped'] } } },
+  }, required: ['action'] } },
   { name: 'portfolio_query', description: 'One answer from the engine. q: holding <SYM> | allocation | guardrails | gtt <SYM> | journal | decisions | export.', inputSchema: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] } },
 ];
 
@@ -41,6 +49,9 @@ function section(text, title) {
 }
 
 function makeServer({ folder, deps = {}, ctx = makeContext() } = {}) {
+  // Brokers the investor's profile turns on; the engine reports and pulls only those.
+  const enabled = () => Object.entries(profiles.load(folder).profile.brokers || {}).filter(([, v]) => v && v.enabled).map(([b]) => b);
+
   // Broker reads in `next` are done here when a collector covers them; what is left is for the model.
   async function filterNext(steps) {
     const reads = new Set();
@@ -58,6 +69,10 @@ function makeServer({ folder, deps = {}, ctx = makeContext() } = {}) {
     if (!name) return { text: `Unknown action ${args.action}` };
     const a = { ...args, folder };
     delete a.action;
+    // Lists sometimes arrive as JSON text; take them either way.
+    for (const k of ['findings', 'corporate_actions']) if (typeof a[k] === 'string') { try { a[k] = JSON.parse(a[k]); } catch { /* left as is; the engine rejects it */ } }
+    // A new run starts from a fresh pull of every broker the engine can read.
+    if (args.action === 'start') await collect.runAll(folder, { brokers: enabled(), deps, ctx });
     let r = await callTool(name, a, ctx);
     // Reads the engine can make itself are made here, then the run goes on: the model never carries them.
     for (let i = 0; i < 3 && r.ok !== false; i++) {
@@ -74,7 +89,9 @@ function makeServer({ folder, deps = {}, ctx = makeContext() } = {}) {
       const l = await collect.login(args.login.broker, args.login, deps);
       if (l.state !== 'ready') return { text: `${args.login.broker}: ${l.detail}` };
     }
-    const st = await collect.status(deps);
+    const all = await collect.status(deps);
+    const on = enabled();
+    const st = Object.fromEntries(Object.entries(all).filter(([b]) => on.includes(b)));
     const lines = Object.entries(st).map(([b, s]) => `${b}: ${s.state}${s.detail ? `, ${s.detail}` : ''}`);
     const manual = Object.entries(st).filter(([, s]) => s.state === 'needs_login' && s.login).map(([b, s]) => `- ${b}: ${s.login.url ? `${s.login.url} · ` : ''}${s.login.steps.join('; ')}`);
     if (!manual.length) lines.push(Object.values(st).every((s) => s.state === 'ready' || s.state === 'chat') ? 'All connected (Kotak through chat)' : '');
@@ -141,7 +158,15 @@ function main() {
   const i = process.argv.indexOf('--folder');
   const folder = i > 0 ? process.argv[i + 1] : process.env.PORTFOLIO_COPILOT_HOME;
   if (!folder) { console.error('Usage: node local/server.js --folder <investor folder>'); process.exit(1); }
-  const server = makeServer({ folder });
+  // Evals only: --fake-collectors <json> serves fixture broker data instead of real brokers.
+  const k = process.argv.indexOf('--fake-collectors');
+  let deps = {};
+  if (k > 0) {
+    const data = JSON.parse(require('fs').readFileSync(process.argv[k + 1], 'utf8'));
+    const fake = require('./collectors/fake');
+    deps = { collectors: { kite: fake({ broker: 'kite', data: data.kite || {} }), kotak: require('./collectors/kotak')(), ibkr: fake({ broker: 'ibkr', state: 'needs_login' }) } };
+  }
+  const server = makeServer({ folder, deps });
   readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     let msg;
     try { msg = JSON.parse(line); } catch { return; }

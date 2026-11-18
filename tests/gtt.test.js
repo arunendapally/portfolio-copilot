@@ -192,3 +192,13 @@ test('check warns when hold stops would fire in the crash test, and says analyze
   const r = await callTool('refresh', { folder }, ctxAt('2026-10-14T05:00:00Z', brokers));
   assert.match(r.text, /Needs attention[\s\S]*hold stop\(s\) would fire in a -20% fall \([^)]*SBIN[^)]*\): analyze each before changing/);
 });
+
+test('a plan for named symbols changes only those symbols, never an unrelated orphan', () => {
+  const gttLib = require('../core/lib/gtt');
+  const P = require('../core/lib/profile');
+  const prof = P.merge(P.DEFAULTS, {});
+  const snap = { taken_at: '2026-11-18T05:00:00Z', brokers: { kite: { holdings: [{ symbol: 'HDFCBANK', exchange: 'NSE', type: 'equity', qty: 60, ltp: 780 }], gtts: [{ id: 10, symbol: 'GONE', status: 'active', type: 'single', triggers: [100], legs: [{ side: 'SELL', trigger: 100, qty: 5 }] }] } } };
+  const a = gttLib.audit(snap, null, prof);
+  assert.deepStrictEqual(gttLib.plan(a, snap, prof, { symbols: ['HDFCBANK'] }).rows.map((r) => [r.action, r.symbol]), [['place', 'HDFCBANK']]);
+  assert.ok(gttLib.plan(a, snap, prof).rows.some((r) => r.action === 'delete' && r.symbol === 'GONE'), 'the whole-book plan still removes the orphan');
+});

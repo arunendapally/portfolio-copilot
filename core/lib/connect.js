@@ -53,6 +53,11 @@ function loginSteps(broker, profile, tools) {
 
 function connectOne(broker, { tools, profile, now, unattended, row, fromCaptures }) {
   const skip = (reason, as_of = null) => ({ status: 'skipped', as_of, detail: reason, next: [], manual: null });
+  // Fresh, complete data is live whoever read it: the chat's broker tools or the local engine.
+  if (broker !== 'ibkr') {
+    const fresh = inputs.pull(broker, profile, now);
+    if (fresh.status === 'live') return { status: 'live', as_of: fresh.as_of, detail: '', next: [], manual: null };
+  }
   const mine = tools.filter((n) => toolmap.resolve(n, {}).broker === broker);
   if (!mine.length) {
     const detail = `the ${NAME[broker]} MCP is not in this chat: connect it, or skip ${broker}`;

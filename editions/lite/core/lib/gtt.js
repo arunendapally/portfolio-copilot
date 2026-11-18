@@ -224,7 +224,8 @@ function plan(auditResult, snap, profile, { symbols, lockStops = {} } = {}) {
     places.push({ action: 'place', symbol: r.symbol, exchange, reason, args: gttArgs(r.symbol, exchange, r.ltp, { ...want, qty: r.qty }) });
     for (const id of r.gtt_ids) deletes.push({ action: 'delete', symbol: r.symbol, gtt_id: id, reason: 'replaced by the new GTT above' });
   }
-  for (const o of auditResult.orphans) deletes.push({ action: 'delete', symbol: o.symbol, gtt_id: o.id, reason: 'orphan: symbol no longer held' });
+  // A plan for named symbols changes only those; orphans are removed only by a plan for the whole book.
+  for (const o of auditResult.orphans.filter((x) => !symbols || symbols.map((y) => y.toUpperCase()).includes(x.symbol))) deletes.push({ action: 'delete', symbol: o.symbol, gtt_id: o.id, reason: 'orphan: symbol no longer held' });
   const rows = [...places, ...deletes].map((r, i) => ({ step: i + 1, ...r }));
   return { rows, notes };
 }

@@ -646,7 +646,7 @@ async function taskDone(args, ctx) {
 async function researchSubmit(args, ctx) {
   const r = review.submitResearch(args.folder, runId(args, ctx), { findings: args.findings || [], corporate_actions: args.corporate_actions }, ctx.now());
   if (!r.ok) return { ...r, text: r.error };
-  const L = [`Accepted ${r.accepted.length} finding(s).`];
+  const L = [`Accepted ${r.accepted.length} finding(s).${Array.isArray(args.corporate_actions) ? ` Corporate-action check recorded (${args.corporate_actions.length} found).` : ''}`];
   for (const x of r.rejected) L.push(`Rejected ${(x.finding && x.finding.symbol) || '?'} ${(x.finding && x.finding.metric) || ''}: ${x.reasons.join('; ')}`);
   return { ok: true, ...r, text: L.join('\n') };
 }

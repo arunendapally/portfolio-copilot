@@ -113,3 +113,15 @@ test('connect needs the tool names', async () => {
   const r = await callTool('connect', { folder }, ctx());
   assert.strictEqual(r.ok, false);
 });
+
+test('a broker read by the local engine is live even with no broker tools in the chat', async () => {
+  const folder = setup({ kite: { enabled: true } });
+  const session = require('../core/lib/session');
+  const now = new Date(NOW);
+  session.saveLocal('kite', 'holdings', JSON.stringify(g2('holdings-full.json').data), { now });
+  session.saveLocal('kite', 'gtts', JSON.stringify(g2('gtts.json').data), { now });
+  session.saveLocal('kite', 'margins', JSON.stringify(g2('margins.json')), { now });
+  const r = await callTool('connect', { folder, tools: ['mcp__portfolio-local__portfolio_status'] }, ctx());
+  assert.strictEqual(r.brokers.kite.status, 'live', r.text);
+  assert.strictEqual(r.ready, true);
+});
