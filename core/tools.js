@@ -22,6 +22,9 @@ const toolmap = require('./lib/brokers/toolmap');
 const connectLib = require('./lib/connect');
 const bundle = require('./lib/bundle');
 const review = require('./lib/review');
+const decisionsLib = require('./lib/decisions');
+const journalLib = require('./lib/journal');
+const concentration = require('./lib/rules/concentration');
 const path = require('path');
 const session = require('./lib/session');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
@@ -178,6 +181,7 @@ async function check(args, ctx) {
   const fx = Object.entries(snap.fx || {});
   if (fx.length) L.push(`FX: ${fx.map(([k, v]) => `${k} at ${v.rate} INR (${v.source}, ${istStamp(new Date(v.as_of))})`).join('; ')}`);
   const flags = [...t.findings.filter((f) => f.level === 'critical'), ...c.alerts.filter((a) => a.level === 'critical'), ...t.findings.filter((f) => f.level !== 'critical'), ...c.alerts.filter((a) => a.level !== 'critical')];
+  L.push(guardrails(snap, c, profile, prev));
   L.push(`\n**Needs attention** (${flags.length})`);
   L.push(flags.length ? flags.map((f) => `- ${f.level === 'critical' ? '🔴' : '🟡'} ${f.text}`).join('\n') : '- nothing');
   if (d.baseline) {
@@ -489,6 +493,53 @@ async function stateWriteback(args, ctx) {
   return { ok: true, next, conflicts: r.conflicts, text: L.join('\n') };
 }
 
+// Guardrails at a glance: each limit with its base, and the closest stop (spec 002, check).
+function guardrails(snap, c, profile, prev) {
+  const L = profile.limits;
+  const top = c.positions.filter((p) => p.type === 'equity')[0];
+  const sec = concentration.sectorExposure(snap, profile, c)[0];
+  const fh = c.fund_houses.filter((h) => h.house !== 'UNKNOWN')[0];
+  let stop = null;
+  if (snap.brokers.kite && (snap.brokers.kite.gtts || []).length) {
+    const rows = gtt.audit(snap, prev, profile).rows.filter((r) => r.stop_distance_pct !== null);
+    stop = rows.sort((a, b) => a.stop_distance_pct - b.stop_distance_pct)[0] || null;
+  }
+  const rows = [
+    ['Largest stock', top ? `${top.symbol} ${pct(top.pct_of_book)}` : '-', `${L.single_stock_pct}%`, 'whole book'],
+    ['Largest sector', sec ? `${sec.sector} ${pct(sec.pct)}` : 'no sector map', `${L.sector_pct}%`, sec ? sec.base : '-'],
+    ['Largest fund house', fh ? `${fh.house} ${pct(fh.pct_of_mf)}` : '-', `${L.fund_house_pct}%`, 'mutual fund holdings'],
+    ['Closest stop', stop ? `${stop.symbol} ${stop.stop_distance_pct}% below` : '-', `${profile.gtt_policy.min_stop_distance_pct}% minimum`, 'last price'],
+  ];
+  return `\n**Guardrails**\n${table(['Check', 'Now', 'Limit', 'Base'], rows)}`;
+}
+
+// What is due under the investor's rules, outside a review (US5). Saves nothing.
+async function decisionsCmd(args, ctx) {
+  const { profile } = profiles.load(args.folder);
+  const snap = state.latestSnapshot(args.folder);
+  if (!snap) return { ok: false, error: 'no snapshot yet', text: 'No data yet. Run refresh first.' };
+  const prev = state.previousSnapshot(args.folder, istDate(new Date(snap.taken_at)));
+  const input = review.ruleInput(args.folder, profile, snap, prev, ctx.now(), ctx.edition);
+  const r = decisionsLib.evaluate(input, { today: istDate(ctx.now()), live: Object.entries(snap.brokers).filter(([, b]) => b.status === 'live').map(([n]) => n) });
+  const L = [`**Decisions due** · data ${istStamp(new Date(snap.taken_at))}`];
+  r.tasks.forEach((t, i) => L.push(`${i + 1}. ${t.title} · ${t.executor}\n   Why: your rule ${t.why.rule_ref}: ${t.why.measurements.map((m) => (m.name === 'finding' ? m.value : `${m.name.replace(/_/g, ' ')} ${m.value} (base: ${m.base})`)).join('; ')}`));
+  if (!r.tasks.length) L.push('Nothing due under your rules.');
+  if (r.also_due) L.push(`Also due: ${r.also_due}`);
+  if (r.not_set.length) L.push(`Not set: ${r.not_set.join(', ')}`);
+  L.push('Say "review" to decide them.');
+  return { ok: true, tasks: r.tasks, also_due: r.also_due, not_set: r.not_set, text: L.join('\n') };
+}
+
+async function journalReadback(args, ctx) {
+  const { profile } = profiles.load(args.folder);
+  const days = args.older_than_days !== undefined ? Number(args.older_than_days) : profile.review.readback_after_days;
+  const snap = state.latestSnapshot(args.folder);
+  const prev = snap ? state.previousSnapshot(args.folder, istDate(new Date(snap.taken_at))) : null;
+  const current = snap ? decisionsLib.evaluate(review.ruleInput(args.folder, profile, snap, prev, ctx.now(), ctx.edition)).all : [];
+  const rows = journalLib.readback(args.folder, { olderThanDays: days, now: ctx.now(), current });
+  return { ok: true, decisions: rows, text: rows.length ? [`**Decisions older than ${days} days**`, ...rows.map((r) => `- ${r.text}`)].join('\n') : `No decisions older than ${days} days yet.` };
+}
+
 // Guided review (US3): one run, stage by stage, gates in code.
 function reviewDeps(args, ctx) {
   return {
@@ -605,6 +656,8 @@ const TOOLS = [
   { name: 'task_decide', handler: taskDecide, description: "Record the investor's answer to a task question (Approve, Defer, Decline). Approving authorises a draft, never an order.", props: { run: { type: 'string' }, task: { type: 'string' }, decision: { type: 'string', enum: ['approved', 'deferred', 'declined'] }, reason: { type: 'string' }, defer_until: { type: 'string' }, option: { type: 'string' } }, required: ['task', 'decision'] },
   { name: 'task_done', handler: taskDone, description: 'After the investor says done on a task they carry out themselves. result: done, could_not or skipped. A fresh read still verifies it.', props: { run: { type: 'string' }, task: { type: 'string' }, result: { type: 'string', enum: ['done', 'could_not', 'skipped'] }, note: { type: 'string' } }, required: ['task', 'result'] },
   { name: 'research_submit', handler: researchSubmit, description: 'Submit research findings for the review brief: symbol, metric, value, period, source_url, source_quote, accessed, status (found, not_found, blocked_source). Pass corporate_actions (an array, empty when none) once checked.', props: { run: { type: 'string' }, findings: { type: 'array', items: { type: 'object' } }, corporate_actions: { type: 'array', items: { type: 'object' } } } },
+  { name: 'decisions', handler: decisionsCmd, description: "What is due under the investor's own rules (GTT gaps, tripwires, limits, drift, plan path, loss tolerance), outside a review. Saves nothing.", props: {} },
+  { name: 'journal_readback', handler: journalReadback, description: 'Decisions older than older_than_days (default from the profile) beside what the same rules measure now.', props: { older_than_days: { type: 'number' } } },
   { name: 'log_append', handler: logAppend, description: 'Append a dated entry to the log and optionally rewrite the "Start here" block. Older months archive automatically.', props: { text: { type: 'string' }, start_here: { type: 'string' } } },
   { name: 'draft_orders', handler: draftOrders, description: 'Draft explicit broker order calls (an IBKR order instruction, cancel or modify an open Kite order) so the order gate can allow exactly those calls once the investor clicks Yes. Each row gives broker (kite or ibkr), op (place, modify, cancel) and the order arguments; the engine names the broker tool.', props: { label: { type: 'string' }, rows: { type: 'array', items: { type: 'object', properties: { broker: { type: 'string' }, op: { type: 'string' }, tool: { type: 'string' }, args: { type: 'object' }, symbol: { type: 'string' }, reason: { type: 'string' } } } } }, required: ['rows'] },
 ];

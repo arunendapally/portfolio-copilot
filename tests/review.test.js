@@ -144,14 +144,22 @@ test('the lite edition makes GTT tasks the investor\'s, with manual steps and ta
   assert.strictEqual(d.task.outcome, 'handed_over');
 });
 
-test('unattended stops after research; end of day skips research, propose, execute and verify', async () => {
+test('unattended stops before propose and waits; end of day skips research, propose, execute and verify', async () => {
   const a = setup();
   await callTool('review_start', { folder: a.folder, tools: TOOLS, unattended: true }, a.ctx);
   const r = await callTool('research_submit', { folder: a.folder, corporate_actions: [] }, a.ctx);
   assert.ok(r.ok);
   const u = await callTool('review_next', { folder: a.folder }, a.ctx);
-  assert.strictEqual(u.stage, 'closed');
-  assert.match(u.text, /unattended: stopped after research/);
+  assert.strictEqual(u.stage, 'propose');
+  assert.strictEqual(u.gate.pass, false);
+  assert.match(u.gate.reason, /unattended: waiting for you/);
+  assert.deepStrictEqual(u.next, [], 'nothing is asked while the investor is away');
+  assert.ok(u.tasks.length > 0, 'the tasks are listed for later');
+  // The investor picks it up: the same run asks its questions.
+  const back = await callTool('review_start', { folder: a.folder, tools: TOOLS }, a.ctx);
+  assert.strictEqual(back.resumed, true);
+  assert.strictEqual(back.stage, 'propose');
+  assert.strictEqual(back.next[0].do, 'ask');
   const b = setup();
   const eod = await callTool('review_start', { folder: b.folder, tools: TOOLS, kind: 'eod' }, b.ctx);
   assert.strictEqual(eod.stage, 'closed', eod.text);

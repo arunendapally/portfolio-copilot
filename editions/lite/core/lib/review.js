@@ -15,6 +15,8 @@ const gtt = require('./gtt');
 const session = require('./session');
 const toolmap = require('./brokers/toolmap');
 const manual = require('./manual_steps');
+const snapshotLib = require('./snapshot');
+const journal = require('./journal');
 const { istStamp, istDate } = require('./format');
 
 const STAGES = {
@@ -42,7 +44,11 @@ function start(folder, { kind = 'full', unattended = false, tools = [] }, now) {
   const date = istDate(now);
   const id = `${date}-${kind}`;
   const existing = load(folder, id);
-  if (existing) return { run: existing, resumed: true };
+  if (existing) {
+    // The investor picking up a run the scheduled task left waiting.
+    if (existing.unattended && !unattended) { existing.unattended = false; if (tools.length) existing.tools = tools; save(folder, existing); }
+    return { run: existing, resumed: true };
+  }
   const { profile } = profiles.load(folder);
   const run = {
     schema_version: 1, id, kind, date, started_at: now.toISOString(), closed_at: null, unattended: !!unattended,
@@ -78,6 +84,11 @@ function deferredIds(folder) {
 }
 
 // ---- research ------------------------------------------------------------------------------
+
+// Everything the rules read: the snapshot, the consolidated book, findings and the clock.
+function ruleInput(folder, profile, snap, prev, now, edition, corporateActions = []) {
+  return { snap, prev, profile, c: snap ? snapshotLib.consolidate(snap, profile) : null, findings: lines(findingsFile(folder)), now, today: istDate(now), edition, corporateActions };
+}
 
 function heldSymbols(snap) {
   const s = new Set();
@@ -196,12 +207,17 @@ async function stage(folder, run, now, deps) {
       const snap = snapFresh() || deps.latestSnapshot(folder);
       const prev = snap ? deps.previousSnapshot(folder, istDate(new Date(snap.taken_at))) : null;
       const live = Object.entries((run.stages.connect && run.stages.connect.brokers) || {}).filter(([, b]) => b.status === 'live').map(([b]) => b);
-      const r = decisions.evaluate({ snap, prev, profile: run.profile, corporateActions: (run.stages.research && run.stages.research.corporate_actions) || [], today: run.date, edition: deps.edition }, { deferred: deferredIds(folder), today: run.date, live });
+      const r = decisions.evaluate(ruleInput(folder, run.profile, snap, prev, now, deps.edition, (run.stages.research && run.stages.research.corporate_actions) || []), { deferred: deferredIds(folder), today: run.date, live });
       run.tasks = r.tasks;
       run.also_due = r.also_due;
       st.task_ids = r.tasks.map((t) => t.id);
       st.also_due = r.also_due;
-      st.not_set = run.profile.gtt_policy.profit_lock.enabled ? [] : ['profit lock'];
+      st.not_set = r.not_set;
+      // Friday: decisions older than the read-back window, beside what the same rules measure now.
+      if (run.kind === 'friday') {
+        st.readback = journal.readback(folder, { olderThanDays: run.profile.review.readback_after_days, now, current: r.all });
+        return pass({ text: st.readback.length ? ['Read-back of earlier decisions:', ...st.readback.map((x) => `- ${x.text}`)].join('\n') : 'Read-back: no decisions old enough yet.' });
+      }
       return pass();
     }
     case 'propose': {
@@ -328,7 +344,14 @@ async function next(folder, runId, now, deps) {
     delete st.reason; delete st.needs;
     next = r.next;
     // Unattended runs stop after research; end-of-day runs list tasks and record.
-    if (run.unattended && run.stage === 'research') { run.stage = 'closed'; run.closed_at = now.toISOString(); run.note = 'unattended: stopped after research'; break; }
+    // Unattended runs evaluate, then stop before propose and wait for the investor (FR-025).
+    if (run.unattended && run.stage === 'evaluate') {
+      run.stage = 'propose';
+      run.stages.propose.status = 'waiting';
+      gate = { pass: false, reason: 'unattended: waiting for you to review the tasks', needs: run.tasks.map((t) => t.id) };
+      next = [];
+      break;
+    }
     const i = order.indexOf(run.stage);
     run.stage = i + 1 < order.length ? order[i + 1] : 'closed';
     if (run.stage === 'closed') run.closed_at = now.toISOString();
@@ -374,4 +397,4 @@ function done(folder, runId, { task, result, note }, now) {
   return { ok: true, task: t };
 }
 
-module.exports = { STAGES, start, next, load, decide, done, submitResearch, validateFinding, check, brief, runFile };
+module.exports = { STAGES, ruleInput, start, next, load, decide, done, submitResearch, validateFinding, check, brief, runFile };

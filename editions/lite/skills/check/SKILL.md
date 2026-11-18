@@ -38,4 +38,4 @@ Search: US close, Asian session, GIFT Nifty or Nifty, Brent, USD/INR, today's In
 When a tool says "not supported" or errors with no fallback, call `report_gap` (title, attempted, missing, error), never with quantities, prices or P&L. If no issue was filed and a GitHub MCP is connected, file it yourself with label `gap` in `arunendapally/portfolio-copilot` (comment on an open one with the same title).
 
 ## Scheduled run (investor away)
-Make the reads `pc doctor` lists once, then `pc review_start` with `unattended: true`: it never asks for a login, skips what is not live, and stops after research. Then the macro read. Nothing is presented as live unless the engine says live.
+Make the reads `pc doctor` lists once, then `pc review_start` with `unattended: true`: it never asks for a login, skips what is not live, and stops before propose; the next "review" the same day picks it up. Then the macro read. Nothing is presented as live unless the engine says live.

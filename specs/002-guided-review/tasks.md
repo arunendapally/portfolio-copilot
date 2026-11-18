@@ -180,16 +180,16 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 
 **Independent Test**: spec.md US5.
 
-- [ ] T070 [P] [US5] `tests/decisions.test.js`: each rule fires on its fixture and stays silent below threshold; bases named; a rule with a null threshold is reported "not set"; deterministic output for the same inputs; priority order and the cap of five
-- [ ] T071 [P] [US5] `tests/journal.test.js`: decided tasks are appended with measurements; Friday read-back pairs old decisions with current measurements
-- [ ] T072 [US5] Create `core/lib/rules/concentration.js` (single stock, sector with `sector_base` and sector funds, fund house); add the guardrails table to `check` text
-- [ ] T073 [US5] Create `core/lib/rules/drift.js`: bands per bucket from `allocation.bands_pp`; option "close with new money" shows the amount
-- [ ] T074 [US5] Create `core/lib/rules/tripwires.js`: reads `findings.jsonl`, honours `for_quarters` and `on_tripwire`, shows the finding and its source on the card
-- [ ] T075 [US5] Create `core/lib/rules/contributions.js`: plan path from `profile.plan` (monthly amounts, step-up, return), card when the book is behind by more than `behind_tolerance_pct`
-- [ ] T076 [US5] Create `core/lib/journal.js`, the `journal_readback` command and the Friday stage step
-- [ ] T077 [US5] Add the `decisions` command to `core/tools.js`
-- [ ] T078 [US5] Update `skills/get-started/SKILL.md`: collect bands, sector map (including sector funds), classes, tripwires and the plan; "import my notes" shows a diff of what differs from the profile and saves each item only on confirmation
-- [ ] T079 [US5] Loss-tolerance tracker card (decision 2 answered 17-Nov: realised plus open): add `core/lib/rules/loss_tolerance.js` with tests
+- [x] T070 [P] [US5] `tests/decisions.test.js`: each rule fires on its fixture and stays silent below threshold; bases named; a rule with a null threshold is reported "not set"; deterministic output for the same inputs; priority order and the cap of five
+- [x] T071 [P] [US5] `tests/journal.test.js`: decided tasks are appended with measurements; Friday read-back pairs old decisions with current measurements
+- [x] T072 [US5] Create `core/lib/rules/concentration.js` (single stock, sector with `sector_base` and sector funds, fund house); add the guardrails table to `check` text
+- [x] T073 [US5] Create `core/lib/rules/drift.js`: bands per bucket from `allocation.bands_pp`; option "close with new money" shows the amount
+- [x] T074 [US5] Create `core/lib/rules/tripwires.js`: reads `findings.jsonl`, honours `for_quarters` and `on_tripwire`, shows the finding and its source on the card
+- [x] T075 [US5] Create `core/lib/rules/contributions.js`: plan path from `profile.plan` (monthly amounts, step-up, return), card when the book is behind by more than `behind_tolerance_pct`
+- [x] T076 [US5] Create `core/lib/journal.js`, the `journal_readback` command and the Friday stage step
+- [x] T077 [US5] Add the `decisions` command to `core/tools.js`
+- [x] T078 [US5] Update `skills/get-started/SKILL.md`: collect bands, sector map (including sector funds), classes, tripwires and the plan; "import my notes" shows a diff of what differs from the profile and saves each item only on confirmation
+- [x] T079 [US5] Loss-tolerance tracker card (decision 2 answered 17-Nov: realised plus open): `core/lib/rules/loss_tolerance.js` with tests. Open losses only until lots (US8) give realised losses; the card says so
 - [ ] T080 [US4] [US5] Release v0.9.0: version, CHANGELOG, README, build, validate, tests, evals T0 to T2 and T5. Push and upload on the investor's go
 
 ---

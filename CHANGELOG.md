@@ -2,6 +2,19 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
+## [Unreleased]
+
+Decisions due, from your own rules (spec 002, US5).
+
+### Added
+- The review and the new `decisions` command evaluate your saved rules: single stock, sector (with its base, and sector funds when your map lists them) and fund-house limits; drift bands per bucket (closing with new money first, with the amount); tripwires from sourced, dated research findings (for the number of quarters you set; "not found" never triggers); your plan path (the monthly change that closes the gap); and loss tolerance on play trades (realised plus open; realised losses join once your tradebook is loaded). A rule with no saved threshold is listed once as "not set".
+- `journal_readback`, and the Friday review reads back decisions older than `review.readback_after_days` beside what the same rule measures now.
+- `check` shows a guardrails table: largest stock, sector and fund house against their limits with bases, and the closest stop.
+- get-started collects bands, the sector map, classes, tripwires, the plan path and loss tolerance; "import my notes" shows a diff against the profile.
+
+### Changed
+- An unattended review evaluates, then waits before propose; the next "review" the same day picks it up (FR-025).
+
 ## [0.8.0] - 2026-11-17
 
 The guided daily review (spec 002, US2, US3, US6).
