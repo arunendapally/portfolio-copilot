@@ -18,10 +18,11 @@ const MAX_TEXT = 2000;
 const TOOLS = [
   { name: 'portfolio_status', description: 'Per broker: state and data time, an "All connected" line or the manual steps. Pass login { broker, request_token } to finish the daily Kite login.', inputSchema: { type: 'object', properties: { login: { type: 'object', properties: { broker: { type: 'string' }, request_token: { type: 'string' } } } } } },
   { name: 'portfolio_refresh', description: 'Pull every ready broker now, rebuild the snapshot, return the check summary.', inputSchema: { type: 'object', properties: { brokers: { type: 'array', items: { type: 'string' } } } } },
-  { name: 'portfolio_review', description: 'The guided review. action: start (kind full, eod or friday), next, status, decide (task, decision approved | deferred | declined, reason, defer_until YYYY-MM-DD for deferred), done (task, result done | could_not | skipped), research (findings: array, corporate_actions: array, [] when none found). At record, next with record { todoist: synced, dashboard: updated }. Returns text and the next steps only you can do.', inputSchema: { type: 'object', properties: {
+  { name: 'portfolio_review', description: 'The guided review. action: start (kind full, eod or friday; unattended; tools: broker tool names you can see), next, status, decide (task, decision approved | deferred | declined, option, reason, defer_until YYYY-MM-DD for deferred), done (task, result done | could_not | skipped), research (findings: array, corporate_actions: array, [] when none found). At record, next with record { todoist: synced, dashboard: updated }. Returns text and the next steps only you can do.', inputSchema: { type: 'object', properties: {
     action: { type: 'string', enum: ['start', 'next', 'status', 'decide', 'done', 'research'] },
     kind: { type: 'string', enum: ['full', 'eod', 'friday'] }, run: { type: 'string' },
-    task: { type: 'string' }, decision: { type: 'string', enum: ['approved', 'deferred', 'declined'] }, reason: { type: 'string' }, defer_until: { type: 'string' },
+    unattended: { type: 'boolean' }, tools: { type: 'array', items: { type: 'string' } },
+    task: { type: 'string' }, decision: { type: 'string', enum: ['approved', 'deferred', 'declined'] }, option: { type: 'string' }, reason: { type: 'string' }, defer_until: { type: 'string' },
     result: { type: 'string', enum: ['done', 'could_not', 'skipped'] }, note: { type: 'string' },
     findings: { type: 'array', items: { type: 'object' } }, corporate_actions: { type: 'array', items: { type: 'object' } },
     record: { type: 'object', properties: { todoist: { type: 'string', enum: ['synced', 'skipped'] }, dashboard: { type: 'string', enum: ['updated', 'skipped'] } } },
@@ -96,7 +97,10 @@ function makeServer({ folder, deps = {}, ctx = makeContext() } = {}) {
     const tail = fit.length ? `
 Next (do these, then call portfolio_review action next${more ? `; ${more} more after these` : ''}):
 ${JSON.stringify(fit)}` : '';
-    const body = clip(r.text).slice(0, Math.max(300, MAX_TEXT - Buffer.byteLength(tail) - 20));
+    // The run id, so the model can pass `run` on its next call.
+    const id = r.run && typeof r.run === 'object' ? r.run.id : r.run;
+    const head = id && !String(r.text || '').includes(id) ? `Run ${id}. ` : '';
+    const body = clip(head + (r.text || '')).slice(0, Math.max(300, MAX_TEXT - Buffer.byteLength(tail) - 20));
     return { text: clip(body + tail), next: fit, more, stage: r.stage, run: r.run, gate: r.gate };
   }
 

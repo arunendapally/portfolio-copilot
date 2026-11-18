@@ -5,6 +5,7 @@
 // approve on the investor's behalf. Pre-filled answers are blocked by the order gate.
 
 const drafts = require('../core/lib/drafts');
+const approvals = require('../core/lib/approvals');
 const { readStdin, candidateFolders } = require('./lib');
 
 // Codes the investor clicked "Yes, place <code>" for, in a question that names the code and
@@ -27,7 +28,25 @@ function clickedYes(input) {
   return codes;
 }
 
+const DECISIONS = { Approve: 'approved', Defer: 'deferred', Decline: 'declined' };
+
+// The investor's answers to review task questions (header is the task id), as decisions.
+function taskAnswers(input) {
+  if (String(input.tool_name || '') !== 'AskUserQuestion') return [];
+  const res = input.tool_response && typeof input.tool_response === 'object' ? input.tool_response : {};
+  const questions = res.questions || (input.tool_input && input.tool_input.questions) || [];
+  const answers = res.answers || (input.tool_input && input.tool_input.answers) || {};
+  const out = [];
+  for (const q of questions) {
+    if (!approvals.TASK_RE.test(String(q.header || ''))) continue;
+    const decision = DECISIONS[String(answers[q.question] || '')];
+    if (decision) out.push({ task: q.header, decision });
+  }
+  return out;
+}
+
 function run(input, now = new Date()) {
+  for (const a of taskAnswers(input)) approvals.recordAnswer(a.task, a.decision, now);
   const codes = clickedYes(input);
   if (!codes.length) return null;
   const parts = [];
@@ -51,4 +70,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { run, clickedYes };
+module.exports = { run, clickedYes, taskAnswers };

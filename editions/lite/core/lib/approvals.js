@@ -56,4 +56,27 @@ function claim(code, idx) {
 
 const used = (code, idx) => fs.existsSync(marker(code, idx));
 
-module.exports = { record, valid, claim, used, dir };
+// The investor's own answer to a review task question (Approve, Defer, Decline), written by the
+// approval hook and sealed like an approval. review.decide reads it to say how a decision came in.
+const TASK_RE = /^t_[0-9a-f]+$/;
+const answerFile = (task) => path.join(dir(), 'answers', `${task}.json`);
+
+function recordAnswer(task, decision, now = new Date()) {
+  if (!TASK_RE.test(task)) throw new Error(`not a task id: ${task}`);
+  const at = now.toISOString();
+  const rec = { task, decision, at, mac: mac(`task:${task}`, decision, at) };
+  writeJson(answerFile(task), rec, 0o600);
+  return rec;
+}
+
+// The sealed answer for a task, or null when there is none or the seal does not match.
+function answer(task) {
+  if (!TASK_RE.test(String(task))) return null;
+  const rec = readJson(answerFile(task), null);
+  if (!rec || rec.task !== task) return null;
+  const want = mac(`task:${task}`, rec.decision, rec.at);
+  if (!rec.mac || rec.mac.length !== want.length || !crypto.timingSafeEqual(Buffer.from(rec.mac), Buffer.from(want))) return null;
+  return rec;
+}
+
+module.exports = { record, valid, claim, used, dir, recordAnswer, answer, TASK_RE };
