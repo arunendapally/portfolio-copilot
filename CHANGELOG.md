@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
-## [Unreleased]
+## [1.0.0] - 2026-11-18
 
 Keep the gains, decide by your own rules, see the tax, and let a local engine do the reading (spec 002, US4, US5, US7, US8).
 
@@ -23,6 +23,22 @@ Keep the gains, decide by your own rules, see the tax, and let a local engine do
 - An unattended review evaluates, then waits before propose; the next "review" the same day picks it up (FR-025).
 - A GTT plan for named symbols no longer also deletes an unrelated orphan GTT.
 - Constitution 2.0.0: Principle IV allows one read-only local collector per broker, with conditions.
+
+### Security (independent review before release)
+- Approvals and used-row markers are sealed in the per-machine folder; a draft file edited to say "approved" is not an approval.
+- A guard hook blocks file and shell tools from drafts and from the per-machine folder (approvals, key, broker secrets).
+- Bundles accept only paths inside the state folder that match their manifest; drafts travel as drafts, never approved.
+- The order gate compares nested order arguments field by field, denies write-like unknown tools on every broker, and treats IBKR alert, watchlist and screener changes as writes.
+- The IBKR Flex token is sent only to IBKR's own hosts.
+
+### Fixed (review before release)
+- Profit lock: the cost stop rounds up so the lock arms; the high follows closes, not intraday prices.
+- Two tasks for one stock share one draft; a failed verify cannot be waived by asking again.
+- A sell with no current price says tax is not computed; last year's realised gains no longer use this year's exemption.
+- The bundle never sends back a shortened journal; dates use IST throughout.
+- Task ids stay the same when a measurement moves a little, so a deferred task stays deferred.
+- The extra monthly amount for the plan path accounts for the gap growing.
+- Blocked tasks log a gap and come with steps to do by hand; follow-up commands find today's open run of any kind; decisions record whether they came from your click.
 
 ## [0.8.0] - 2026-11-17
 

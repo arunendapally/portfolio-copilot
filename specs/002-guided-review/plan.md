@@ -51,6 +51,18 @@ The existing engine stays. About four fifths of the code is untouched: `drafts.j
 
 Gate result: US1 to US6 may proceed. US7 may not start until the constitution amendment in T082 is merged.
 
+**Release check, v1.0.0 candidate (18-Nov-2026, T101)**, against constitution 2.0.0:
+
+| Principle | Result | Evidence |
+|---|---|---|
+| I. Plugin drafts, user executes | Pass | Order gate by broker and kind; approvals sealed in the per-machine store; state guard on file and shell tools; nested arguments compared; evals T2, T2g, T2u, T5; independent security review fixed before release |
+| II. Numbers come from code | Pass | Rules, effects, lots, technicals and marks in code; research enters only as validated findings with source and date |
+| III. Analysis, not advice | Pass | Tasks come from saved rules; profit lock has no defaults; tax lines say to confirm with an adviser |
+| IV. One chat connection per broker, one optional local reader | Pass | Local collectors read only (GET, plus Kite's session exchange); secrets per machine at 0600; tested |
+| V. State is data | Pass | marks, lots, journal, findings, runs, closes: JSON, schema-versioned |
+| VI. Simple and fast by budget | Pass | Six skills under 60 lines; zero runtime dependencies; local engine replies at most 2 KB |
+| VII. Release only when tests pass | Pass | npm test, strict validate on full and lite, evals; see the PR |
+
 ## Architecture
 
 ### 1. Broker tool map (US1): `core/lib/brokers/toolmap.js`

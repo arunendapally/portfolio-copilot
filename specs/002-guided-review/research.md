@@ -17,6 +17,21 @@ Decisions already taken, and the items the implementing session must verify firs
 
 **To verify (T005)**: how a login is started when `refresh_available` is false. Record the exact response and add it to `LOGIN_RE` or the connect flow.
 
+## R10. Measured: the review with the local engine (T095, T103; 18-Nov-2026)
+
+Eval T5, full edition, fixture book (7 stocks), "review" through the local engine, from start to the Yes click on the first draft (evals/runs/20261118-201641.json):
+
+| Measure | Value |
+|---|---|
+| Portfolio and broker tool results entering the chat | 13,969 bytes in total over 11 engine calls; largest 1,993 bytes (SC-005 limit 2 KB: met) |
+| Model input not served from cache | 22,045 tokens, most of it Claude Code's own system prompt, tool schemas and the skill, which are the same with or without the engine |
+| Model output | 3,168 tokens |
+| Time | 49 s; cost USD 0.32 |
+
+SC-005 ("under 8,000 tokens") read as the review's own content: about 14 KB of engine text, roughly 3,500 tokens at 4 bytes a token, so met. Read as the whole session including Claude Code's fixed overhead, it is not met (22,045 uncached input tokens), and the plugin cannot change that overhead.
+
+Chat-only (SC-004) was not measured with the model: evals deny Bash, which the chat path needs to run the engine. Estimate: the same reads in chat put the raw broker payloads into the conversation. On the fixture that is about 20 KB for 50 holdings and 50 GTTs (146 bytes a holding, 264 a GTT). Live Kite rows carry more fields than the fixture (the generation-2 GTT rows read in chat on 15-Nov-2026 ran to about a kilobyte each), so a real 50-holding book is several times that. The engine removes all of it from the conversation.
+
 ## R9. Local engine server: hand-written stdio JSON-RPC (T084, decided 18-Nov-2026)
 
 The v0.5.0 server (git history, `core/server.js`) was a hand-written newline-delimited JSON-RPC loop, and `evals/fake-kite-mcp.js` is the same pattern in 50 lines. The MCP SDK would be the plugin's first runtime dependency (constitution VI: zero deps) for four tools. Decision: hand-written loop (initialize, tools/list, tools/call, ping), tested end to end in `tests/local-engine.test.js`.

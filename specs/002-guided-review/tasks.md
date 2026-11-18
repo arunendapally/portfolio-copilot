@@ -190,7 +190,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 - [x] T077 [US5] Add the `decisions` command to `core/tools.js`
 - [x] T078 [US5] Update `skills/get-started/SKILL.md`: collect bands, sector map (including sector funds), classes, tripwires and the plan; "import my notes" shows a diff of what differs from the profile and saves each item only on confirmation
 - [x] T079 [US5] Loss-tolerance tracker card (decision 2 answered 17-Nov: realised plus open): `core/lib/rules/loss_tolerance.js` with tests. Open losses only until lots (US8) give realised losses; the card says so
-- [ ] T080 [US4] [US5] Release v0.9.0: version, CHANGELOG, README, build, validate, tests, evals T0 to T2 and T5. Push and upload on the investor's go
+- [x] T080 [US4] [US5] (folded into the single v1.0.0 release PR) Release v0.9.0: version, CHANGELOG, README, build, validate, tests, evals T0 to T2 and T5. Push and upload on the investor's go
 
 ---
 
@@ -214,7 +214,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 - [x] T092 [US7] Create `local/server.js` with the four tools and the `next` filtering in contracts/local-engine.md
 - [x] T093 [US7] `skills/check/SKILL.md`: call `portfolio_status` first; use the local tools when it answers, fall back to v0.8 behaviour on any error
 - [x] T094 [US7] `scripts/build.js` excludes `local/` from the lite edition; README section "Local engine (optional)" with setup steps
-- [ ] T095 [US7] Release v1.0.0 candidate: SC-005 measured with the local engine and recorded in the PR
+- [x] T095 [US7] Release v1.0.0 candidate: SC-005 measured with the local engine and recorded in the PR
 
 ---
 
@@ -223,16 +223,16 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 - [x] T096 [P] [US8] `tests/lots.test.js`: FIFO lots from made-up CSVs; reconciliation mismatch reported; short and long term per lot; remaining exemption; cards without lots say "tax not computed"
 - [x] T097 [US8] Create `core/lib/lots.js` and the `lots_build` command (CSV only; no spreadsheet parsing)
 - [x] T098 [US8] Create `core/lib/rules/tax_budget.js`; add lot, holding period, realised gains and remaining exemption to sell and switch options; every such card says "confirm with your tax adviser"
-- [ ] T099 [US8] Include in the v1.0.0 release, or v1.1.0 if US7 shipped first
+- [x] T099 [US8] Include in the v1.0.0 release, or v1.1.0 if US7 shipped first
 
 ---
 
 ## Phase 11: Polish & Cross-Cutting
 
 - [x] T100 [P] Add a v0.8 to v1.0 addendum to `docs/specs/architecture-review.md` (tool map, run state machine, local engine)
-- [ ] T101 Re-run the Constitution Check table in plan.md at each release and record pass or justified exception
-- [ ] T102 Run [quickstart.md](quickstart.md) end to end on fixtures before each release
-- [ ] T103 Measure and record SC-004 and SC-005 token use on the fixture review with and without the local engine
+- [x] T101 Re-run the Constitution Check table in plan.md at each release and record pass or justified exception
+- [x] T102 Run [quickstart.md](quickstart.md) end to end on fixtures before each release (18-Nov-2026: npm test, strict validate, the manual gate checks with the hook runner, doctor, evals T0 to T5)
+- [x] T103 Measure and record SC-004 and SC-005 token use on the fixture review with and without the local engine
 
 ---
 
