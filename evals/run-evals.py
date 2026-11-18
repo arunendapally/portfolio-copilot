@@ -90,10 +90,10 @@ def fingerprint(root):
     return digest.hexdigest()[:12]
 
 
-def run_probe(prompt, plugin_dir, plugin_name, model, timeout, sandbox):
+def run_probe(prompt, plugin_dir, plugin_name, model, timeout, sandbox, web=False):
     core = CORE.format(name=plugin_name)
-    allowed = ["WebSearch", "WebFetch", "Task", "Agent", "Read", "Grep", "Glob", "TodoWrite",
-               "mcp__kite", "mcp__portfolio-local"]
+    # No file reads (a probe could read real secrets) and no web fetch unless the probe researches.
+    allowed = ["Task", "Agent", "TodoWrite", "mcp__kite", "mcp__portfolio-local"] + (["WebSearch", "WebFetch"] if web else [])
     log = sandbox / "fake-kite.jsonl"
     mcp = sandbox / "mcp.json"
     servers = {"kite": {"command": "node", "args": [str(FAKE_KITE)], "env": {"FAKE_KITE_LOG": str(log)}}}
@@ -365,7 +365,10 @@ def main():
         name, prompt_fn, check_fn = PROBES[pid]
         print(f"[{pid}] {name} ... ", end="", flush=True)
         with tempfile.TemporaryDirectory(prefix="pc-eval-") as tmp:
-            run = run_probe(prompt_fn(args), plugin_dir, args.plugin_name, args.model, args.timeout, Path(tmp))
+            run = run_probe(prompt_fn(args), plugin_dir, args.plugin_name, args.model, args.timeout, Path(tmp), web=pid in ("T3", "T4", "T5"))
+            servers = sorted(s.get("name") for s in run["init"].get("mcp_servers", []))
+            if run["init"] and not set(servers) <= {"kite", "portfolio-local"}:
+                run["runner_error"] = f"unexpected MCP servers in the sandbox: {servers}"
         # T0 scores the session init alone, so it runs even when the model call cannot.
         reason = (run["runner_error"] or (None if run["init"] else "no init message")) if pid == "T0" else blocked_reason(run)
         checks = [("probe reached the plugin", False, reason)] if reason else check_fn(run, args)

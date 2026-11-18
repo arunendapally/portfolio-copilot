@@ -599,16 +599,16 @@
    "generation": 1,
    "tool": "create_alert",
    "mode": null,
-   "kind": "read",
-   "cap": "other"
+   "kind": "unknown",
+   "cap": null
   },
   {
    "broker": "ibkr",
    "generation": 1,
    "tool": "delete_watchlist",
    "mode": null,
-   "kind": "read",
-   "cap": "other"
+   "kind": "unknown",
+   "cap": null
   },
   {
    "broker": "ibkr",

@@ -19,6 +19,12 @@ const IGNORE = new Set(['last_price', 'tag', '_app_request_id', 'approval_method
 function same(a, b) {
   if (a === undefined || a === null || a === '') return b === undefined || b === null || b === '';
   if (b === undefined || b === null || b === '') return false;
+  // Nested objects and lists are compared field by field (an order inside an instruction).
+  if (typeof a === 'object' || typeof b === 'object') {
+    if (typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
+    if (Array.isArray(a)) return a.length === b.length && a.every((x, i) => same(x, b[i]));
+    return sameArgs(a, b);
+  }
   const na = Number(a);
   const nb = Number(b);
   if (typeof a !== 'object' && typeof b !== 'object' && Number.isFinite(na) && Number.isFinite(nb)) return Math.abs(na - nb) <= EPS;
@@ -49,7 +55,8 @@ function decide(input, folders, now = new Date(), opts = {}) {
   if (!r.broker) return { allow: true };
   if (r.kind === 'unknown') {
     const what = `${r.tool}${r.mode ? ` mode ${r.mode}` : ''}`;
-    if (r.order_capable || r.looks_write) {
+    // A write-like name is denied on every broker, read-only ones too: a new tool could be an order.
+    if (r.order_capable || r.looks_write || /^(place|modify|cancel|delete|create|update|edit|add|remove|set|submit|execute|convert|exit)_/i.test(r.tool) || /^(place|modify|cancel|delete|create|update)$/i.test(r.mode || '')) {
       return { allow: false, reason: `Blocked ${tool}: portfolio-copilot does not know this ${r.broker} tool (${what}), so it cannot tell a read from an order. Nothing was sent. Run the doctor command for the calls to use now.` };
     }
     try { gap.queuePending({ title: `Unknown ${r.broker} tool: ${what}`, attempted: tool, missing: 'tool map entry' }, now); } catch { /* the queue is best effort */ }

@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { stateDir, readJson, writeJson } = require('./state');
+const approvals = require('./approvals');
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_RE = /^D[A-HJ-NP-Z2-9]{4}$/;
@@ -52,10 +53,13 @@ function create(folder, kind, rows, extra = {}) {
 // Called by the hook after the investor clicked "Yes, place <code>". Null when no open draft.
 function approve(folder, code, now = new Date(), via = 'inline question') {
   const d = load(folder, code);
-  if (!d || d.status !== 'draft') return null;
+  // The file's status is not trusted either way: a draft already approved for these rows is not approved twice.
+  if (!d || approvals.valid(code, hashRows(d.rows))) return null;
+  // The sealed record is the approval; the status in the draft file is only for display.
+  const rec = approvals.record(code, hashRows(d.rows), now, via);
   d.status = 'approved';
-  d.approved_at = now.toISOString();
-  d.approved_hash = hashRows(d.rows);
+  d.approved_at = rec.at;
+  d.approved_hash = rec.hash;
   d.approved_via = via;
   save(folder, d);
   return { code, rows: d.rows.length };
@@ -64,27 +68,21 @@ function approve(folder, code, now = new Date(), via = 'inline question') {
 // Each row of an approved draft may be used for exactly one broker call. The marker file is
 // created exclusively, so two parallel calls cannot both claim the same row.
 function claimRow(folder, code, idx) {
-  try {
-    fs.mkdirSync(draftsDir(folder), { recursive: true });
-    fs.closeSync(fs.openSync(path.join(draftsDir(folder), `${code}.row${idx}.used`), 'wx'));
-    return true;
-  } catch (e) {
-    if (e.code === 'EEXIST') return false;
-    throw e;
-  }
+  return approvals.claim(code, idx);
 }
 
 function rowUsed(folder, code, idx) {
-  return fs.existsSync(path.join(draftsDir(folder), `${code}.row${idx}.used`));
+  return approvals.used(code, idx);
 }
 
 function verify(folder, code, now = new Date()) {
   const d = load(folder, code);
   if (!d) return { ok: false, reason: `no draft ${code}` };
-  if (d.status !== 'approved') return { ok: false, reason: `draft ${code} is ${d.status}, not approved by you` };
-  if (now - new Date(d.approved_at) > TTL_MS) return { ok: false, reason: `approval of ${code} is older than 24 h` };
-  if (hashRows(d.rows) !== d.approved_hash) return { ok: false, reason: `draft ${code} changed after approval` };
-  return { ok: true, draft: d };
+  // Only a sealed record for exactly these rows counts; a file edited to say "approved" does not.
+  const rec = approvals.valid(code, hashRows(d.rows));
+  if (!rec) return { ok: false, reason: `draft ${code} has no approval of yours for these exact rows` };
+  if (now - new Date(rec.at) > TTL_MS) return { ok: false, reason: `approval of ${code} is older than 24 h` };
+  return { ok: true, draft: { ...d, status: 'approved', approved_at: rec.at, approved_hash: rec.hash } };
 }
 
 function approvedDrafts(folder, now = new Date()) {

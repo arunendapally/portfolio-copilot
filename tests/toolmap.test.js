@@ -130,3 +130,12 @@ test('doctor and report_gap --flush run through the engine', async () => {
   assert.strictEqual(f.flushed, 1, f.text);
   assert.strictEqual((await callTool('report_gap', { folder, flush: true }, ctx)).flushed, 0);
 });
+
+test('doctor warns about order-like tools on a server the plugin does not recognise (security review)', async () => {
+  const { tmpEnv, writeProfile } = require('./helpers');
+  const { callTool } = require('../core/tools');
+  const { folder } = tmpEnv();
+  writeProfile(folder, { schema_version: 2 });
+  const r = await callTool('doctor', { folder, tools: ['mcp__kite__gtt', 'mcp__trading__place_order'] }, { edition: 'full', now: () => new Date('2026-11-18T05:00:00Z') });
+  assert.match(r.text, /mcp__trading__place_order look like broker order tools/);
+});

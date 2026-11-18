@@ -36,7 +36,7 @@ test('with no approved draft, every write under every prefix is denied', () => {
 
 test('reads and session calls pass without a draft', () => {
   const { folder } = tmpEnv();
-  for (const row of T.tools.filter((r) => r.kind !== 'write')) {
+  for (const row of T.tools.filter((r) => r.kind !== 'write' && r.kind !== 'unknown')) {
     const d = gate.decide({ tool_name: T.prefixes[row.broker][0] + row.tool, tool_input: input(row) }, [folder], NOW);
     assert.strictEqual(d.allow, true, `${row.tool} ${row.mode || ''}`);
   }
@@ -128,4 +128,53 @@ test('a review task question sent with its answer filled in is denied (T057)', (
   assert.strictEqual(ask({ questions: [q], answers: { [q.question]: 'Approve' } }), false);
   assert.strictEqual(ask({ questions: [q] }), true, 'asking is fine');
   assert.strictEqual(ask({ questions: [{ ...q, header: 'Broker' }], answers: { [q.question]: 'Approve' } }), true, 'other questions are not task decisions');
+});
+
+test('IBKR alert and watchlist changes are not reads: denied without a draft (security review)', () => {
+  const { folder } = tmpEnv();
+  for (const t of ['create_alert', 'delete_watchlist', 'modify_price_alert', 'add_to_watchlist', 'create_saved_screener']) {
+    assert.strictEqual(gate.decide({ tool_name: 'mcp__claude_ai_Interactive_Brokers_IBKR__' + t, tool_input: {} }, [folder], NOW).allow, false, t);
+  }
+  assert.strictEqual(gate.decide({ tool_name: 'mcp__claude_ai_Interactive_Brokers_IBKR__get_alerts', tool_input: {} }, [folder], NOW).allow, true);
+});
+
+test('nested order arguments are compared field by field (security review)', () => {
+  const { folder } = tmpEnv();
+  approved(folder, [{ tool: 'create_order_instruction', args: { order: { side: 'SELL', qty: 1 } } }]);
+  const call = (args) => gate.decide({ tool_name: 'mcp__claude_ai_Interactive_Brokers_IBKR__create_order_instruction', tool_input: args }, [folder], NOW).allow;
+  assert.strictEqual(call({ order: { side: 'BUY', qty: 1000 } }), false);
+  assert.strictEqual(call({ order: { side: 'SELL', qty: 1 } }), true);
+});
+
+test('an unknown write-like tool is denied even on a read-only broker', () => {
+  const { folder } = tmpEnv();
+  assert.strictEqual(gate.decide({ tool_name: 'mcp__kotak__place_gtt', tool_input: {} }, [folder], NOW).allow, false);
+});
+
+test('a draft file edited to say approved is not an approval; deleting a used marker in the folder changes nothing', () => {
+  const { folder } = tmpEnv();
+  const d = drafts.create(folder, 'gtt_plan', [{ step: 1, tool: 'gtt', args: PLACE }]);
+  const file = path.join(folder, 'portfolio-copilot', 'drafts', d.code + '.json');
+  fs.writeFileSync(file, JSON.stringify({ ...d, status: 'approved', approved_at: NOW.toISOString(), approved_hash: drafts.hashRows(d.rows) }));
+  assert.strictEqual(gate.decide({ tool_name: 'mcp__kite__gtt', tool_input: PLACE }, [folder], NOW).allow, false, 'forged approval passed');
+  drafts.approve(folder, d.code, NOW);
+  assert.strictEqual(gate.decide({ tool_name: 'mcp__kite__gtt', tool_input: PLACE }, [folder], NOW).allow, true);
+  assert.strictEqual(gate.decide({ tool_name: 'mcp__kite__gtt', tool_input: PLACE }, [folder], NOW).allow, false, 'a row runs once');
+  for (const f of fs.readdirSync(path.join(folder, 'portfolio-copilot', 'drafts'))) if (f.endsWith('.used')) fs.unlinkSync(path.join(folder, 'portfolio-copilot', 'drafts', f));
+  assert.strictEqual(gate.decide({ tool_name: 'mcp__kite__gtt', tool_input: PLACE }, [folder], NOW).allow, false, 'markers are not in the folder');
+});
+
+test('the state guard denies hand edits to drafts and any touch of the per-machine folder', () => {
+  const guard = require('../hooks/state-guard');
+  const no = (tool_name, tool_input) => assert.strictEqual(guard.decide({ tool_name, tool_input }).allow, false, JSON.stringify(tool_input));
+  const ok = (tool_name, tool_input) => assert.strictEqual(guard.decide({ tool_name, tool_input }).allow, true, JSON.stringify(tool_input));
+  no('Write', { file_path: 'C:\\work\\portfolio-copilot\\drafts\\DABCD.json' });
+  no('Edit', { file_path: '/home/me/inv/portfolio-copilot/drafts/DABCD.json' });
+  no('Bash', { command: 'rm ~/inv/portfolio-copilot/drafts/DABCD.row0.used' });
+  no('Read', { file_path: '/home/me/.portfolio-copilot/approval.key' });
+  no('Bash', { command: 'cat ~/.portfolio-copilot/secrets/kite.json' });
+  no('Write', { file_path: 'C:/Users/me/.portfolio-copilot/approvals/DABCD.json' });
+  ok('Read', { file_path: '/home/me/inv/portfolio-copilot/drafts/DABCD.json' });
+  ok('Bash', { command: 'node core/bin/pc.js draft_gtt_plan --folder /home/me/inv' });
+  ok('Write', { file_path: '/home/me/inv/notes.md' });
 });

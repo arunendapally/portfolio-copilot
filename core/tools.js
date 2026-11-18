@@ -450,6 +450,9 @@ async function doctor(args, ctx) {
   const L = [`**Broker tools** · ${istStamp(ctx.now())}`, table(['Broker', 'Tools gen', 'Can read', 'Can write', 'Missing', 'Unknown to the plugin'], rows)];
   for (const b of d) L.push(`${b.mcp} reads: ${b.calls.filter((c) => c.required).map((c) => c.text).join(' · ')}${b.calls.some((c) => !c.required) ? ` (optional: ${b.calls.filter((c) => !c.required).map((c) => c.text).join(' · ')})` : ''}`);
   if (d.some((b) => b.unknown.length)) L.push('Unknown tools on Kite or IBKR are blocked by the order gate until the plugin knows them; report_gap with the names.');
+  // A broker MCP added under a name the plugin does not recognise is outside the order gate.
+  const stray = tools.filter((n) => !toolmap.resolve(n, {}).broker && /^mcp__/.test(n) && /(order|gtt|trade|basket)/i.test(n.split('__').pop()));
+  if (stray.length) L.push(`Warning: ${stray.slice(0, 5).join(', ')} look like broker order tools on a server the plugin does not recognise, so the order gate does not cover them. Rename that connector to include the broker's name (kite, kotak, ibkr), or remove it.`);
   if (d.some((b) => b.read_path === false)) L.push('A broker that cannot read is not connected in this chat, or its tools changed: reconnect it, or report_gap with this table.');
   return { ok: true, brokers: d, text: L.join('\n') };
 }

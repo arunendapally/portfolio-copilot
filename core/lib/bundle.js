@@ -34,9 +34,8 @@ function collect(folder, today) {
     let d = null;
     try { d = JSON.parse(readText(root, rel('drafts', f))); } catch { continue; }
     if (!d || !['draft', 'approved'].includes(d.status)) continue;
-    add(rel('drafts', f));
-    const code = f.slice(0, -5);
-    for (const m of list(root, rel('drafts'))) if (m.startsWith(`${code}.row`) && m.endsWith('.used')) add(rel('drafts', m));
+    // A draft travels as a draft: approval stays with the machine where the investor clicked.
+    add(rel('drafts', f), (t) => { try { const x = JSON.parse(t); return JSON.stringify({ ...x, status: 'draft', approved_at: undefined, approved_hash: undefined, approved_via: undefined }, null, 2); } catch { return t; } });
   }
   for (const f of list(root, rel('runs'))) if (today && f.startsWith(today)) add(rel('runs', f));
   add(rel('marks.json'));
@@ -56,9 +55,20 @@ function exportBundle(folder, out, now, source = 'pc') {
   return { path: path.resolve(out), bytes: Buffer.byteLength(text), files: Object.keys(files) };
 }
 
+// portfolio-copilot/<name> or portfolio-copilot/<dir>/<name>, plain names only.
+function safePath(p) {
+  return typeof p === 'string' && /^portfolio-copilot\/(?:[A-Za-z0-9_.-]+\/)?[A-Za-z0-9_.-]+$/.test(p) && !p.split('/').some((x) => x === '..' || x === '.');
+}
+
 function load(bundlePath) {
   const b = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
   if (b.schema_version !== SCHEMA || !b.files || !b.manifest) throw new Error(`${bundlePath} is not a state bundle (schema ${SCHEMA})`);
+  // Every file must sit inside the state folder and match the manifest made at export.
+  for (const [p, t] of Object.entries(b.files)) {
+    if (!safePath(p)) throw new Error(`bundle path refused: ${p}`);
+    if (b.manifest[p] !== sha(t)) throw new Error(`bundle file does not match its manifest: ${p}`);
+    if (/\.used$/.test(p)) throw new Error(`bundle path refused: ${p}`);
+  }
   return b;
 }
 
@@ -89,6 +99,7 @@ function importBundle(bundlePath, into, force = false) {
 function writeback(bundlePath, folder, sourceHashes = {}, now = new Date()) {
   const b = load(bundlePath);
   const current = collect(folder, now.toISOString().slice(0, 10));
+  for (const p of Object.keys(current)) if (!safePath(p)) delete current[p];
   const files = [];
   const conflicts = [];
   for (const [p, t] of Object.entries(current)) {
@@ -101,4 +112,4 @@ function writeback(bundlePath, folder, sourceHashes = {}, now = new Date()) {
   return { files, conflicts };
 }
 
-module.exports = { exportBundle, importBundle, writeback, collect, sha };
+module.exports = { exportBundle, importBundle, writeback, collect, sha, safePath };

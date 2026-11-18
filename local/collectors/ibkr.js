@@ -43,6 +43,8 @@ module.exports = function ibkr({ fetch: fetchImpl = globalThis.fetch, now = () =
     if (st.state !== 'ready') return { written: [], partial: [], errors: [st.detail], state: st.state };
     const s = secrets();
     const host = s.host || HOST;
+    // The token goes only to IBKR's own hosts, whatever the secrets file says.
+    if (!/^https:\/\/[a-z0-9.-]+\.interactivebrokers\.com\//i.test(host)) return { written: [], partial: [], errors: [`refused host ${host}: the Flex token is sent only to interactivebrokers.com`], state: 'error' };
     const send = await c.get(fetchImpl, `${host}/SendRequest?t=${encodeURIComponent(s.token)}&q=${encodeURIComponent(s.query_id)}&v=3`, { 'User-Agent': 'portfolio-copilot' });
     const ref = field(send.text, 'ReferenceCode');
     if (!ref) return { written: [], partial: [], errors: [`Flex request refused: ${field(send.text, 'ErrorMessage') || field(send.text, 'ErrorCode') || send.status}`], state: 'error' };

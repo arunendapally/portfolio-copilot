@@ -17,8 +17,7 @@ const session = require('../core/lib/session');
 const needsFile = () => path.join(configDir(), 'local-needs.json');
 
 function recordNeeds(needs) {
-  fs.mkdirSync(path.dirname(needsFile()), { recursive: true });
-  fs.writeFileSync(needsFile(), JSON.stringify(needs, null, 2));
+  require('../core/lib/state').writeJson(needsFile(), needs, 0o600);
 }
 
 function readNeeds() {

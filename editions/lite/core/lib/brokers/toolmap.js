@@ -140,8 +140,10 @@ function brokerOf(server, tool, bare) {
 // IBKR exposes many research tools; read-only by shape, with anything order-like unknown.
 function ibkrPattern(tool) {
   if (ORDERISH.test(tool)) return null;
+  // Anything that creates, changes or removes (alerts, watchlists, screeners) is not a read.
+  if (/^(create|modify|update|edit|delete|add|remove|set|cancel|place|submit)_/.test(tool)) return null;
   if (/^(get_|search_|list_|preview_|run_)|^whats_new$/.test(tool)) return { kind: 'read', cap: 'market' };
-  if (/alert|watchlist|screener|feedback/.test(tool)) return { kind: 'read', cap: 'other' };
+  if (/^provide_customer_feedback$/.test(tool)) return { kind: 'read', cap: 'other' };
   return null;
 }
 

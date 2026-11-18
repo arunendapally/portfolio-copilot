@@ -4,9 +4,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: se
 
 ## [Unreleased]
 
-Decisions due, from your own rules (spec 002, US5).
+Keep the gains, decide by your own rules, see the tax, and let a local engine do the reading (spec 002, US4, US5, US7, US8).
 
 ### Added
+- Profit lock (off until you save every value; no defaults): past your arm threshold a task raises the stop to cost, past your booking threshold a task sells your share with where the proceeds go, and after that the stop follows the highest close. Stops only move up; funds are never in scope; locked names are exempt from the minimum stop distance and shown in their own crash-test column. A buy back inside your cooling-off is flagged. `profit_lock_dryrun` shows what would happen today at any values; `core/bin/backtest-profit-lock.js` replays your own tradebook to help you choose them.
+- Tax on every sell: `lots_build` reads your tradebook and fund statement (CSV), builds lots first-in first-out and reconciles them to what you hold. Every sell option then shows the lots it uses, short or long term for each, the gains, how much of your yearly long-term exemption it uses and what is left, and the tax at the rates you saved with their date, always with "confirm with your tax adviser". Near the year end a task shows unused exemption beside long-term gains held.
+- Every task option shows its effect on allocation (bucket before and after, with target) and its tax.
+- The review closes only when the log, journal, bundle, Todoist and your dashboard are updated; it says which, if you chose to skip one. `export --format dashboard` writes the dashboard files.
+- Local engine (optional, full edition): a read-only process on your computer reads Kite (free Personal plan of Kite Connect, one login a day) and IBKR (Flex Web Service), and serves four summary tools to Claude, so a review spends tokens only on research and wording. Kotak stays in chat. It never places, changes or deletes anything. See README "Local engine".
+- Technicals (50 and 200-day averages, RSI 14, 20-day low, 52-week high) from the engine's own daily closes, once there are enough of them, dated.
+- Eval T5: a review through the local engine on fixture data.
 - The review and the new `decisions` command evaluate your saved rules: single stock, sector (with its base, and sector funds when your map lists them) and fund-house limits; drift bands per bucket (closing with new money first, with the amount); tripwires from sourced, dated research findings (for the number of quarters you set; "not found" never triggers); your plan path (the monthly change that closes the gap); and loss tolerance on play trades (realised plus open; realised losses join once your tradebook is loaded). A rule with no saved threshold is listed once as "not set".
 - `journal_readback`, and the Friday review reads back decisions older than `review.readback_after_days` beside what the same rule measures now.
 - `check` shows a guardrails table: largest stock, sector and fund house against their limits with bases, and the closest stop.
@@ -14,6 +21,8 @@ Decisions due, from your own rules (spec 002, US5).
 
 ### Changed
 - An unattended review evaluates, then waits before propose; the next "review" the same day picks it up (FR-025).
+- A GTT plan for named symbols no longer also deletes an unrelated orphan GTT.
+- Constitution 2.0.0: Principle IV allows one read-only local collector per broker, with conditions.
 
 ## [0.8.0] - 2026-11-17
 

@@ -32,13 +32,29 @@ test('export then import restores the same files, with the last two snapshots an
   const e = await callTool('state_export', { folder, out }, ctx());
   assert.ok(e.ok, e.text);
   assert.deepStrictEqual(e.files.sort(), [
-    'portfolio-copilot/drafts/DAAAA.json', 'portfolio-copilot/drafts/DAAAA.row0.used', 'portfolio-copilot/log.md',
+    'portfolio-copilot/drafts/DAAAA.json', 'portfolio-copilot/log.md',
     'portfolio-copilot/profile.json', 'portfolio-copilot/snapshots/2026-11-14.json', 'portfolio-copilot/snapshots/2026-11-15.json',
   ]);
   const into = path.join(root, 'scratch');
   const i = await callTool('state_import', { bundle: out, into }, ctx());
   assert.ok(i.ok, i.text);
-  for (const p of e.files) assert.strictEqual(fs.readFileSync(path.join(into, p), 'utf8'), fs.readFileSync(path.join(folder, p), 'utf8'), p);
+  for (const p of e.files.filter((x) => !x.includes('/drafts/'))) assert.strictEqual(fs.readFileSync(path.join(into, p), 'utf8'), fs.readFileSync(path.join(folder, p), 'utf8'), p);
+  // A draft travels as a draft: approvals and used rows stay on the machine where you clicked.
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(into, 'portfolio-copilot/drafts/DAAAA.json'), 'utf8')).status, 'draft');
+});
+
+test('a bundle path outside the state folder, or a file that does not match its manifest, is refused (security review)', () => {
+  const { root, folder } = tmpEnv();
+  seed(folder);
+  const out = path.join(root, 'b.json');
+  bundle.exportBundle(folder, out, new Date('2026-11-16T05:00:00Z'));
+  const b = JSON.parse(fs.readFileSync(out, 'utf8'));
+  const escape = '../../outside.txt';
+  fs.writeFileSync(out, JSON.stringify({ ...b, files: { ...b.files, [escape]: 'x' }, manifest: { ...b.manifest, [escape]: bundle.sha('x') } }));
+  assert.throws(() => bundle.importBundle(out, path.join(root, 'x')), /path refused/);
+  fs.writeFileSync(out, JSON.stringify({ ...b, files: { ...b.files, 'portfolio-copilot/profile.json': '{"x":1}' } }));
+  assert.throws(() => bundle.importBundle(out, path.join(root, 'y')), /does not match its manifest/);
+  assert.ok(!fs.existsSync(path.join(root, 'outside.txt')));
 });
 
 test('a 100-holding bundle is under 150 KB', () => {
@@ -90,6 +106,6 @@ test('import refuses to overwrite newer copies unless forced', async () => {
   fs.appendFileSync(state(folder, 'log.md'), 'newer\n');
   const r = await callTool('state_import', { bundle: out, into: folder }, ctx());
   assert.strictEqual(r.ok, false);
-  assert.deepStrictEqual(r.newer, ['portfolio-copilot/log.md']);
+  assert.ok(r.newer.includes('portfolio-copilot/log.md'));
   assert.ok((await callTool('state_import', { bundle: out, into: folder, force: true }, ctx())).ok);
 });
