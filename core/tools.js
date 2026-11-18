@@ -28,6 +28,7 @@ const concentration = require('./lib/rules/concentration');
 const marksLib = require('./lib/marks');
 const profitLock = require('./lib/rules/profit_lock');
 const exportLib = require('./lib/export');
+const lotsLib = require('./lib/lots');
 const path = require('path');
 const session = require('./lib/session');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
@@ -561,6 +562,24 @@ async function profitLockDryrun(args, ctx) {
   return { ok: true, rows, text: L.join('\n') };
 }
 
+// Lots from imported statements (US8): FIFO, reconciled to what is held now.
+async function lotsBuild(args, ctx) {
+  if (!args.tradebook_csv && !args.mf_statement_csv) return { ok: false, error: 'a statement is required', text: 'Pass tradebook_csv and/or mf_statement_csv (CSV files exported from your broker or registrar).' };
+  for (const p of [args.tradebook_csv, args.mf_statement_csv].filter(Boolean)) if (!/\.csv$/i.test(p) || !fs.existsSync(p)) return { ok: false, error: `not a CSV file: ${p}`, text: `${p} is not a CSV file I can read. Export the statement as CSV.` };
+  const { profile } = profiles.load(args.folder);
+  const snap = state.latestSnapshot(args.folder);
+  const held = {};
+  for (const b of Object.values((snap && snap.brokers) || {})) for (const h of b.holdings || []) for (const k of [h.symbol, h.isin].filter(Boolean)) held[String(k).toUpperCase()] = (held[String(k).toUpperCase()] || 0) + h.qty;
+  const lots = lotsLib.build({ tradebook: args.tradebook_csv, mfStatement: args.mf_statement_csv, held, now: ctx.now(), fyStartMonth: profile.tax.fy_start_month || 4 });
+  lotsLib.save(args.folder, lots);
+  const off = Object.entries(lots.symbols).filter(([, s]) => s.held_qty !== null && !s.reconciled);
+  const L = [`**Lots built** from ${lots.sources.join(', ')} · ${Object.keys(lots.symbols).length} symbols · realised in ${lots.realised.fy}: short-term ${inr(lots.realised.stcg_inr)}, long-term ${inr(lots.realised.ltcg_inr)}`];
+  L.push(off.length ? `Does not match what you hold: ${off.map(([sym, s]) => `${sym} (lots ${s.lots_qty}, held ${s.held_qty})`).join(', ')}. Tax on those uses the lots as imported.` : 'Every imported holding reconciles to what you hold.');
+  if (lots.problems.length) L.push(`Problems: ${lots.problems.join('; ')}`);
+  L.push(lotsLib.ratesSet(profile.tax) ? `Rates as of ${profile.tax.as_of}; ${lotsLib.ADVISER}.` : 'Save your tax rates and exemption (tax.*, with as_of) to see the tax on each sell.');
+  return { ok: true, symbols: Object.keys(lots.symbols).length, unreconciled: off.map(([s]) => s), realised: lots.realised, text: L.join('\n') };
+}
+
 // Dashboard files (T083): positions and cash in the dashboard's shape; missing technicals are null.
 async function exportCmd(args, ctx) {
   if ((args.format || 'dashboard') !== 'dashboard') return { ok: false, error: 'format: dashboard', text: 'Only format dashboard is supported.' };
@@ -690,6 +709,7 @@ const TOOLS = [
   { name: 'task_decide', handler: taskDecide, description: "Record the investor's answer to a task question (Approve, Defer, Decline). Approving authorises a draft, never an order.", props: { run: { type: 'string' }, task: { type: 'string' }, decision: { type: 'string', enum: ['approved', 'deferred', 'declined'] }, reason: { type: 'string' }, defer_until: { type: 'string' }, option: { type: 'string' } }, required: ['task', 'decision'] },
   { name: 'task_done', handler: taskDone, description: 'After the investor says done on a task they carry out themselves. result: done, could_not or skipped. A fresh read still verifies it.', props: { run: { type: 'string' }, task: { type: 'string' }, result: { type: 'string', enum: ['done', 'could_not', 'skipped'] }, note: { type: 'string' } }, required: ['task', 'result'] },
   { name: 'research_submit', handler: researchSubmit, description: 'Submit research findings for the review brief: symbol, metric, value, period, source_url, source_quote, accessed, status (found, not_found, blocked_source). Pass corporate_actions (an array, empty when none) once checked.', props: { run: { type: 'string' }, findings: { type: 'array', items: { type: 'object' } }, corporate_actions: { type: 'array', items: { type: 'object' } } } },
+  { name: 'lots_build', handler: lotsBuild, description: "Build tax lots first-in first-out from the investor's tradebook and fund statement (CSV only) and reconcile them to what is held. Sell options then show lots, holding periods, gains and the exemption left.", props: { tradebook_csv: { type: 'string' }, mf_statement_csv: { type: 'string' } } },
   { name: 'export', handler: exportCmd, description: 'Write the dashboard files (positions-<date>.json, cash-<date>.json) from the latest snapshot. format: dashboard; out: a folder (default the state folder).', props: { format: { type: 'string', enum: ['dashboard'] }, out: { type: 'string' } } },
   { name: 'profit_lock_dryrun', handler: profitLockDryrun, description: 'What the profit lock would arm, book or trail today at the thresholds given (arm_gain_pct, book_gain_pct, trail_pct; scope play or all_stocks). Saves nothing.', props: { arm_gain_pct: { type: 'number' }, book_gain_pct: { type: 'number' }, trail_pct: { type: 'number' }, scope: { type: 'string', enum: ['play', 'all_stocks'] } }, required: ['arm_gain_pct', 'book_gain_pct', 'trail_pct'] },
   { name: 'decisions', handler: decisionsCmd, description: "What is due under the investor's own rules (GTT gaps, tripwires, limits, drift, plan path, loss tolerance), outside a review. Saves nothing.", props: {} },

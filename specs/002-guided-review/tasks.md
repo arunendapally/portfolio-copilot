@@ -220,9 +220,9 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 
 ## Phase 10: User Story 8 - Tax in view on every sell (P3)
 
-- [ ] T096 [P] [US8] `tests/lots.test.js`: FIFO lots from made-up CSVs; reconciliation mismatch reported; short and long term per lot; remaining exemption; cards without lots say "tax not computed"
-- [ ] T097 [US8] Create `core/lib/lots.js` and the `lots_build` command (CSV only; no spreadsheet parsing)
-- [ ] T098 [US8] Create `core/lib/rules/tax_budget.js`; add lot, holding period, realised gains and remaining exemption to sell and switch options; every such card says "confirm with your tax adviser"
+- [x] T096 [P] [US8] `tests/lots.test.js`: FIFO lots from made-up CSVs; reconciliation mismatch reported; short and long term per lot; remaining exemption; cards without lots say "tax not computed"
+- [x] T097 [US8] Create `core/lib/lots.js` and the `lots_build` command (CSV only; no spreadsheet parsing)
+- [x] T098 [US8] Create `core/lib/rules/tax_budget.js`; add lot, holding period, realised gains and remaining exemption to sell and switch options; every such card says "confirm with your tax adviser"
 - [ ] T099 [US8] Include in the v1.0.0 release, or v1.1.0 if US7 shipped first
 
 ---

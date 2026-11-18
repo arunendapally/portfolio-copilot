@@ -13,6 +13,7 @@ const RULES = [
   require('./rules/drift'),
   require('./rules/contributions'),
   require('./rules/loss_tolerance'),
+  require('./rules/tax_budget'),
 ];
 
 function notSet(profile) {

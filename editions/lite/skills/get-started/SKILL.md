@@ -18,7 +18,8 @@ Plain language; explain each term (GTT, XIRR, SIP) once in a short parenthesis.
    - core or play per holding where the default (funds core, stocks play) is wrong (`classes.<SYMBOL>`);
    - tripwires per stock, inside its verdict: `tripwires` (metric, below or above, for how many quarters) and `on_tripwire` (exit, reduce or review), and `next_results` (date);
    - the plan path (`plan`: start date and book value, monthly amounts, yearly step-up, expected return, how far behind is too far) and the loss tolerance on play trades (`loss_tolerance`: amount, from date, measured on realised plus open losses);
-   - your own log file, if you keep one (`log.path`: a file name in this folder).
+   - your own log file, if you keep one (`log.path`: a file name in this folder);
+   - for the tax on each sell: your tax rates and yearly long-term exemption with the date you checked them (`tax.*`, `tax.as_of`), then your broker tradebook and fund statement as CSV files, loaded with `lots_build`. Say plainly that tax figures are estimates to confirm with their tax adviser.
 7. Existing notes ("import my notes"): read their files, extract rules only (thresholds, GTT policy, buffer location, allocation targets and bands, sector map, tripwires, staged plan, plan path, verdicts with reasons). Run `profile_get`, then show a diff: each rule that is new or differs from the profile, with the old and new value. Save each item only after the investor confirms it. Never import snapshot numbers (quantities, prices, P&L, dated totals) as rules.
 8. Write the first `log_append` with `start_here`: goal, current state in one line, next actions, decisions owed.
 9. Run the check skill for the first snapshot. Explain it in 3-4 sentences and the one most important next action.

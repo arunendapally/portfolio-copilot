@@ -19,6 +19,8 @@ const snapshotLib = require('./snapshot');
 const journal = require('./journal');
 const marksLib = require('./marks');
 const effects = require('./effects');
+const lotsLib = require('./lots');
+const lossTolerance = require('./rules/loss_tolerance');
 const { istStamp, istDate } = require('./format');
 
 const STAGES = {
@@ -89,7 +91,13 @@ function deferredIds(folder) {
 
 // Everything the rules read: the snapshot, the consolidated book, findings and the clock.
 function ruleInput(folder, profile, snap, prev, now, edition, corporateActions = []) {
-  return { snap, prev, profile, c: snap ? snapshotLib.consolidate(snap, profile) : null, findings: lines(findingsFile(folder)), marks: marksLib.load(folder), now, today: istDate(now), edition, corporateActions };
+  const lots = lotsLib.load(folder);
+  // Realised losses on play trades this financial year, once statements are imported (loss tolerance).
+  const realised = lots ? Object.entries(lots.symbols).filter(([sym]) => lossTolerance.classOf({ symbol: sym, type: 'equity' }, profile) === 'play').reduce((a, [, s]) => a + Math.max(0, -(s.realised_fy_inr || 0)), 0) : null;
+  return {
+    snap, prev, profile, c: snap ? snapshotLib.consolidate(snap, profile) : null, findings: lines(findingsFile(folder)), marks: marksLib.load(folder), now, today: istDate(now), edition, corporateActions,
+    lots, realised, taxFor: lots ? (sym, qty, price) => lotsLib.taxFor(lots, profile, sym, qty, price, now) : undefined,
+  };
 }
 
 function heldSymbols(snap) {
