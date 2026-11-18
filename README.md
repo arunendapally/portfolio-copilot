@@ -57,6 +57,7 @@ Skills (6, thin)                       when to run what, what to show, what to a
 3. EXIT/REDUCE verdicts: a single exit at the written level, no stop.
 4. Every audit runs a crash test; no hold/add name should fire at -20%.
 5. GTT quantity equals held quantity.
+6. Profit lock (off until you save every value; no defaults): for stocks in scope, never funds, past your first threshold the stop goes up to cost, past your second a slice is sold, and after that the stop follows the highest close. Stops only move up. Try values with `profit_lock_dryrun` on today's book and `node core/bin/backtest-profit-lock.js` on your own tradebook.
 
 Stops protect against a broken thesis, not a market-wide fall.
 

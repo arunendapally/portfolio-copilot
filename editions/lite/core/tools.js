@@ -25,6 +25,8 @@ const review = require('./lib/review');
 const decisionsLib = require('./lib/decisions');
 const journalLib = require('./lib/journal');
 const concentration = require('./lib/rules/concentration');
+const marksLib = require('./lib/marks');
+const profitLock = require('./lib/rules/profit_lock');
 const path = require('path');
 const session = require('./lib/session');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
@@ -97,6 +99,8 @@ async function refresh(args, ctx) {
   }
   snapshotLib.valuate(snap, prev, profile);
   state.saveSnapshot(args.folder, date, snap);
+  // Profit-lock marks follow each pull: highest close, lock stage, re-entry list.
+  if (snap.brokers.kite && snap.brokers.kite.status === 'live') marksLib.save(args.folder, marksLib.update(marksLib.load(args.folder), snap, profile, profitLock.stopsOf(snap, profile), now));
   const report = await check({ folder: args.folder }, ctx);
   if (errors.length) report.text = `Profile problems: ${errors.join('; ')}\n\n${report.text}`;
   return { ...report, pulled };
@@ -153,7 +157,7 @@ async function check(args, ctx) {
   const prev = state.previousSnapshot(args.folder, date);
   const c = snapshotLib.consolidate(snap, profile);
   const d = snapshotLib.diff(prev, snap);
-  const t = tradeAudit(snap, c, d, profile);
+  const t = tradeAudit(snap, c, d, profile, [...(profile.reentry || []).map((r) => ({ cooloff_days: profile.gtt_policy.profit_lock.reentry_cooloff_days, ...r })), ...marksLib.load(args.folder).reentry]);
   // Cash that drops to exactly 0 between snapshots is worth a look: a withdrawal, or bad data (issue #5).
   for (const [name, b] of Object.entries(snap.brokers)) {
     const was = prev && prev.brokers && prev.brokers[name];
@@ -210,7 +214,7 @@ function kiteFresh(snap, now) {
 
 function crashRow(x) {
   const kept = x.kept_names_firing.length ? ` (kept by decision: ${x.kept_names_firing.join(', ')})` : '';
-  return [`${x.move_pct}%`, x.fires.length, `${x.hold_names_firing.join(', ') || 'none'}${kept}`];
+  return [`${x.move_pct}%`, x.fires.length, `${x.hold_names_firing.join(', ') || 'none'}${kept}`, (x.locked_names_firing || []).join(', ') || 'none'];
 }
 
 async function gttAudit(args, ctx) {
@@ -219,7 +223,7 @@ async function gttAudit(args, ctx) {
   const snap = state.latestSnapshot(args.folder);
   if (!snap || !snap.brokers.kite) return { ok: false, error: 'no Kite data', text: 'No Kite data yet. Run refresh first.' };
   const prev = state.previousSnapshot(args.folder, istDate(new Date(snap.taken_at)));
-  const a = gtt.audit(snap, prev, profile, { corporateActions: args.corporate_actions || [], today: istDate(ctx.now()) });
+  const a = gtt.audit(snap, prev, profile, { corporateActions: args.corporate_actions || [], today: istDate(ctx.now()), marks: marksLib.load(args.folder) });
   const stale = !kiteFresh(snap, now);
   const L = [];
   L.push(`**GTT audit** · ${istStamp(now)}${stale ? ' · ⚠️ Kite data is not from a live pull today: findings are UNVERIFIED' : ''}`);
@@ -229,7 +233,7 @@ async function gttAudit(args, ctx) {
   L.push(table(['Symbol', 'Policy', 'Qty', 'LTP', 'Stop', 'Target', 'Findings'], flagged.map((r) => [r.symbol, `${r.class}${r.implicit_verdict ? ' (default)' : ''}`, r.qty, r.ltp, r.stop ?? '-', r.target ?? '-', r.issues.map((i) => i.text).join('; ')])));
   L.push(`OK, no change: ${a.rows.length - flagged.length}`);
   L.push('\n**Crash test** (uniform move, live prices)');
-  L.push(table(['Move', 'Stops that fire', 'Hold/add names firing'], a.crash.map(crashRow)));
+  L.push(table(['Move', 'Stops that fire', 'Hold/add names firing', 'Profit-locked names firing'], a.crash.map(crashRow)));
   if (a.orphans.length) L.push(`\nOrphans (no holding): ${a.orphans.map((o) => `${o.symbol} #${o.id}`).join(', ')}`);
   if (a.inactive.length) L.push(`Inactive GTTs on held names: ${a.inactive.map((g) => `${g.symbol} #${g.id} ${g.status}${g.reason ? ` (${g.reason})` : ''}`).join(', ')}`);
   if (a.vanished.length) L.push(`Active last time, missing now (cancelled by a corporate action?): ${a.vanished.map((g) => `${g.symbol} #${g.id}`).join(', ')}`);
@@ -256,8 +260,9 @@ async function draftGttPlan(args, ctx) {
   const snap = state.latestSnapshot(args.folder);
   if (!kiteFresh(snap, ctx.now())) return { ok: false, error: 'needs a live Kite pull today', text: 'Run refresh with Kite live before drafting GTT changes.' };
   const prev = state.previousSnapshot(args.folder, istDate(new Date(snap.taken_at)));
-  const a = gtt.audit(snap, prev, profile, { corporateActions: args.corporate_actions || [], today: istDate(ctx.now()) });
-  const p = gtt.plan(a, snap, profile, { symbols: args.symbols });
+  const marks = marksLib.load(args.folder);
+  const a = gtt.audit(snap, prev, profile, { corporateActions: args.corporate_actions || [], today: istDate(ctx.now()), marks });
+  const p = gtt.plan(a, snap, profile, { symbols: args.symbols, lockStops: profitLock.targets(snap, profile, marks, Object.fromEntries(a.rows.map((r) => [r.symbol, r.stop]))) });
   if (!p.rows.length) return { ok: true, code: null, text: `No GTT changes needed under your policy.${p.notes.length ? ` Not planned: ${p.notes.join('; ')}` : ''}` };
   const gen = inputs.genOf('kite');
   const rows = p.rows.map((r) => ({ ...r, cap: 'gtt_write', ...(r.action === 'place' ? toolmap.writeCall('kite', 'gtt_write', 'place', r.args, gen) : toolmap.writeCall('kite', 'gtt_write', 'delete', { trigger_id: Number(r.gtt_id) }, gen)) }));
@@ -335,7 +340,7 @@ async function crashCheck(args, ctx) {
   if (snap && snap.brokers.kite) {
     const a = gtt.audit(snap, null, profile, { today: istDate(ctx.now()) });
     stopRows = crash.stopReview(a.rows, profile.gtt_policy);
-    L.push(table(['Move', 'Stops that fire', 'Hold/add names firing'], a.crash.map(crashRow)));
+    L.push(table(['Move', 'Stops that fire', 'Hold/add names firing', 'Profit-locked names firing'], a.crash.map(crashRow)));
     L.push(stopRows.length ? `Stops that would force-sell names you intend to keep:\n${stopRows.map((s) => `- ${s.symbol}: stop ${s.stop} (${s.distance_pct}% below); ${s.proposal}`).join('\n')}` : 'No hold/add stop is tighter than your policy minimum.');
   }
   const plan = profile.deployment_plan;
@@ -540,6 +545,21 @@ async function journalReadback(args, ctx) {
   return { ok: true, decisions: rows, text: rows.length ? [`**Decisions older than ${days} days**`, ...rows.map((r) => `- ${r.text}`)].join('\n') : `No decisions older than ${days} days yet.` };
 }
 
+// What the profit lock would do at the given thresholds (FR-031). Saves nothing.
+async function profitLockDryrun(args, ctx) {
+  for (const k of ['arm_gain_pct', 'book_gain_pct', 'trail_pct']) if (typeof args[k] !== 'number') return { ok: false, error: `${k} required`, text: 'Pass arm_gain_pct, book_gain_pct and trail_pct (numbers); scope play or all_stocks.' };
+  if (!(args.arm_gain_pct > 0 && args.arm_gain_pct < args.book_gain_pct && args.trail_pct > 0)) return { ok: false, error: 'bad thresholds', text: 'Need 0 < arm_gain_pct < book_gain_pct and trail_pct > 0.' };
+  const { profile } = profiles.load(args.folder);
+  const snap = state.latestSnapshot(args.folder);
+  if (!snap || !snap.brokers.kite) return { ok: false, error: 'no Kite data', text: 'No Kite snapshot yet. Run refresh first.' };
+  const p = profiles.merge(profile, { gtt_policy: { profit_lock: { enabled: true, scope: args.scope || 'play' } } });
+  const rows = profitLock.states(snap, p, marksLib.load(args.folder), args, profitLock.stopsOf(snap, profile), { dry: true });
+  const label = { idle: 'nothing', armed: 'arm: stop to cost', book: 'book a slice', trailing: 'trail the stop' };
+  const L = [`**Profit-lock dry run** · arm ${args.arm_gain_pct}% · book ${args.book_gain_pct}% · trail ${args.trail_pct}% · scope ${args.scope || 'play'} · data ${istStamp(new Date(snap.taken_at))} · nothing saved`,
+    table(['Holding', 'Gain over cost', 'Stop vs cost', 'Would', 'Proposed stop'], rows.map((r) => [r.symbol, pct(r.gain_pct), r.stop_vs_cost_pct === null ? 'no stop' : pct(r.stop_vs_cost_pct), label[r.want], r.proposed_stop === null ? '-' : r.proposed_stop]))];
+  return { ok: true, rows, text: L.join('\n') };
+}
+
 // Guided review (US3): one run, stage by stage, gates in code.
 function reviewDeps(args, ctx) {
   return {
@@ -656,6 +676,7 @@ const TOOLS = [
   { name: 'task_decide', handler: taskDecide, description: "Record the investor's answer to a task question (Approve, Defer, Decline). Approving authorises a draft, never an order.", props: { run: { type: 'string' }, task: { type: 'string' }, decision: { type: 'string', enum: ['approved', 'deferred', 'declined'] }, reason: { type: 'string' }, defer_until: { type: 'string' }, option: { type: 'string' } }, required: ['task', 'decision'] },
   { name: 'task_done', handler: taskDone, description: 'After the investor says done on a task they carry out themselves. result: done, could_not or skipped. A fresh read still verifies it.', props: { run: { type: 'string' }, task: { type: 'string' }, result: { type: 'string', enum: ['done', 'could_not', 'skipped'] }, note: { type: 'string' } }, required: ['task', 'result'] },
   { name: 'research_submit', handler: researchSubmit, description: 'Submit research findings for the review brief: symbol, metric, value, period, source_url, source_quote, accessed, status (found, not_found, blocked_source). Pass corporate_actions (an array, empty when none) once checked.', props: { run: { type: 'string' }, findings: { type: 'array', items: { type: 'object' } }, corporate_actions: { type: 'array', items: { type: 'object' } } } },
+  { name: 'profit_lock_dryrun', handler: profitLockDryrun, description: 'What the profit lock would arm, book or trail today at the thresholds given (arm_gain_pct, book_gain_pct, trail_pct; scope play or all_stocks). Saves nothing.', props: { arm_gain_pct: { type: 'number' }, book_gain_pct: { type: 'number' }, trail_pct: { type: 'number' }, scope: { type: 'string', enum: ['play', 'all_stocks'] } }, required: ['arm_gain_pct', 'book_gain_pct', 'trail_pct'] },
   { name: 'decisions', handler: decisionsCmd, description: "What is due under the investor's own rules (GTT gaps, tripwires, limits, drift, plan path, loss tolerance), outside a review. Saves nothing.", props: {} },
   { name: 'journal_readback', handler: journalReadback, description: 'Decisions older than older_than_days (default from the profile) beside what the same rules measure now.', props: { older_than_days: { type: 'number' } } },
   { name: 'log_append', handler: logAppend, description: 'Append a dated entry to the log and optionally rewrite the "Start here" block. Older months archive automatically.', props: { text: { type: 'string' }, start_here: { type: 'string' } } },

@@ -17,6 +17,7 @@ const toolmap = require('./brokers/toolmap');
 const manual = require('./manual_steps');
 const snapshotLib = require('./snapshot');
 const journal = require('./journal');
+const marksLib = require('./marks');
 const { istStamp, istDate } = require('./format');
 
 const STAGES = {
@@ -87,7 +88,7 @@ function deferredIds(folder) {
 
 // Everything the rules read: the snapshot, the consolidated book, findings and the clock.
 function ruleInput(folder, profile, snap, prev, now, edition, corporateActions = []) {
-  return { snap, prev, profile, c: snap ? snapshotLib.consolidate(snap, profile) : null, findings: lines(findingsFile(folder)), now, today: istDate(now), edition, corporateActions };
+  return { snap, prev, profile, c: snap ? snapshotLib.consolidate(snap, profile) : null, findings: lines(findingsFile(folder)), marks: marksLib.load(folder), now, today: istDate(now), edition, corporateActions };
 }
 
 function heldSymbols(snap) {
@@ -150,10 +151,15 @@ function submitResearch(folder, runId, { findings = [], corporate_actions }, now
 
 function check(expect, row) {
   if (!expect || expect.kind === 'none') return true;
-  if (!row) return expect.kind === 'gtt_stop' && expect.none;
+  if (!row) return (expect.kind === 'gtt_stop' && expect.none) || expect.kind === 'holding_qty';
   const codes = new Set(row.issues.map((i) => i.code));
   if (expect.kind === 'gtt_qty') return !codes.has('no_gtt') && !codes.has('qty_short') && !(expect.exact && codes.has('double_coverage'));
-  if (expect.kind === 'gtt_stop') return expect.none ? row.stop === null : row.stop !== null && row.stop <= expect.max_stop;
+  if (expect.kind === 'gtt_stop') {
+    if (expect.none) return row.stop === null;
+    if (expect.min_stop !== undefined) return row.stop !== null && row.stop >= expect.min_stop - 0.05;
+    return row.stop !== null && row.stop <= expect.max_stop;
+  }
+  if (expect.kind === 'holding_qty') return row.qty <= expect.max_qty;
   if (expect.kind === 'gtt_target') return row.target !== null && expect.target && Math.abs(row.target - expect.target) / expect.target < 0.01;
   return false;
 }
@@ -272,7 +278,7 @@ async function stage(folder, run, now, deps) {
       }
       await deps.refresh(folder);
       const snap = deps.latestSnapshot(folder);
-      const a = gtt.audit(snap, null, run.profile, { today: run.date });
+      const a = gtt.audit(snap, null, run.profile, { today: run.date, marks: marksLib.load(folder) });
       for (const t of touched) {
         const ok = check(t.expect, a.rows.find((r) => r.symbol === t.symbol));
         t.outcome = ok ? 'confirmed' : 'not_confirmed';

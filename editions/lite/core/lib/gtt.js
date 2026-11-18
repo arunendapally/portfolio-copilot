@@ -2,6 +2,7 @@
 // GTT audit under the investor's policy, and change plans that place before they delete.
 
 const { verdictOf } = require('./profile');
+const marksLib = require('./marks');
 const { round } = require('./format');
 
 const ACTIVE = 'active';
@@ -46,8 +47,11 @@ function stopKept(v, today) {
   return !!(r && r.decision === 'keep' && (!r.review_by || !today || r.review_by >= today));
 }
 
-function audit(snap, prev, profile, { corporateActions = [], today = null } = {}) {
+function audit(snap, prev, profile, { corporateActions = [], today = null, marks = null } = {}) {
   const pol = profile.gtt_policy;
+  const lock = pol.profit_lock || { enabled: false };
+  // Locked: armed, booked or trailing under the profit lock. Exempt from the minimum stop distance (FR-030).
+  const lockedSet = new Set(lock.enabled && marks ? Object.entries(marks.symbols || {}).filter(([, m]) => m.stage !== 'idle').map(([s]) => s) : []);
   const kite = (snap.brokers && snap.brokers.kite) || { holdings: [], gtts: [] };
   // Same-day buys count toward the quantity a GTT must cover (FR-044), labelled "today".
   const dayBuys = new Map((kite.positions || []).map((p) => [p.symbol, p]));
@@ -94,9 +98,14 @@ function audit(snap, prev, profile, { corporateActions = [], today = null } = {}
       if (stop !== null && !pol.exit_verdict_stop) issues.push({ code: 'exit_stop', severity: 'warn', text: `${v.stance.toUpperCase()} verdict has a stop; policy: single exit at the written level` });
       if (v.exit_level && !(target !== null && Math.abs(target - v.exit_level) / v.exit_level < 0.01)) issues.push({ code: 'exit_missing', severity: 'warn', text: `no exit GTT at the written level ${v.exit_level}` });
     }
+    // Past the arm threshold with no stop at cost (FR-029).
+    if (lock.enabled && h.avg && h.ltp && marksLib.inScope(h, profile) && (100 * (h.ltp - h.avg)) / h.avg >= lock.arm_gain_pct && (stop === null || stop < h.avg)) {
+      issues.push({ code: 'gain_unprotected', severity: 'warn', text: `gain ${round((100 * (h.ltp - h.avg)) / h.avg, 1)}% over cost with the stop ${stop === null ? 'missing' : 'below cost'}; your profit lock arms at ${lock.arm_gain_pct}%` });
+    }
+    const locked = lockedSet.has(h.symbol);
     if (cls === 'hold') {
       if (stop === null) issues.push({ code: 'no_crash_floor', severity: 'info', text: `no crash-floor stop (policy: about ${pol.crash_floor_pct}% below)` });
-      else if (dist < pol.min_stop_distance_pct) {
+      else if (dist < pol.min_stop_distance_pct && !locked) {
         if (stopKept(v, today)) issues.push({ code: 'stop_kept', severity: 'info', text: `stop ${round(dist, 1)}% below price, kept by decision on ${v.stop_review.at || 'an earlier date'}${v.stop_review.review_by ? ` (review by ${v.stop_review.review_by})` : ''}` });
         else issues.push({ code: 'stop_too_tight', severity: 'warn', text: `stop ${round(dist, 1)}% below price; policy minimum ${pol.min_stop_distance_pct}%` });
       }
@@ -117,7 +126,7 @@ function audit(snap, prev, profile, { corporateActions = [], today = null } = {}
         });
       }
     }
-    rows.push({ symbol: h.symbol, class: cls, stance: v.stance, implicit_verdict: !!v.implicit, qty: h.qty, ltp: h.ltp, value: round(h.qty * h.ltp), stop, target, stop_distance_pct: dist === null ? null : round(dist, 1), gtt_ids: mine.map((g) => g.id), keep_id: keep ? keep.id : null, issues });
+    rows.push({ symbol: h.symbol, locked, avg: h.avg || null, class: cls, stance: v.stance, implicit_verdict: !!v.implicit, qty: h.qty, ltp: h.ltp, value: round(h.qty * h.ltp), stop, target, stop_distance_pct: dist === null ? null : round(dist, 1), gtt_ids: mine.map((g) => g.id), keep_id: keep ? keep.id : null, issues });
   }
 
   // Outliers: stops much tighter than the book's own convention.
@@ -144,8 +153,8 @@ function audit(snap, prev, profile, { corporateActions = [], today = null } = {}
   const isKept = (r) => r.issues.some((i) => i.code === 'stop_kept');
   const crash = (pol.crash_test_pcts || []).map((p) => {
     const fires = rows.filter((r) => r.stop !== null && r.stop >= r.ltp * (1 - p / 100));
-    const holds = fires.filter((r) => r.class === 'hold');
-    return { move_pct: -p, fires: fires.map((r) => ({ symbol: r.symbol, class: r.class, stop: r.stop })), hold_names_firing: holds.filter((r) => !isKept(r)).map((r) => r.symbol), kept_names_firing: holds.filter(isKept).map((r) => r.symbol) };
+    const holds = fires.filter((r) => r.class === 'hold' && !r.locked);
+    return { move_pct: -p, fires: fires.map((r) => ({ symbol: r.symbol, class: r.class, stop: r.stop })), hold_names_firing: holds.filter((r) => !isKept(r)).map((r) => r.symbol), kept_names_firing: holds.filter(isKept).map((r) => r.symbol), locked_names_firing: fires.filter((r) => r.locked).map((r) => r.symbol) };
   });
   const worst = crash[crash.length - 1];
   const summary = {
@@ -166,7 +175,7 @@ function gttArgs(symbol, exchange, ltp, { stop, target, qty }) {
 }
 
 // Turn audit findings into ordered steps: every placement first, deletions after.
-function plan(auditResult, snap, profile, { symbols } = {}) {
+function plan(auditResult, snap, profile, { symbols, lockStops = {} } = {}) {
   const pol = profile.gtt_policy;
   const holdings = new Map(((snap.brokers.kite || {}).holdings || []).map((h) => [h.symbol, h]));
   const places = [];
@@ -183,7 +192,12 @@ function plan(auditResult, snap, profile, { symbols } = {}) {
       for (const id of r.gtt_ids.filter((x) => x !== r.keep_id)) deletes.push({ action: 'delete', symbol: r.symbol, gtt_id: id, reason: `duplicate: #${r.keep_id} already meets policy` });
       continue;
     }
-    if (r.class === 'etf' && codes.has('etf_stop')) {
+    // Profit lock: the lock's stop target is given; it never lowers the stop in place (FR-028).
+    const lockStop = lockStops[r.symbol];
+    if (lockStop !== undefined && (codes.has('gain_unprotected') || r.locked) && !(r.stop !== null && r.stop >= lockStop && !codes.has('qty_short') && !codes.has('no_gtt'))) {
+      want = { stop: Math.max(lockStop, r.stop || 0), target: r.target };
+      reason = `profit lock: stop to ${want.stop}`;
+    } else if (r.class === 'etf' && codes.has('etf_stop')) {
       if (r.target !== null) { want = { stop: null, target: r.target }; reason = 'ETF: keep target, remove stop'; }
       else { notes.push(`${r.symbol}: ETF stop to remove; no target on file, so no replacement is placed`); }
     } else if (r.class === 'exit' && (codes.has('exit_stop') || codes.has('exit_missing') || codes.has('qty_short'))) {

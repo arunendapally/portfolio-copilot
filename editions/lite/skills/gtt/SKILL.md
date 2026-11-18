@@ -17,6 +17,7 @@ Stops protect against a broken thesis, not a market-wide fall.
    - A `trade` verdict keeps its own stop and target; the crash-floor rule does not apply to it.
 6. GTT quantity equals held quantity.
 7. A hold name whose stop is tighter than the minimum but carries `verdicts.<SYMBOL>.stop_review` with `decision: "keep"` is shown as "kept by decision" until its `review_by` date; the audit, crash test and plan leave that stop alone. After `review_by` it is flagged again.
+8. Profit lock: off until the investor has saved every value in `gtt_policy.profit_lock` (arm, book, share to book, distance under the highest close, cooling-off); there are no defaults. When on, for stocks in scope (never funds): past the arm threshold the stop goes up to cost; past the booking threshold a slice is sold; after that the stop follows the highest close at the saved distance. Stops only move up. Locked names are exempt from rule 2's minimum and shown in their own crash-test column. To help choose values: `profit_lock_dryrun` on today's book, and `backtest-profit-lock.js` (next to `pc.js`, same `node` line) on the investor's own tradebook.
 This policy lives in the portfolio engine; do not restate or improvise thresholds.
 
 ## Steps

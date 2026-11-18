@@ -162,15 +162,15 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 
 **Independent Test**: spec.md US4.
 
-- [ ] T061 [P] [US4] `tests/profit-lock.test.js`: no effect while disabled; arm, book and trail transitions; stops never lowered; funds never in scope; scope `play` vs `all_stocks`; `gain_unprotected` finding; locked names exempt from the minimum distance and shown in their own crash-test column; dry run saves nothing
-- [ ] T062 [P] [US4] `tests/marks.test.js`: `high_close` only rises; reset on full exit; a confirmed corporate action re-bases `high_close` and `last_stop`
-- [ ] T063 [US4] Create `core/lib/marks.js` (data-model section 3); update marks at the end of the pull stage and in `refresh`
-- [ ] T064 [US4] Create `core/lib/rules/profit_lock.js`; in `core/lib/gtt.js` add the `gain_unprotected` finding, use the lock's stop target in `plan`, exempt locked names from `min_stop_distance_pct`, and add the crash-test column (FR-027 to FR-030)
-- [ ] T065 [US4] Apply `classes` (FR-032): default funds core, stocks play; per-symbol override from the profile
-- [ ] T066 [US4] Add `profit_lock_dryrun` to `core/tools.js` (contracts/pc-commands.md)
-- [ ] T067 [Investor] [US4] Choose the profit-lock values. Provide `scripts/backtest-profit-lock.js` that reads a tradebook CSV path and daily closes from an argument and prints, per candidate value set, how many trades would have been stopped, booked or kept and the result; it writes nothing to the repo. The investor runs it on their own data, reviews it with the dry run, and saves the values with `profile_update`. Do not commit any output
-- [ ] T068 [US4] Create `core/lib/rules/reentry.js`: a sale by a trailing stop adds the symbol to `reentry` with its cool-off; `core/lib/audit.js` flags a buy inside the cool-off
-- [ ] T069 [US4] Add policy rule 8 (profit lock) to `skills/gtt/SKILL.md` and the README "Default GTT policy" section, stating that it is off until the investor sets every value
+- [x] T061 [P] [US4] `tests/profit-lock.test.js`: no effect while disabled; arm, book and trail transitions; stops never lowered; funds never in scope; scope `play` vs `all_stocks`; `gain_unprotected` finding; locked names exempt from the minimum distance and shown in their own crash-test column; dry run saves nothing
+- [x] T062 [P] [US4] `tests/marks.test.js`: `high_close` only rises; reset on full exit; a confirmed corporate action re-bases `high_close` and `last_stop`
+- [x] T063 [US4] Create `core/lib/marks.js` (data-model section 3); update marks at the end of the pull stage and in `refresh`
+- [x] T064 [US4] Create `core/lib/rules/profit_lock.js`; in `core/lib/gtt.js` add the `gain_unprotected` finding, use the lock's stop target in `plan`, exempt locked names from `min_stop_distance_pct`, and add the crash-test column (FR-027 to FR-030)
+- [x] T065 [US4] Apply `classes` (FR-032): default funds core, stocks play; per-symbol override from the profile
+- [x] T066 [US4] Add `profit_lock_dryrun` to `core/tools.js` (contracts/pc-commands.md)
+- [ ] T067 [Investor] [US4] Choose the profit-lock values. Provided: `core/bin/backtest-profit-lock.js` (in core so it ships with the plugin; the spec said scripts/) that reads a tradebook CSV path and daily closes from an argument and prints, per candidate value set, how many trades would have been stopped, booked or kept and the result; it writes nothing to the repo. The investor runs it on their own data, reviews it with the dry run, and saves the values with `profile_update`. Do not commit any output
+- [x] T068 [US4] Create `core/lib/rules/reentry.js`: a sale by a trailing stop adds the symbol to `reentry` with its cool-off; `core/lib/audit.js` flags a buy inside the cool-off
+- [x] T069 [US4] Add policy rule 8 (profit lock) to `skills/gtt/SKILL.md` and the README "Default GTT policy" section, stating that it is off until the investor sets every value
 
 ---
 

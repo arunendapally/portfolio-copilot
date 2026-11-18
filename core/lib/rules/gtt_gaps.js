@@ -20,9 +20,9 @@ const MAP = {
   corp_action: { kind: 'gtt_policy', title: (r) => `Adjust ${r.symbol} GTTs for a corporate action`, rule: 'corporate action re-scoring', expect: () => ({ kind: 'none' }), when: (r, i) => i.severity !== 'info' },
 };
 
-function evaluate({ snap, prev, profile, corporateActions = [], today, edition = 'full' }) {
+function evaluate({ snap, prev, profile, corporateActions = [], today, edition = 'full', marks = null }) {
   if (!snap || !snap.brokers || !snap.brokers.kite) return [];
-  const a = gtt.audit(snap, prev, profile, { corporateActions, today });
+  const a = gtt.audit(snap, prev, profile, { corporateActions, today, marks });
   const out = [];
   for (const r of a.rows) {
     for (const i of r.issues) {

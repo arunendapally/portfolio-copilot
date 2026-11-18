@@ -22,6 +22,11 @@ const TEMPLATES = {
     'In the {broker} app: Profile > Web Login > scan the QR.',
     'Say done.',
   ],
+  sell: [
+    'Open {broker_web} > Holdings and find {symbol}.',
+    'Sell {qty} with a LIMIT price near {price}; product CNC.',
+    'Check the order filled in Orders, then say done.',
+  ],
   review: [
     'Look at {symbol}: {finding}.',
     'Decide whether anything should change; say done when you have looked.',
@@ -38,6 +43,8 @@ function steps(template, vars) {
 
 // The manual steps for a review task the investor carries out.
 function forTask(task) {
+  const sell = (task.options.find((o) => o.id === (task.decision_option || 'do')) || {}).sell;
+  if (sell) return steps('sell', { broker_web: 'Kite web', symbol: sell.symbol, qty: sell.qty, price: sell.price });
   const finding = ((task.why.measurements || []).find((m) => m.name === 'finding') || {}).value || task.title;
   if (task.options.find((o) => o.id === task.decision_option && o.draft_kind === 'gtt_plan') || (task.kind.startsWith('gtt') && task.expect.kind !== 'none')) {
     return steps('gtt_change', { broker_web: 'Kite web', symbol: task.symbol, action: `${task.title}: ${finding}.` });

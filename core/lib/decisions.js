@@ -6,6 +6,7 @@
 const tasks = require('./tasks');
 const RULES = [
   require('./rules/gtt_gaps'),
+  require('./rules/profit_lock'),
   require('./rules/tripwires'),
   require('./rules/concentration'),
   require('./rules/drift'),
@@ -14,9 +15,7 @@ const RULES = [
 ];
 
 function notSet(profile) {
-  const out = RULES.flatMap((r) => (r.notSet ? r.notSet(profile) : []));
-  if (!profile.gtt_policy.profit_lock.enabled) out.unshift('profit lock');
-  return out;
+  return RULES.flatMap((r) => (r.notSet ? r.notSet(profile) : []));
 }
 
 function evaluate(input, { deferred = {}, today, live = [] } = {}) {
