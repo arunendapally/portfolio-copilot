@@ -43,7 +43,8 @@ function liteFiles() {
 
 function fullFiles() {
   const files = new Map();
-  for (const rel of [...SHARED, '.claude-plugin/plugin.json', 'README.md'].flatMap(walk)) files.set(rel.split(path.sep).join('/'), fs.readFileSync(path.join(ROOT, rel)));
+  // The local engine (spec 002 US7) ships with the full edition only.
+  for (const rel of [...SHARED, 'local', '.claude-plugin/plugin.json', 'README.md'].flatMap(walk)) files.set(rel.split(path.sep).join('/'), fs.readFileSync(path.join(ROOT, rel)));
   return files;
 }
 

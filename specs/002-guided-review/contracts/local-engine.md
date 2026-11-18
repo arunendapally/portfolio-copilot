@@ -1,6 +1,6 @@
 # Contract: local engine (US7)
 
-**Status**: blocked until research R6 is completed, the investor signs off the broker access route, and the constitution amendment (Principle IV) is merged. Nothing in `local/` may call a broker before that.
+**Status**: unblocked 18-Nov-2026: research R6 decided (Kite free Personal API, Kotak in chat, IBKR Flex), constitution 2.0.0 amends Principle IV. `portfolio_status` also takes an optional `login` ({ broker, request_token }) so the daily Kite login can finish from chat.
 
 ## Process
 

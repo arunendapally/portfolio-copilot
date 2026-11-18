@@ -92,8 +92,16 @@ function record(toolName, resp, now = new Date(), toolInput = null) {
   return { source: r.broker, cap: r.cap, tool: r.tool, ok: rec.ok };
 }
 
+// A read made by the local engine (spec 002 US7): the same record the hook writes, so everything
+// downstream is unchanged. tool is local:<broker>:<endpoint>.
+function saveLocal(broker, cap, text, { ok = true, partial = false, tool, now = new Date() } = {}) {
+  const rec = { tool: tool || `local:${broker}:${cap}`, mode: null, at: now.toISOString(), ok, login: false, tools_changed: false, text, partial };
+  writeJson(path.join(dir(broker), `${cap}.json`), rec, 0o600);
+  return rec;
+}
+
 function read(source, cap) {
   return readJson(path.join(dir(source), `${cap}.json`), null);
 }
 
-module.exports = { LOGIN_RE, TOOLS_CHANGED_RE, CAPTURED, sourceOf, textOf, asJson, record, read };
+module.exports = { LOGIN_RE, TOOLS_CHANGED_RE, CAPTURED, sourceOf, textOf, asJson, record, read, saveLocal };

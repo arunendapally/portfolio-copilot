@@ -1,5 +1,13 @@
 <!--
 Sync Impact Report
+- Version change: 1.0.0 -> 2.0.0 (2026-11-18, spec 002 T082; approved by the investor 18-Nov-2026)
+- Principle redefined: IV. One Connection Per Broker -> One Chat Connection Per Broker, plus
+  at most one read-only local collector per broker (MAJOR: a principle redefined)
+- Templates: plan-template.md OK (Constitution Check reads this file); spec-template.md OK;
+  tasks-template.md OK. Dependent docs: specs/002-guided-review/plan.md Constitution Check
+  row IV now "Pass under 2.0.0"; contracts/local-engine.md status updated.
+- Deferred TODOs: none
+Previous report:
 - Version change: template -> 1.0.0 (initial ratification)
 - Principles added: I. Plugin Drafts, User Executes; II. Numbers Come From Code;
   III. Analysis, Not Advice; IV. One Connection Per Broker; V. State Is Data;
@@ -47,16 +55,25 @@ run to run.
 
 Rationale: not SEBI-registered; directory policy and user trust.
 
-### IV. One Connection Per Broker
+### IV. One Chat Connection Per Broker, One Optional Local Reader
 
-- Each broker is reached through exactly one MCP server, connected natively (streamable HTTP
-  where offered). No local proxies (`npx mcp-remote`) in shipped config.
+- In chat, each broker is reached through exactly one MCP server, connected natively
+  (streamable HTTP where offered). No local proxies (`npx mcp-remote`) in shipped config.
 - If the user already has a connector for a broker, the plugin MUST use it and not start a
   second one. Skills refer to tools by capability, not by a hardcoded server prefix.
+- Optionally, at most one local collector per broker MAY read that broker from the user's own
+  computer, on these conditions: it is read-only (no order, GTT or alert write of any kind,
+  enforced in code and tested); it uses the broker's documented, first-party API under terms
+  checked and recorded with a date; it needs at most one deliberate login per trading day,
+  started by the user; its secrets live only in the per-machine folder, never in the investor
+  folder, the repo, tool results or logs; and when it is running it is the only reader, so two
+  sessions do not fight. Order execution stays in chat behind the order gate.
 - Login is always user-initiated. Login links shown to the user MUST come from a login tool's
-  output. Broker status is reported per broker (live / needs login / outage).
+  or the broker's own output. Broker status is reported per broker (live / needs login / outage).
 
-Rationale: duplicate servers caused double logins, dropped sessions and ambiguous hook matching.
+Rationale: duplicate servers caused double logins, dropped sessions and ambiguous hook
+matching. A read-only local reader removes broker payloads from the model's context (cost)
+and makes unattended runs useful; the conditions keep the v0.6 failure from returning.
 
 ### V. State Is Data
 
@@ -119,4 +136,4 @@ Rationale: v0.4.0 shipped a hooks.json that disabled every guardrail.
   Unjustified violations block the PR.
 - Runtime house rules (`context/house-rules.md`) MUST stay consistent with Principles I-III.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-14 | **Last Amended**: 2026-10-14
+**Version**: 2.0.0 | **Ratified**: 2026-10-14 | **Last Amended**: 2026-11-18

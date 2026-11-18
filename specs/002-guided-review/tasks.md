@@ -200,20 +200,20 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 
 **Independent Test**: spec.md US7.
 
-- [ ] T081 [Investor] [US7] Complete research R6 from first-party broker pages (terms, limits, cost, login flow), record each with its date, and get the investor's choice per broker
-- [ ] T082 [Investor] [US7] Constitution amendment v2.0.0: redefine Principle IV to allow one read-only local collector per broker alongside the chat connector, with the conditions in plan Complexity Tracking. Update the Sync Impact Report and dependent templates. Blocks T085 to T095 except T083
+- [x] T081 [Investor] [US7] Complete research R6 from first-party broker pages (terms, limits, cost, login flow), record each with its date, and get the investor's choice per broker
+- [x] T082 [Investor] [US7] Constitution amendment v2.0.0: redefine Principle IV to allow one read-only local collector per broker alongside the chat connector, with the conditions in plan Complexity Tracking. Update the Sync Impact Report and dependent templates. Blocks T085 to T095 except T083
 - [x] T083 [P] [US7] Add `export --format dashboard` to `core/tools.js` (contracts/pc-commands.md) with `tests/export.test.js`. Needs only T045; may be done before the rest of US7
-- [ ] T084 [US7] Decide MCP SDK or a hand-written stdio JSON-RPC loop for `local/server.js` after reading the v0.5.0 server in git history; record the decision and reason in research.md
-- [ ] T085 [P] [US7] `tests/local-engine.test.js` per contracts/local-engine.md
-- [ ] T086 [US7] Create `local/collectors/index.js` (interface) and a fake collector used by the tests
-- [ ] T087 [US7] Create `local/collectors/kite.js` per the T081 choice
-- [ ] T088 [US7] Create `local/collectors/kotak.js` per the T081 choice (or document that Kotak stays in chat)
-- [ ] T089 [US7] Create `local/collectors/ibkr.js` per the T081 choice
-- [ ] T090 [US7] Create `local/collect.js` (on demand and `--daily HH:MM`, one retry per hour, login needs recorded)
-- [ ] T091 [US7] Create `local/technicals.js` and the `history` capability; write `snapshot.technicals` with dates (FR-052)
-- [ ] T092 [US7] Create `local/server.js` with the four tools and the `next` filtering in contracts/local-engine.md
-- [ ] T093 [US7] `skills/check/SKILL.md`: call `portfolio_status` first; use the local tools when it answers, fall back to v0.8 behaviour on any error
-- [ ] T094 [US7] `scripts/build.js` excludes `local/` from the lite edition; README section "Local engine (optional)" with setup steps
+- [x] T084 [US7] Decide MCP SDK or a hand-written stdio JSON-RPC loop for `local/server.js` after reading the v0.5.0 server in git history; record the decision and reason in research.md
+- [x] T085 [P] [US7] `tests/local-engine.test.js` per contracts/local-engine.md
+- [x] T086 [US7] Create `local/collectors/index.js` (interface) and a fake collector used by the tests
+- [x] T087 [US7] Create `local/collectors/kite.js` per the T081 choice
+- [x] T088 [US7] Create `local/collectors/kotak.js` per the T081 choice (or document that Kotak stays in chat)
+- [x] T089 [US7] Create `local/collectors/ibkr.js` per the T081 choice
+- [x] T090 [US7] Create `local/collect.js` (on demand and `--daily HH:MM`, one retry per hour, login needs recorded)
+- [x] T091 [US7] Create `local/technicals.js` and the `history` capability; write `snapshot.technicals` with dates (FR-052)
+- [x] T092 [US7] Create `local/server.js` with the four tools and the `next` filtering in contracts/local-engine.md
+- [x] T093 [US7] `skills/check/SKILL.md`: call `portfolio_status` first; use the local tools when it answers, fall back to v0.8 behaviour on any error
+- [x] T094 [US7] `scripts/build.js` excludes `local/` from the lite edition; README section "Local engine (optional)" with setup steps
 - [ ] T095 [US7] Release v1.0.0 candidate: SC-005 measured with the local engine and recorded in the PR
 
 ---

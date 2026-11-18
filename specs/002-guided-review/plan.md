@@ -44,7 +44,7 @@ The existing engine stays. About four fifths of the code is untouched: `drafts.j
 | I. Plugin drafts, user executes | Pass. Strengthened: the gate matches by broker, not by tool-name suffix, and denies unknown tools | Pass. The local engine is read-only (FR-048) | Task approval never authorises an order (FR-020) |
 | II. Numbers come from code | Pass. Research enters as validated findings; rules evaluate in code | Pass | The model never computes a threshold crossing |
 | III. Analysis, not advice | Pass. Tasks come from the investor's saved rules; no default thresholds for profit lock (FR-026) | Pass | Cards always include "do nothing" |
-| IV. One connection per broker | Pass | **Exception, needs amendment** | A local collector is a second route to a broker. See Complexity Tracking and research R6 |
+| IV. One connection per broker | Pass | Pass under constitution 2.0.0 (amended 18-Nov-2026) | A read-only local collector per broker is allowed with the conditions in Principle IV; see research R6 |
 | V. State is data | Pass. New state files are JSON, schema-versioned | Pass | The bundle makes cloud use honest |
 | VI. Simple and fast by budget | Pass. No new skill; `check` becomes the review entry; skills shrink | Pass | Budgets restated as SC-004 and SC-005 |
 | VII. Release only when tests pass | Pass. New tests and eval T5 | Pass | T2 extended to every tool name in the map |

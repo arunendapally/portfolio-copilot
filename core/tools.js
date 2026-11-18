@@ -29,6 +29,7 @@ const marksLib = require('./lib/marks');
 const profitLock = require('./lib/rules/profit_lock');
 const exportLib = require('./lib/export');
 const lotsLib = require('./lib/lots');
+const technicals = require('./lib/technicals');
 const path = require('path');
 const session = require('./lib/session');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
@@ -100,6 +101,8 @@ async function refresh(args, ctx) {
     }
   }
   snapshotLib.valuate(snap, prev, profile);
+  // Daily closes the engine keeps itself: averages and RSI appear once there are enough (FR-052).
+  snap.technicals = technicals.update(args.folder, snap, date);
   state.saveSnapshot(args.folder, date, snap);
   // Profit-lock marks follow each pull: highest close, lock stage, re-entry list.
   if (snap.brokers.kite && snap.brokers.kite.status === 'live') marksLib.save(args.folder, marksLib.update(marksLib.load(args.folder), snap, profile, profitLock.stopsOf(snap, profile), now));

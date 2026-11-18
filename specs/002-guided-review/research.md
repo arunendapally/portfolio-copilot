@@ -17,6 +17,10 @@ Decisions already taken, and the items the implementing session must verify firs
 
 **To verify (T005)**: how a login is started when `refresh_available` is false. Record the exact response and add it to `LOGIN_RE` or the connect flow.
 
+## R9. Local engine server: hand-written stdio JSON-RPC (T084, decided 18-Nov-2026)
+
+The v0.5.0 server (git history, `core/server.js`) was a hand-written newline-delimited JSON-RPC loop, and `evals/fake-kite-mcp.js` is the same pattern in 50 lines. The MCP SDK would be the plugin's first runtime dependency (constitution VI: zero deps) for four tools. Decision: hand-written loop (initialize, tools/list, tools/call, ping), tested end to end in `tests/local-engine.test.js`.
+
 ## R2. Why the gate went blind (confirmed by running the code)
 
 `hooks/hooks.json` PreToolUse matcher and `order-gate.js` `WRITE_RE` both require a name ending in `(place|modify|delete|cancel|submit)_(gtt_)?order` or `create_order_instruction`. `…__orders` and `…__gtt` match neither, so the hook does not run and `decide()` returns allow. IBKR `delete_order_instruction` is also unmatched.
@@ -45,7 +49,17 @@ One full pull on a book of about 40 listed holdings, 40 standing orders and a do
 - **Five-task cap and fixed priority**: a daily list longer than five is not acted on; a fixed order makes runs comparable.
 - **Todoist**: the engine returns a sync list (`create`, `complete`, `update` with stable external ids); the skill applies it with the Todoist tools when present. No Todoist client in the engine.
 
-## R6. How a local engine could reach each broker (US7) — NOT decided
+## R6. How a local engine could reach each broker (US7) — DECIDED 18-Nov-2026
+
+**Investor's choice (18-Nov-2026)**: Kite A on the free Personal plan; Kotak B (stays in chat); IBKR A (Flex Web Service). Constitution amendment approved the same day (v2.0.0).
+
+**First-party checks, 18-Nov-2026**:
+- Kite Connect, support FAQ and charges page (support.zerodha.com, "Kite Connect API FAQs" and "What are the charges for Kite APIs"): Personal plan is free and includes "Full-fledged order, GTT, alerts management" and "Margin computation, portfolio management"; it excludes "historical or real-time data". Connect is ₹500 a month per API key and adds live data and historical candles. "Access tokens are valid only for the trading day and must be generated again after they expire." No line restricts who may use the Personal plan; the APIs "are available for retail users as well as startups".
+- Kite Connect v3 docs (kite.trade/docs/connect/v3): login at `https://kite.zerodha.com/connect/login?v=3&api_key=…`; the request token comes back on the redirect URL registered for the app and lives "only a few minutes"; exchange by POST `https://api.kite.trade/session/token` with `api_key`, `request_token`, `checksum` = SHA-256 of api_key + request_token + api_secret; headers `X-Kite-Version: 3` and `Authorization: token api_key:access_token`. Reads: GET `/portfolio/holdings` (array), GET `/portfolio/positions` (`net` and `day`), GET `/gtt/triggers`, GET `/user/margins`; envelope `{ status, data }`.
+- Kotak Neo (kotakneo.com Trade API pages and migration guide): TOTP registration plus MPIN validation; the engine would have to hold the MPIN. Not used (choice B).
+- IBKR Flex Web Service (interactivebrokers.com campus and API reference, as indexed; the pages return 403 to automated fetches): token created in Client Portal with an expiry from 6 hours to 1 year and an optional IP restriction; does not use IB credentials; requests to `ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService` `/SendRequest` (token `t`, query id `q`, `v=3`) then `/GetStatement` (token, reference code as `q`, `v=3`); a large report may need a wait between the two; failures return XML with Status and ErrorCode. The host is configurable in the secrets file in case IBKR moves it.
+
+Earlier options, kept for the record:
 
 | Broker | Option | For | Against / unknown |
 |---|---|---|---|

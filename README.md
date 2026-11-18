@@ -85,6 +85,18 @@ The plugin works on the broker MCPs you already have, in a plain claude.ai chat 
 
    In cloud sessions the analyst's web fetches ask for permission and can time out. Allow its sources once in your Claude settings (`permissions.allow`): `WebFetch(domain:www.screener.in)`, `WebFetch(domain:www.nseindia.com)`, `WebFetch(domain:www.bseindia.com)`, `WebFetch(domain:www.morningstar.in)`.
 
+## Local engine (optional)
+
+A small read-only process on your computer that pulls your brokers without the model, so a review spends tokens only on research and wording. It never places, changes or deletes an order; approved drafts still run in chat behind the order gate.
+
+1. Kite: create a Kite Connect app on the free Personal plan at developers.kite.trade, with a redirect address on localhost. Save `{ "api_key": "...", "api_secret": "..." }` in `~/.portfolio-copilot/secrets/kite.json`. Each trading day you log in once: open the link the engine gives, copy the `request_token` from the address your browser lands on, and pass it back (in chat, or `node local/collect.js --login kite --request-token <token>`).
+2. IBKR (optional): in Client Portal enable the Flex Web Service, create a token and a Flex Query with Open Positions, Cash Report and Conversion Rates. Save `{ "token": "...", "query_id": "..." }` in `~/.portfolio-copilot/secrets/ibkr.json`.
+3. Kotak Neo stays in chat (QR login); the engine uses what the chat reads.
+4. Add the engine to your Claude desktop config as a local MCP server: command `node`, args `["<plugin folder>/local/server.js", "--folder", "<your investor folder>"]`. Cloud chats reach it through the desktop link.
+5. Optional daily pull: `node local/collect.js --folder <your investor folder> --daily 08:45` (weekdays, IST; if a login is due it records that and waits).
+
+Secrets stay in `~/.portfolio-copilot/secrets/`, never in your investor folder, the repo, or any tool result. The lite edition does not include the engine. Without it, everything works through the broker tools in chat.
+
 ## What it does not do
 
 It does not watch prices in the background, and Indian broker logins expire daily, so a scheduled run with you away gives the macro read and your last snapshot. GTTs at your broker are the always-on protection, which is why the GTT audit exists.
