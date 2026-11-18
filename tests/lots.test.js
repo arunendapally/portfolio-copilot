@@ -104,3 +104,35 @@ test('tax budget: near the year end, unused exemption beside long-term gains hel
   assert.match(t.options[0].label, /confirm with your tax adviser/);
   assert.deepStrictEqual(taxBudget.evaluate({ profile: prof, lots, snap, now: NOW, edition: 'full' }), [], 'not before the last two months');
 });
+
+test('lots built in a previous financial year: last year\'s gains do not use this year\'s exemption', () => {
+  const { root } = tmpEnv();
+  const { tb } = book(root);
+  const lots = lotsLib.build({ tradebook: tb, held: { ALPHA: 15 }, now: NOW });
+  const prof = P.merge(P.DEFAULTS, { tax: TAX });
+  const later = new Date('2027-05-10T05:00:00Z');
+  const t = lotsLib.taxFor(lots, prof, 'ALPHA', 5, 220, later);
+  assert.strictEqual(t.exemption_used_inr + t.exemption_left_inr, 125000, 'the full exemption: 2026-27 gains do not count in 2027-28');
+  assert.match(t.text, /lots built in a previous financial year: run lots_build again/);
+  const snap = { taken_at: '2028-02-15T05:00:00Z', brokers: { kite: { holdings: [{ symbol: 'ALPHA', type: 'equity', qty: 15, ltp: 220 }] } } };
+  const [b] = taxBudget.evaluate({ profile: prof, lots, snap, now: new Date('2028-02-15T05:00:00Z'), edition: 'full' });
+  assert.strictEqual(b.why.measurements[0].value, 125000);
+  assert.match(b.why.measurements[0].base, /lots built in a previous financial year: run lots_build again/);
+});
+
+test('the financial year turns on the IST date, not UTC', () => {
+  const { root } = tmpEnv();
+  const { tb } = book(root);
+  // 2027-03-31T20:00Z is 01:30 IST on 1 April 2027: the new year.
+  assert.strictEqual(lotsLib.build({ tradebook: tb, now: new Date('2027-03-31T20:00:00Z') }).realised.fy, '2027-28');
+});
+
+test('a sell with no known price says tax not computed for that reason', () => {
+  const prof = P.merge(P.DEFAULTS, { tax: TAX });
+  const snap = { taken_at: NOW.toISOString(), fx: {}, brokers: { kite: { holdings: [{ symbol: 'ALPHA', type: 'equity', qty: 10, ltp: null, value: null, currency: 'INR' }], cash: 0 } } };
+  let called = false;
+  const e = effects.forOption({ sell: { symbol: 'ALPHA', qty: 5 } }, { snap, c: snapshotLib.consolidate(snap, prof), profile: prof, taxFor: () => { called = true; return { computed: true, amount_inr: 0 }; } });
+  assert.strictEqual(called, false);
+  assert.deepStrictEqual(e.tax, { computed: false, note: 'tax not computed: no current price' });
+  assert.deepStrictEqual(e.allocation, []);
+});

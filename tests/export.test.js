@@ -36,3 +36,12 @@ test('a technical the snapshot carries is passed through with its value', () => 
   assert.strictEqual(r.positions[0].dma50, 101.5);
   assert.strictEqual(r.positions[0].dma200, null);
 });
+
+test('export files are named by the IST date of the snapshot', () => {
+  const P = require('../core/lib/profile');
+  const { root, folder } = tmpEnv();
+  // 2026-11-17T20:00Z is 01:30 IST on 18 November.
+  const snap = { taken_at: '2026-11-17T20:00:00Z', fx: {}, brokers: { kotak: { as_of: '2026-11-17T20:00:00Z', holdings: [{ symbol: 'A', type: 'equity', qty: 1, ltp: 100, value: 100, currency: 'INR' }], cash: 0 } } };
+  const r = exportLib.write(folder, path.join(root, 'dash'), snap, null, P.merge(P.DEFAULTS, {}));
+  assert.deepStrictEqual(r.files.map((f) => path.basename(f)), ['positions-2026-11-18.json', 'cash-2026-11-18.json']);
+});

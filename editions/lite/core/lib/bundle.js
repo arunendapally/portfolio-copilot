@@ -7,9 +7,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { resolveFolder, STATE_DIRNAME, listSnapshots } = require('./state');
+const { istDate } = require('./format');
 
 const SCHEMA = 1;
 const JOURNAL_LINES = 200;
+// The journal travels as its last lines only, for reading: it is never written back, and import
+// never overwrites a journal already there, so the full history on the computer stays whole.
+const JOURNAL = `${STATE_DIRNAME}/journal.jsonl`;
 
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const rel = (...p) => [STATE_DIRNAME, ...p].join('/');
@@ -45,7 +49,7 @@ function collect(folder, today) {
 }
 
 function exportBundle(folder, out, now, source = 'pc') {
-  const files = collect(folder, now.toISOString().slice(0, 10));
+  const files = collect(folder, istDate(now));
   const manifest = Object.fromEntries(Object.entries(files).map(([p, t]) => [p, sha(t)]));
   const bundle = { schema_version: SCHEMA, exported_at: now.toISOString(), source, manifest, files };
   const text = JSON.stringify(bundle);
@@ -79,27 +83,30 @@ function importBundle(bundlePath, into, force = false) {
   const root = path.resolve(into);
   const exported = new Date(b.exported_at).getTime();
   const newer = [];
+  const keep = new Set();
   for (const [p, t] of Object.entries(b.files)) {
     const abs = path.join(root, p);
     if (!fs.existsSync(abs)) continue;
+    if (p === JOURNAL) { keep.add(p); continue; }
     if (fs.readFileSync(abs, 'utf8') !== t && fs.statSync(abs).mtimeMs > exported) newer.push(p);
   }
   if (newer.length && !force) return { ok: false, newer };
   for (const [p, t] of Object.entries(b.files)) {
+    if (keep.has(p)) continue;
     const abs = path.join(root, p);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, t);
     if (fs.readFileSync(abs, 'utf8') !== t) throw new Error(`write to ${abs} did not stick`);
   }
-  return { ok: true, restored: Object.keys(b.files), newer };
+  return { ok: true, restored: Object.keys(b.files).filter((p) => !keep.has(p)), newer };
 }
 
 // What changed in `folder` since the bundle, to copy back to the source. A source file whose hash
 // no longer matches the manifest changed there meanwhile: a conflict, and nothing is returned for it.
 function writeback(bundlePath, folder, sourceHashes = {}, now = new Date()) {
   const b = load(bundlePath);
-  const current = collect(folder, now.toISOString().slice(0, 10));
-  for (const p of Object.keys(current)) if (!safePath(p)) delete current[p];
+  const current = collect(folder, istDate(now));
+  for (const p of Object.keys(current)) if (!safePath(p) || p === JOURNAL) delete current[p];
   const files = [];
   const conflicts = [];
   for (const [p, t] of Object.entries(current)) {

@@ -8,6 +8,7 @@ const path = require('path');
 const snapshotLib = require('./snapshot');
 const gtt = require('./gtt');
 const marksLib = require('./marks');
+const { istDate } = require('./format');
 
 const TECH = ['dma50', 'dma200', 'rsi', 'sup20', 'hi52'];
 
@@ -42,7 +43,7 @@ function rows(snap, prev, profile, marks) {
 }
 
 function write(folder, out, snap, prev, profile) {
-  const date = (snap.taken_at || '').slice(0, 10);
+  const date = istDate(new Date(snap.taken_at));
   const r = rows(snap, prev, profile, marksLib.load(folder));
   fs.mkdirSync(out, { recursive: true });
   const files = [[`positions-${date}.json`, r.positions], [`cash-${date}.json`, { cash: r.cash, totals: r.totals }]].map(([name, data]) => {

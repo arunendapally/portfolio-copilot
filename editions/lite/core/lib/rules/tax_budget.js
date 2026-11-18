@@ -5,11 +5,13 @@
 
 const tasks = require('../tasks');
 const lotsLib = require('../lots');
+const { istDate } = require('../format');
 
 const WINDOW_DAYS = 60;
 
 function fyEnd(now, startMonth) {
-  const y = now.getUTCMonth() + 1 >= startMonth ? now.getUTCFullYear() + 1 : now.getUTCFullYear();
+  const [yy, mm] = istDate(now).split('-').map(Number);
+  const y = mm >= startMonth ? yy + 1 : yy;
   return new Date(Date.UTC(y, startMonth - 1, 1));
 }
 
@@ -21,7 +23,9 @@ function evaluate({ profile, lots, snap, now, edition }) {
   if (!lots || !lotsLib.ratesSet(profile.tax) || !snap) return [];
   const end = fyEnd(now, profile.tax.fy_start_month || 4);
   if ((end - now) / 86400000 > WINDOW_DAYS) return [];
-  const left = Math.max(0, profile.tax.ltcg_exemption_inr - Math.max(0, lots.realised.ltcg_inr));
+  const realised = lotsLib.realisedThisFy(lots, profile.tax, now);
+  const fy = lotsLib.fyOf(istDate(now), profile.tax.fy_start_month || 4);
+  const left = Math.max(0, profile.tax.ltcg_exemption_inr - realised.ltcg_inr);
   if (!left) return [];
   let longGains = 0;
   const price = new Map();
@@ -33,10 +37,10 @@ function evaluate({ profile, lots, snap, now, edition }) {
   }
   if (longGains <= 0) return [];
   return [tasks.make({
-    kind: 'tax_budget', symbol: null, rule_ref: 'tax.ltcg_exemption_inr', bucket: lots.realised.fy,
+    kind: 'tax_budget', symbol: null, rule_ref: 'tax.ltcg_exemption_inr', bucket: fy,
     title: `${Math.round(left)} INR of your long-term exemption is unused this year`,
     measurements: [
-      { name: 'exemption_left_inr', value: Math.round(left), base: `your saved exemption (as of ${profile.tax.as_of}) less long-term gains realised in ${lots.realised.fy}`, as_of: snap.taken_at },
+      { name: 'exemption_left_inr', value: Math.round(left), base: `your saved exemption (as of ${profile.tax.as_of}) less long-term gains realised in ${fy}${realised.note ? ` (${realised.note})` : ''}`, as_of: snap.taken_at },
       { name: 'long_term_gains_held_inr', value: Math.round(longGains), base: 'lots held over a year, at last price' },
       { name: 'year_ends', value: end.toISOString().slice(0, 10), base: 'your financial year' },
     ],

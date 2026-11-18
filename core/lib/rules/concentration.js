@@ -36,7 +36,7 @@ function evaluate({ snap, profile, c, edition }) {
   const card = (kind, symbol, rule, title, value, pct, limit, base, denom, sellable = false) => {
     const excess = round(value - (limit / 100) * denom, 0);
     out.push(tasks.make({
-      kind, symbol, rule_ref: rule, bucket: Math.floor(pct),
+      kind, symbol, rule_ref: rule, bucket: 'over',
       title, measurements: [{ name: 'share_pct', value: pct, base, as_of: at }, { name: 'limit_pct', value: limit, base }, { name: 'excess_inr', value: excess, base: `value above ${limit}% of ${base}` }],
       options: [{ id: 'do', label: `Bring it back to ${limit}% (about ${excess} INR to reduce or to dilute with new money)`, ...(sellable ? { sell: { symbol, value: excess } } : {}) }, { id: 'nothing', label: 'Keep it above the limit' }],
       executor: 'investor', urgency: 'this_week', expect: { kind: 'none' },

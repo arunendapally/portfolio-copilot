@@ -30,6 +30,7 @@ function forOption(opt, { snap, c, profile, taxFor }) {
     const price = opt.sell.price || (h && h.ltp) || null;
     const qty = opt.sell.qty || (opt.sell.value && price ? Math.floor(opt.sell.value / price) : null);
     const value = qty && price ? qty * price : opt.sell.value || null;
+    if (!price) return { allocation: [], tax: { computed: false, note: 'tax not computed: no current price' }, concentration: [] };
     return {
       allocation: value ? sellAllocation(c, profile, h, value) : [],
       tax: taxFor && qty ? taxFor(opt.sell.symbol, qty, price) : { computed: false, note: 'tax not computed: load your tradebook (lots_build) to see the capital-gains cost' },

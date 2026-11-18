@@ -43,12 +43,13 @@ function pathValue(plan, now) {
   return v;
 }
 
-// Extra per month for 12 months, growing at the plan return, that adds up to the gap.
+// Extra per month for 12 months, growing at the plan return, that closes the gap as the gap
+// itself grows at the plan return over those 12 months.
 function extraMonthly(gap, returnPct) {
   const r = returnPct / 100 / 12;
   let factor = 0;
   for (let k = 0; k < 12; k++) factor += (1 + r) ** k;
-  return Math.round(gap / factor);
+  return Math.round((gap * (1 + r) ** 12) / factor);
 }
 
 function notSet(profile) {
@@ -65,7 +66,7 @@ function evaluate({ profile, c, now, snap, edition }) {
   const gap = Math.round(path - c.totals.book);
   const extra = extraMonthly(gap, p.return_pct);
   return [tasks.make({
-    kind: 'contribution', symbol: null, rule_ref: 'plan.behind_tolerance_pct', bucket: Math.floor(behindPct),
+    kind: 'contribution', symbol: null, rule_ref: 'plan.behind_tolerance_pct', bucket: 'behind',
     title: `The book is ${Math.round(behindPct * 10) / 10}% behind your plan path`,
     measurements: [
       { name: 'book_inr', value: Math.round(c.totals.book), base: 'whole book (holdings plus cash)', as_of: snap.taken_at },

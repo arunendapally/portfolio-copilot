@@ -6,6 +6,7 @@
 
 const path = require('path');
 const { stateDir, readJson, writeJson } = require('./state');
+const { istDate } = require('./format');
 
 const STAGES = ['idle', 'armed', 'booked', 'trailing'];
 const file = (folder) => path.join(stateDir(folder), 'marks.json');
@@ -30,15 +31,26 @@ function inScope(h, profile) {
 
 const forward = (from, to) => STAGES.indexOf(to) > STAGES.indexOf(from);
 
+// A price known to be a close: the last price at or after 15:30 IST, else the previous close
+// (Kite's day_change is the move since it, times qty). Mid-session there may be none.
+function closeOf(h, now) {
+  const ist = new Date(now.getTime() + 330 * 60000);
+  if (ist.getUTCHours() * 60 + ist.getUTCMinutes() >= 15 * 60 + 30) return h.ltp;
+  if (typeof h.prev_close === 'number') return h.prev_close;
+  if (typeof h.day_change === 'number' && typeof h.ltp === 'number' && h.qty) return Math.round((h.ltp - h.day_change / h.qty) * 100) / 100;
+  return null;
+}
+
 // Update from a snapshot. `stops` maps symbol -> current stop (from the GTT audit).
 function update(marks, snap, profile, stops = {}, now = new Date()) {
   const lock = profile.gtt_policy.profit_lock;
-  const day = now.toISOString().slice(0, 10);
+  const day = istDate(now);
   const kite = (snap.brokers && snap.brokers.kite) || {};
   const held = new Map((kite.holdings || []).filter((h) => inScope(h, profile)).map((h) => [h.symbol, h]));
   for (const [sym, h] of held) {
-    const m = marks.symbols[sym] || { since: day, high_close: h.ltp, high_at: day, stage: 'idle', stage_at: null, booked_qty: 0, last_stop: null, last_qty: h.qty, source: 'snapshot' };
-    if (h.ltp > m.high_close) Object.assign(m, { high_close: h.ltp, high_at: day });
+    const close = closeOf(h, now);
+    const m = marks.symbols[sym] || { since: day, high_close: close === null ? h.ltp : close, high_at: day, stage: 'idle', stage_at: null, booked_qty: 0, last_stop: null, last_qty: h.qty, source: 'snapshot' };
+    if (close !== null && close > m.high_close) Object.assign(m, { high_close: close, high_at: day });
     const stop = stops[sym] === undefined ? null : stops[sym];
     if (stop !== null) m.last_stop = Math.max(m.last_stop || 0, stop);
     const gain = h.avg ? (100 * (h.ltp - h.avg)) / h.avg : null;

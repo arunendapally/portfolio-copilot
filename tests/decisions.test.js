@@ -109,3 +109,27 @@ test('same inputs, same tasks and ids; priority order and the cap of five', () =
   assert.ok(a.tasks.every((t, i, x) => i === 0 || x[i - 1].priority <= t.priority));
   assert.strictEqual(a.tasks[0].kind, 'gtt_gap', 'safety first');
 });
+
+test('extra monthly amount closes the gap as it grows at the plan return', () => {
+  // 120000 * 1.01^12 / sum(1.01^k, k = 0..11) = 10661.85
+  assert.strictEqual(contributions.extraMonthly(120000, 12), 10662);
+  assert.strictEqual(contributions.extraMonthly(120000, 0), 10000);
+});
+
+test('a small change in the measurement keeps the task id (limits, plan path, loss tolerance)', () => {
+  const idOf = (r, pred) => (r.all.find(pred) || {}).id;
+  const prof = profile({ sectors: {}, limits: { single_stock_pct: 20 } });
+  const stock = (v) => decisions.evaluate(input(quiet([eq('BIG', v, { keep: true }), eq('OTHER', 700)]), prof));
+  const a = idOf(stock(300), (t) => t.kind === 'limit_stock');
+  assert.ok(a);
+  assert.strictEqual(idOf(stock(330), (t) => t.kind === 'limit_stock'), a);
+  const plan = { start: '2026-01-01', start_book_inr: 1000000, return_pct: 12, monthly: [{ from: '2026-01', amount_inr: 50000 }], step_up_pct: null, step_up_month: null, behind_tolerance_pct: 5 };
+  const pp = profile({ plan, limits: { single_stock_pct: 100 } });
+  const behind = (v) => idOf(decisions.evaluate(input([eq('NIFTYETF', v, { type: 'etf' })], pp)), (t) => t.kind === 'contribution');
+  assert.ok(behind(1000000));
+  assert.strictEqual(behind(1000000), behind(1050000));
+  const lp = profile({ loss_tolerance: { amount_inr: 1000, from: null, to: null, measure: 'open' }, classes: { PLAYCO: 'play' }, limits: { single_stock_pct: 100 } });
+  const loss = (pnl) => idOf(decisions.evaluate(input([eq('PLAYCO', 500, { pnl, type: 'etf' })], lp)), (t) => t.why.rule_ref === 'loss_tolerance.amount_inr');
+  assert.ok(loss(-1500));
+  assert.strictEqual(loss(-1500), loss(-1650));
+});

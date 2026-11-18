@@ -142,3 +142,33 @@ test('backtest: a lot that arms, books and is then stopped by the trail', () => 
   assert.strictEqual(r.outcome, 'booked, then stopped');
   assert.strictEqual(r.pnl, 5 * 45 + 5 * 35, 'booked 5 at 145, the rest stopped at 135 (10% under the 150 high)');
 });
+
+test('an average cost off the 0.05 tick: the cost stop rounds up, so it arms', () => {
+  const prof = profile();
+  const s = snap([eq('ALPHA', 123.456, 160)], [g(1, 'ALPHA', 80)]);
+  const st = lockRule.states(s, prof, null, LOCK, { ALPHA: 80 })[0];
+  assert.strictEqual(st.proposed_stop, 123.5, 'at or above cost, never 123.45');
+  assert.strictEqual(lockRule.states(snap([eq('ALPHA', 100, 160)]), prof, null, LOCK)[0].proposed_stop, 100, 'a cost on the tick stays put');
+  const m = marksLib.update({ schema_version: 1, symbols: {}, reentry: [] }, snap([eq('ALPHA', 123.456, 160)]), prof, { ALPHA: st.proposed_stop }, NOW);
+  assert.strictEqual(m.symbols.ALPHA.stage, 'armed');
+});
+
+test('marks: a midday spike does not lift the highest close; the previous close or a post-close price does', () => {
+  const prof = profile();
+  let m = marksLib.update({ schema_version: 1, symbols: {}, reentry: [] }, snap([eq('ALPHA', 100, 125)]), prof, {}, new Date('2026-11-16T11:00:00Z'));
+  assert.strictEqual(m.symbols.ALPHA.high_close, 125);
+  m = marksLib.update(m, snap([eq('ALPHA', 100, 140)]), prof, {}, new Date('2026-11-17T06:30:00Z'));
+  assert.strictEqual(m.symbols.ALPHA.high_close, 125, '12:00 IST is not a close');
+  // Kite day_change is the move since the previous close (times qty): 140 - 100 / 10 = 130 closed yesterday.
+  m = marksLib.update(m, snap([eq('ALPHA', 100, 140, { day_change: 100 })]), prof, {}, new Date('2026-11-17T06:30:00Z'));
+  assert.strictEqual(m.symbols.ALPHA.high_close, 130);
+  m = marksLib.update(m, snap([eq('ALPHA', 100, 140)]), prof, {}, new Date('2026-11-17T10:00:00Z'));
+  assert.strictEqual(m.symbols.ALPHA.high_close, 140, '15:30 IST and after is the close');
+});
+
+test('a trail task keeps its id while the trail level moves', () => {
+  const prof = profile();
+  const s = snap([eq('ALPHA', 100, 160, { qty: 5 })], [g(1, 'ALPHA', 120, 5)]);
+  const id = (high) => lockTasks(decisions.evaluate(input(s, prof, { symbols: { ALPHA: { stage: 'trailing', high_close: high } }, reentry: [] })))[0].id;
+  assert.strictEqual(id(170), id(172));
+});
