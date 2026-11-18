@@ -109,3 +109,31 @@ test('import refuses to overwrite newer copies unless forced', async () => {
   assert.ok(r.newer.includes('portfolio-copilot/log.md'));
   assert.ok((await callTool('state_import', { bundle: out, into: folder, force: true }, ctx())).ok);
 });
+
+test('the journal travels as its tail but never comes back to overwrite the full history', async () => {
+  const { root, folder } = tmpEnv();
+  seed(folder);
+  const full = Array.from({ length: 250 }, (_, i) => JSON.stringify({ id: `t_${i}`, decision: 'approved' })).join('\n') + '\n';
+  fs.writeFileSync(state(folder, 'journal.jsonl'), full);
+  const out = path.join(root, 'b.json');
+  bundle.exportBundle(folder, out, new Date('2026-11-16T05:00:00Z'));
+  const into = path.join(root, 'scratch');
+  bundle.importBundle(out, into);
+  assert.strictEqual(fs.readFileSync(path.join(into, 'portfolio-copilot', 'journal.jsonl'), 'utf8').trim().split('\n').length, 200);
+  fs.appendFileSync(path.join(into, 'portfolio-copilot', 'journal.jsonl'), `${JSON.stringify({ id: 't_new' })}\n`);
+  const r = await callTool('state_writeback', { folder: into, bundle: out }, ctx());
+  assert.ok(!r.next.some((n) => n.files.some((f) => f.path.endsWith('journal.jsonl'))), 'the truncated journal is not written back');
+  assert.ok((await callTool('state_import', { bundle: out, into: folder, force: true }, ctx())).ok);
+  assert.strictEqual(fs.readFileSync(state(folder, 'journal.jsonl'), 'utf8'), full, 'import keeps the full local journal');
+});
+
+test("today's runs are picked by the IST date", () => {
+  const { root, folder } = tmpEnv();
+  seed(folder);
+  fs.mkdirSync(state(folder, 'runs'), { recursive: true });
+  fs.writeFileSync(state(folder, 'runs', '2026-11-17-full.json'), '{}');
+  fs.writeFileSync(state(folder, 'runs', '2026-11-18-full.json'), '{}');
+  // 2026-11-17T20:00Z is 01:30 IST on 18 November.
+  const r = bundle.exportBundle(folder, path.join(root, 'b.json'), new Date('2026-11-17T20:00:00Z'));
+  assert.deepStrictEqual(r.files.filter((f) => f.includes('/runs/')), ['portfolio-copilot/runs/2026-11-18-full.json']);
+});

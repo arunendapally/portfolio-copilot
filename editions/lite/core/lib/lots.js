@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { stateDir, readJson, writeJson } = require('./state');
 const { parseDelimited, num } = require('./brokers/normalize');
+const { istDate } = require('./format');
 
 const LONG_DAYS = 365;
 const ADVISER = 'confirm with your tax adviser';
@@ -47,7 +48,7 @@ function fyOf(date, startMonth = 4) {
 function build({ tradebook, mfStatement, held = {}, now = new Date(), fyStartMonth = 4 }) {
   const all = [...(tradebook ? trades(tradebook, 'equity') : []), ...(mfStatement ? trades(mfStatement, 'mf') : [])]
     .sort((a, b) => a.date.localeCompare(b.date) || (a.side === 'buy' ? -1 : 1));
-  const fy = fyOf(now.toISOString(), fyStartMonth);
+  const fy = fyOf(istDate(now), fyStartMonth);
   const symbols = {};
   const realised = { fy, stcg_inr: 0, ltcg_inr: 0 };
   const problems = [];
@@ -87,6 +88,15 @@ function ratesSet(tax) {
   return tax && tax.as_of && typeof tax.stcg_pct === 'number' && typeof tax.ltcg_pct === 'number' && typeof tax.ltcg_exemption_inr === 'number';
 }
 
+const STALE_FY = 'lots built in a previous financial year: run lots_build again';
+
+// Long-term gains realised this financial year. Lots built in an earlier year count none: last
+// year's gains never reduce this year's exemption.
+function realisedThisFy(lots, tax, now) {
+  const current = lots.realised.fy === fyOf(istDate(now), (tax && tax.fy_start_month) || 4);
+  return { ltcg_inr: current ? Math.max(0, lots.realised.ltcg_inr) : 0, note: current ? null : STALE_FY };
+}
+
 // The tax effect of selling qty at price: lots used, holding periods, gains, exemption used.
 function taxFor(lots, profile, symbol, qty, price, now = new Date()) {
   const s = lots && lots.symbols && lots.symbols[symbol];
@@ -96,7 +106,7 @@ function taxFor(lots, profile, symbol, qty, price, now = new Date()) {
   for (const l of s.lots) {
     if (left <= 0) break;
     const q = Math.min(left, l.qty);
-    const held = days(l.date, now.toISOString());
+    const held = days(l.date, istDate(now));
     used.push({ date: l.date, qty: q, cost: l.cost, days_held: held, term: held > LONG_DAYS ? 'long' : 'short', gain_inr: round(q * (price - l.cost)) });
     left -= q;
   }
@@ -106,13 +116,15 @@ function taxFor(lots, profile, symbol, qty, price, now = new Date()) {
   const base = { lots: used, stcg_inr: st, ltcg_inr: lt, realised_fy: lots.realised, uncovered_qty: left > 0 ? left : 0 };
   const tax = profile.tax || {};
   if (!ratesSet(tax)) return { ...base, computed: false, note: `lots ${lotsText}; short-term gain ${st} INR, long-term ${lt} INR; tax not computed: save your rates and exemption (tax.*) with their date; ${ADVISER}` };
-  const remaining = Math.max(0, tax.ltcg_exemption_inr - Math.max(0, lots.realised.ltcg_inr));
+  const realised = realisedThisFy(lots, tax, now);
+  const remaining = Math.max(0, tax.ltcg_exemption_inr - realised.ltcg_inr);
   const exemptUsed = Math.min(remaining, Math.max(0, lt));
   const amount = round(Math.max(0, st) * tax.stcg_pct / 100 + Math.max(0, lt - exemptUsed) * tax.ltcg_pct / 100);
   return {
     ...base, computed: true, amount_inr: amount, exemption_used_inr: exemptUsed, exemption_left_inr: remaining - exemptUsed,
-    text: `lots ${lotsText}; short-term gain ${st} INR, long-term ${lt} INR; uses ${exemptUsed} of the ${remaining} INR exemption left this year; tax about ${amount} INR (rates as of ${tax.as_of}); ${ADVISER}`,
+    ...(realised.note ? { note: realised.note } : {}),
+    text: `lots ${lotsText}; short-term gain ${st} INR, long-term ${lt} INR; uses ${exemptUsed} of the ${remaining} INR exemption left this year${realised.note ? ` (${realised.note})` : ''}; tax about ${amount} INR (rates as of ${tax.as_of}); ${ADVISER}`,
   };
 }
 
-module.exports = { build, load, save, taxFor, trades, fyOf, ratesSet, ADVISER };
+module.exports = { build, load, save, taxFor, trades, fyOf, ratesSet, realisedThisFy, ADVISER };

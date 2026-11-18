@@ -25,7 +25,7 @@ function evaluate({ snap, profile, realised = null, edition }) {
   if (used <= l.amount_inr) return [];
   const realNote = real === null ? 'realised losses not counted: load your tradebook (lots) to include them' : `realised ${Math.round(real)} INR since ${l.from || 'the start'}`;
   return [tasks.make({
-    kind: 'data', priority: 3, symbol: null, rule_ref: 'loss_tolerance.amount_inr', bucket: Math.floor(used / Math.max(1, l.amount_inr) * 10),
+    kind: 'data', priority: 3, symbol: null, rule_ref: 'loss_tolerance.amount_inr', bucket: 'past',
     title: 'Play-trade losses are past your tolerance',
     measurements: [
       { name: 'losses_inr', value: Math.round(used), base: `${l.measure === 'realised' ? 'realised' : 'realised plus open'} on play trades; ${realNote}`, as_of: snap.taken_at },

@@ -8,6 +8,8 @@ const gtt = require('../gtt');
 const marksLib = require('../marks');
 
 const round = (n, d = 1) => Math.round(n * 10 ** d) / 10 ** d;
+// The cost stop rounds up to the next 0.05 tick: a stop below cost would never arm (marks.update).
+const tickUp = (p) => gtt.tick(Math.ceil(round(p / 0.05, 6)) * 0.05);
 
 // What the rule wants for each holding in scope, at thresholds `t` (the profile's, or a dry run's).
 function states(snap, profile, marks, t, stops = {}, { dry = false } = {}) {
@@ -17,7 +19,7 @@ function states(snap, profile, marks, t, stops = {}, { dry = false } = {}) {
     const m = (marks && marks.symbols[h.symbol]) || { stage: 'idle', high_close: h.ltp };
     const stop = stops[h.symbol] === undefined ? null : stops[h.symbol];
     const gain = (100 * (h.ltp - h.avg)) / h.avg;
-    const cost = gtt.tick(h.avg);
+    const cost = tickUp(h.avg);
     const trail = t.trail_pct ? gtt.tick(Math.max(m.high_close, h.ltp) * (1 - t.trail_pct / 100)) : null;
     // A dry run has no history: a holding past the booking threshold is shown as a booking.
     const armed = m.stage === 'armed' || (dry && m.stage === 'idle');
@@ -76,7 +78,7 @@ function evaluate({ snap, profile, marks, edition }) {
       }, { edition }));
     } else if (s.want === 'trailing' && s.proposed_stop !== null && (s.stop === null || s.proposed_stop > s.stop)) {
       out.push(tasks.make({
-        kind: 'profit_lock_trail', symbol: s.symbol, rule_ref: 'gtt_policy.profit_lock.trail_pct', bucket: s.proposed_stop,
+        kind: 'profit_lock_trail', symbol: s.symbol, rule_ref: 'gtt_policy.profit_lock.trail_pct', bucket: 'trail',
         title: `Trail ${s.symbol} stop up to ${s.proposed_stop}`,
         measurements: [...base, { name: 'high_close', value: s.high_close, base: 'highest close since tracking began' }],
         options: [{ id: 'do', label: `Raise the stop to ${s.proposed_stop}`, draft_kind: 'gtt_plan' }, { id: 'nothing', label: 'Leave the stop' }],
