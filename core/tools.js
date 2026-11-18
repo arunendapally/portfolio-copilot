@@ -27,6 +27,7 @@ const journalLib = require('./lib/journal');
 const concentration = require('./lib/rules/concentration');
 const marksLib = require('./lib/marks');
 const profitLock = require('./lib/rules/profit_lock');
+const exportLib = require('./lib/export');
 const path = require('path');
 const session = require('./lib/session');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
@@ -560,6 +561,17 @@ async function profitLockDryrun(args, ctx) {
   return { ok: true, rows, text: L.join('\n') };
 }
 
+// Dashboard files (T083): positions and cash in the dashboard's shape; missing technicals are null.
+async function exportCmd(args, ctx) {
+  if ((args.format || 'dashboard') !== 'dashboard') return { ok: false, error: 'format: dashboard', text: 'Only format dashboard is supported.' };
+  const snap = state.latestSnapshot(args.folder);
+  if (!snap) return { ok: false, error: 'no snapshot yet', text: 'No data yet. Run refresh first.' };
+  const { profile } = profiles.load(args.folder);
+  const out = args.out || path.join(state.stateDir(args.folder), 'dashboard');
+  const r = exportLib.write(args.folder, out, snap, state.previousSnapshot(args.folder, istDate(new Date(snap.taken_at))), profile);
+  return { ok: true, ...r, text: `Dashboard files written (${r.positions} positions, data ${istStamp(new Date(snap.taken_at))}): ${r.files.join(', ')}. Load them into the dashboard.` };
+}
+
 // Guided review (US3): one run, stage by stage, gates in code.
 function reviewDeps(args, ctx) {
   return {
@@ -571,6 +583,8 @@ function reviewDeps(args, ctx) {
     draft: (folder, t) => draftGttPlan({ folder, symbols: [t.symbol], corporate_actions: args.corporate_actions || [] }, ctx),
     log: (folder, text) => { const { profile } = profiles.load(folder); return log.append(folder, { text, path: profile.log && profile.log.path }, ctx.now()); },
     exportBundle: (folder) => bundle.exportBundle(folder, path.join(state.stateDir(folder), 'bundle.json'), ctx.now()),
+    exportDashboard: (folder) => { const s = state.latestSnapshot(folder); const { profile } = profiles.load(folder); return exportLib.write(folder, path.join(state.stateDir(folder), 'dashboard'), s, state.previousSnapshot(folder, istDate(new Date(s.taken_at))), profile); },
+    record: args.record,
   };
 }
 const runId = (args, ctx) => args.run || `${istDate(ctx.now())}-full`;
@@ -671,11 +685,12 @@ const TOOLS = [
   { name: 'state_import', handler: stateImport, description: 'Restore a state bundle into a folder. Refuses when the folder holds newer copies, unless force.', props: { bundle: { type: 'string' }, into: { type: 'string' }, force: { type: 'boolean' } }, required: ['bundle', 'into'] },
   { name: 'state_writeback', handler: stateWriteback, description: 'List the files changed since a bundle was restored, as a files writeback step to copy to the computer. Pass source_hashes (path to sha256 of the computer copy) to catch conflicts. Writes nothing itself.', props: { bundle: { type: 'string' }, source_hashes: { type: 'object' } }, required: ['bundle'] },
   { name: 'review_start', handler: reviewStart, description: 'Start (or resume) the guided review for today. kind: full (default), eod or friday. tools: every broker MCP tool name you can see. Returns next: do each step, then call review_next, until stage is closed.', props: { kind: { type: 'string', enum: ['full', 'eod', 'friday'] }, unattended: { type: 'boolean' }, tools: { type: 'array', items: { type: 'string' } } } },
-  { name: 'review_next', handler: reviewNext, description: 'Run the current review stage once. Returns the gate, next steps and text. Loop: do next, call review_next, until stage is closed.', props: { run: { type: 'string' }, corporate_actions: { type: 'array', items: { type: 'object' } } } },
+  { name: 'review_next', handler: reviewNext, description: 'Run the current review stage once. Returns the gate, next steps and text. Loop: do next, call review_next, until stage is closed. At record, pass record: { todoist: synced | skipped, dashboard: updated | skipped } once done.', props: { run: { type: 'string' }, corporate_actions: { type: 'array', items: { type: 'object' } }, record: { type: 'object', properties: { todoist: { type: 'string', enum: ['synced', 'skipped'] }, dashboard: { type: 'string', enum: ['updated', 'skipped'] } } } } },
   { name: 'review_status', handler: reviewStatus, description: 'Where the review run stands: stage, gate, each task with its decision and outcome. Read-only.', props: { run: { type: 'string' } } },
   { name: 'task_decide', handler: taskDecide, description: "Record the investor's answer to a task question (Approve, Defer, Decline). Approving authorises a draft, never an order.", props: { run: { type: 'string' }, task: { type: 'string' }, decision: { type: 'string', enum: ['approved', 'deferred', 'declined'] }, reason: { type: 'string' }, defer_until: { type: 'string' }, option: { type: 'string' } }, required: ['task', 'decision'] },
   { name: 'task_done', handler: taskDone, description: 'After the investor says done on a task they carry out themselves. result: done, could_not or skipped. A fresh read still verifies it.', props: { run: { type: 'string' }, task: { type: 'string' }, result: { type: 'string', enum: ['done', 'could_not', 'skipped'] }, note: { type: 'string' } }, required: ['task', 'result'] },
   { name: 'research_submit', handler: researchSubmit, description: 'Submit research findings for the review brief: symbol, metric, value, period, source_url, source_quote, accessed, status (found, not_found, blocked_source). Pass corporate_actions (an array, empty when none) once checked.', props: { run: { type: 'string' }, findings: { type: 'array', items: { type: 'object' } }, corporate_actions: { type: 'array', items: { type: 'object' } } } },
+  { name: 'export', handler: exportCmd, description: 'Write the dashboard files (positions-<date>.json, cash-<date>.json) from the latest snapshot. format: dashboard; out: a folder (default the state folder).', props: { format: { type: 'string', enum: ['dashboard'] }, out: { type: 'string' } } },
   { name: 'profit_lock_dryrun', handler: profitLockDryrun, description: 'What the profit lock would arm, book or trail today at the thresholds given (arm_gain_pct, book_gain_pct, trail_pct; scope play or all_stocks). Saves nothing.', props: { arm_gain_pct: { type: 'number' }, book_gain_pct: { type: 'number' }, trail_pct: { type: 'number' }, scope: { type: 'string', enum: ['play', 'all_stocks'] } }, required: ['arm_gain_pct', 'book_gain_pct', 'trail_pct'] },
   { name: 'decisions', handler: decisionsCmd, description: "What is due under the investor's own rules (GTT gaps, tripwires, limits, drift, plan path, loss tolerance), outside a review. Saves nothing.", props: {} },
   { name: 'journal_readback', handler: journalReadback, description: 'Decisions older than older_than_days (default from the profile) beside what the same rules measure now.', props: { older_than_days: { type: 'number' } } },

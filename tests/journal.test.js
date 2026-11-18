@@ -16,7 +16,8 @@ async function decideAll(folder, ctx, kind = 'full') {
   await callTool('research_submit', { folder, run: `${ctx.now().toISOString().slice(0, 10)}-${kind}`, corporate_actions: [] }, ctx);
   const p = await callTool('review_next', { folder, run: `${ctx.now().toISOString().slice(0, 10)}-${kind}` }, ctx);
   for (const t of p.tasks) await callTool('task_decide', { folder, run: p.run, task: t.id, decision: 'declined', reason: 'testing' }, ctx);
-  return { p, closed: await callTool('review_next', { folder, run: p.run }, ctx) };
+  await callTool('review_next', { folder, run: p.run }, ctx);
+  return { p, closed: await callTool('review_next', { folder, run: p.run, record: { todoist: 'synced', dashboard: 'updated' } }, ctx) };
 }
 
 test('decided tasks are journaled with their measurements at decision time', async () => {

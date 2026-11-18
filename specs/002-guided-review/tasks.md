@@ -202,7 +202,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 
 - [ ] T081 [Investor] [US7] Complete research R6 from first-party broker pages (terms, limits, cost, login flow), record each with its date, and get the investor's choice per broker
 - [ ] T082 [Investor] [US7] Constitution amendment v2.0.0: redefine Principle IV to allow one read-only local collector per broker alongside the chat connector, with the conditions in plan Complexity Tracking. Update the Sync Impact Report and dependent templates. Blocks T085 to T095 except T083
-- [ ] T083 [P] [US7] Add `export --format dashboard` to `core/tools.js` (contracts/pc-commands.md) with `tests/export.test.js`. Needs only T045; may be done before the rest of US7
+- [x] T083 [P] [US7] Add `export --format dashboard` to `core/tools.js` (contracts/pc-commands.md) with `tests/export.test.js`. Needs only T045; may be done before the rest of US7
 - [ ] T084 [US7] Decide MCP SDK or a hand-written stdio JSON-RPC loop for `local/server.js` after reading the v0.5.0 server in git history; record the decision and reason in research.md
 - [ ] T085 [P] [US7] `tests/local-engine.test.js` per contracts/local-engine.md
 - [ ] T086 [US7] Create `local/collectors/index.js` (interface) and a fake collector used by the tests

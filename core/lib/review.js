@@ -18,6 +18,7 @@ const manual = require('./manual_steps');
 const snapshotLib = require('./snapshot');
 const journal = require('./journal');
 const marksLib = require('./marks');
+const effects = require('./effects');
 const { istStamp, istDate } = require('./format');
 
 const STAGES = {
@@ -175,7 +176,7 @@ function taskQuestion(t, n) {
     questions: [{
       header: t.id, multiSelect: false,
       question: `${n}. ${t.title}. Why: your rule ${t.why.rule_ref}. ${why}. ${t.executor === 'plugin' ? 'Approving drafts the change; nothing is placed until you click Yes on that draft.' : 'You do this one yourself; Claude gives the steps.'}`,
-      options: [{ label: 'Approve', description: t.options[0].label }, { label: 'Defer', description: 'Ask again later' }, { label: 'Decline', description: t.options[t.options.length - 1].label }],
+      options: [{ label: 'Approve', description: `${t.options[0].label}. ${effects.line(t.options[0].effects)}`.slice(0, 300) }, { label: 'Defer', description: 'Ask again later' }, { label: 'Decline', description: t.options[t.options.length - 1].label }],
     }],
   };
 }
@@ -289,19 +290,34 @@ async function stage(folder, run, now, deps) {
       return pass();
     }
     case 'record': {
-      const decided = run.tasks.filter((t) => t.decision);
-      appendLines(journalFile(folder), decided.map((t) => ({ ...t, run_id: run.id })));
-      const summary = summaryLine(run);
-      deps.log(folder, `Review ${run.id}: ${summary}${run.tasks.length ? `\n${run.tasks.map((t) => `- ${t.title}: ${t.decision || 'listed'}${t.outcome ? `, ${t.outcome}` : ''}`).join('\n')}` : ''}`);
-      deps.exportBundle(folder);
+      // Writes once: journal, log, bundle, dashboard files. Then the run waits until the model
+      // confirms Todoist and the dashboard were updated (FR-022: say which did not).
+      if (!st.written) {
+        const decided = run.tasks.filter((t) => t.decision);
+        appendLines(journalFile(folder), decided.map((t) => ({ ...t, run_id: run.id })));
+        deps.log(folder, `Review ${run.id}: ${summaryLine(run)}${run.tasks.length ? `\n${run.tasks.map((t) => `- ${t.title}: ${t.decision || 'listed'}${t.outcome ? `, ${t.outcome}` : ''}`).join('\n')}` : ''}`);
+        deps.exportBundle(folder);
+        st.dashboard_files = deps.exportDashboard(folder).files;
+        st.written = now.toISOString();
+      }
+      const got = deps.record || {};
+      if (got.todoist) st.todoist = got.todoist;
+      if (got.dashboard) st.dashboard = got.dashboard;
       const ops = run.tasks.map((t) => {
         const ext = `pc:${t.id}`;
         if (t.outcome === 'confirmed') return { op: 'complete', external_id: ext };
         if (t.decision === 'declined') return { op: 'complete', external_id: ext, note: 'declined' };
         return { op: 'create', external_id: ext, content: t.title, description: `${t.why.rule_ref}${t.outcome ? ` · ${t.outcome}` : ''}`, due: t.defer_until || null };
       });
-      st.summary = summary;
-      return pass({ next: ops.length ? [{ do: 'todoist', ops }] : [] });
+      const pending = [];
+      const next = [];
+      if (!st.todoist) { pending.push('Todoist'); next.push({ do: 'todoist', ops, then: 'review_next with record.todoist = synced (or skipped if the investor said so)' }); }
+      if (!st.dashboard) { pending.push('dashboard'); next.push({ do: 'dashboard', files: st.dashboard_files, then: 'review_next with record.dashboard = updated (or skipped)' }); }
+      if (pending.length) return wait(`waiting for ${pending.join(' and ')} to be updated`, pending, next);
+      st.summary = summaryLine(run);
+      const skipped = ['todoist', 'dashboard'].filter((k) => st[k] !== 'synced' && st[k] !== 'updated');
+      if (skipped.length) run.note_skipped = skipped;
+      return pass();
     }
     default:
       throw new Error(`unknown stage ${run.stage}`);
@@ -317,7 +333,7 @@ function proposeText(run) {
   const L = run.tasks.map((t, i) => {
     const m = t.why.measurements.map((x) => (x.name === 'finding' ? String(x.value) : `${x.name.replace(/_/g, ' ')} ${x.value} (base: ${x.base})`)).join('; ');
     const at = t.why.measurements.find((x) => x.as_of);
-    return `${i + 1}. ${t.title}  · ${t.executor} · ${t.urgency.replace('_', ' ')}${t.not_executable ? ` · ${t.not_executable}` : ''}\n   Why: your rule ${t.why.rule_ref}: ${m}${at ? ` (${istStamp(new Date(at.as_of))})` : ''}\n   Options: ${t.options.map((o) => o.label.toLowerCase()).join(' · ')}${t.decision ? `\n   Decided: ${t.decision}` : ''}`;
+    return `${i + 1}. ${t.title}  · ${t.executor} · ${t.urgency.replace('_', ' ')}${t.not_executable ? ` · ${t.not_executable}` : ''}\n   Why: your rule ${t.why.rule_ref}: ${m}${at ? ` (${istStamp(new Date(at.as_of))})` : ''}\n   Options: ${t.options.map((o) => o.label.toLowerCase()).join(' · ')}${t.options[0].effects ? `\n   ${effects.line(t.options[0].effects)}` : ''}${t.decision ? `\n   Decided: ${t.decision}` : ''}`;
   });
   if (run.also_due) L.push(`Also due: ${run.also_due} (shown next run)`);
   const notSet = (run.stages.evaluate && run.stages.evaluate.not_set) || [];
@@ -372,7 +388,7 @@ function render(run, gate, texts, notes) {
   const L = [`**Review ${run.id}** · stage: ${run.stage}`, ...notes, ...texts];
   if (['propose', 'execute', 'verify'].includes(run.stage)) L.push(proposeText(run));
   if (!gate.pass) L.push(`Waiting: ${gate.reason}${gate.needs && gate.needs.length ? ` (${gate.needs.slice(0, 8).join('; ')})` : ''}`);
-  if (run.stage === 'closed') L.push(run.note ? `Run closed · ${run.note}` : `Run closed · ${summaryLine(run)} · log, journal and bundle written`);
+  if (run.stage === 'closed') L.push(run.note ? `Run closed · ${run.note}` : `Run closed · ${summaryLine(run)} · log, journal, bundle${run.note_skipped && run.note_skipped.includes('todoist') ? '' : ', Todoist'}${run.note_skipped && run.note_skipped.includes('dashboard') ? '' : ', dashboard'} updated${run.note_skipped ? ` · not updated (you said skip): ${run.note_skipped.join(', ')}` : ''}`);
   return L.join('\n');
 }
 

@@ -20,8 +20,8 @@ function crossed(t, f) {
 }
 
 function evaluate({ profile, findings = [], snap, edition }) {
-  const held = new Set();
-  for (const b of Object.values((snap && snap.brokers) || {})) for (const h of b.holdings || []) held.add(h.symbol);
+  const held = new Map();
+  for (const b of Object.values((snap && snap.brokers) || {})) for (const h of b.holdings || []) held.set(h.symbol, (held.get(h.symbol) || 0) + h.qty);
   const found = latestBy(findings).filter((f) => f.status === 'found' && typeof f.value === 'number');
   const out = [];
   for (const [sym, v] of Object.entries(profile.verdicts || {})) {
@@ -36,7 +36,7 @@ function evaluate({ profile, findings = [], snap, edition }) {
         title: `${sym}: tripwire ${t.id || t.metric} crossed`,
         measurements: recent.map((f) => ({ name: f.metric, value: f.value, base: `${f.period}, ${t.below !== undefined && t.below !== null ? `below ${t.below}` : `above ${t.above}`}`, as_of: f.accessed })),
         findings: recent.map((f) => ({ period: f.period, value: f.value, source_url: f.source_url, source_quote: f.source_quote || null, accessed: f.accessed })),
-        options: [{ id: 'do', label: KIND_PATH[on] || KIND_PATH.review }, { id: 'nothing', label: 'Keep holding; record why' }],
+        options: [{ id: 'do', label: KIND_PATH[on] || KIND_PATH.review, ...(on === 'exit' ? { sell: { symbol: sym, qty: held.get(sym) } } : {}) }, { id: 'nothing', label: 'Keep holding; record why' }],
         executor: 'investor', urgency: on === 'exit' ? 'today' : 'this_week', expect: { kind: 'none' },
       }, { edition }));
     }

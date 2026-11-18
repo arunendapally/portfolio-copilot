@@ -14,7 +14,8 @@ Run `pc review_start` with `--folder` = the investor's folder, `tools` = every b
    - `ask`: send that question as is in the inline question UI. Never pre-fill answers. Pass the answer to the command in `then`: `task_decide` with Approve as `approved`, Defer as `deferred` (ask for a date), Decline as `declined`.
    - `manual`: show the numbered steps; wait for "done", "couldn't" or "skip"; call `task_done`.
    - `research`: look up each brief item (see below) and call `research_submit`.
-   - `todoist`: apply the ops with the Todoist tools, matching tasks by the external id in their description; skip silently if Todoist is not connected.
+   - `todoist`: apply the ops with the Todoist tools, matching tasks by the external id in their description (create, update, complete; no duplicates). Then pass `record: { todoist: "synced" }`. If Todoist is not connected, say so and ask; pass `skipped` only if the investor says skip.
+   - `dashboard`: load the listed files into the investor's dashboard (their saved dashboard artifact: update its data and republish). Then pass `record: { dashboard: "updated" }`; `skipped` only on the investor's word.
    - `files`: copy the files back through the device link (below).
 2. Call `pc review_next`. Show its `text`.
 Task questions use Approve, Defer, Decline. Approving authorises a draft, never an order: an order runs only after "Yes, place <code>" on the draft itself. If the investor stops, the run resumes on the next "review" the same day.

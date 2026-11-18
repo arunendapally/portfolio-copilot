@@ -4,6 +4,7 @@
 // A rule whose threshold is not saved is skipped and listed once as "not set" (FR-037).
 
 const tasks = require('./tasks');
+const effects = require('./effects');
 const RULES = [
   require('./rules/gtt_gaps'),
   require('./rules/profit_lock'),
@@ -20,6 +21,8 @@ function notSet(profile) {
 
 function evaluate(input, { deferred = {}, today, live = [] } = {}) {
   const all = RULES.flatMap((r) => r.evaluate(input));
+  // Every option shows what it does to the book: drift, and the tax when lots are loaded.
+  if (input.c) effects.attach(all, { snap: input.snap, c: input.c, profile: input.profile, taxFor: input.taxFor });
   return { ...tasks.select(all, { deferred, today, live }), all, not_set: notSet(input.profile) };
 }
 

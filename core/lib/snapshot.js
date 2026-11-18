@@ -243,4 +243,4 @@ function diff(prev, cur) {
   return { baseline: prev.taken_at, changes, folio_drops, frozen_prices: frozen };
 }
 
-module.exports = { consolidate, diff, floorCash, toInr, allHoldings, fundHouse, valuate, positionKey };
+module.exports = { consolidate, diff, floorCash, toInr, allHoldings, fundHouse, valuate, positionKey, bucketOf };

@@ -87,11 +87,20 @@ test('full flow: approve one, defer one, decline the rest; draft, Yes click, fre
   book.gtts.find((g) => g.condition.tradingsymbol === 'ICICIBANK').orders[0].quantity = 69;
   ctxAt('2026-10-14T05:10:00Z', fakeBrokers({ kite: { data: book } }));
   const later = { edition: 'full', now: () => new Date('2026-10-14T05:10:00Z') };
-  const done = await callTool('review_next', { folder }, later);
+  const rec = await callTool('review_next', { folder }, later);
+  // Record waits until Todoist and the dashboard were updated.
+  assert.strictEqual(rec.stage, 'record', rec.text);
+  assert.deepStrictEqual(rec.gate.needs, ['Todoist', 'dashboard']);
+  const ops = rec.next.find((s) => s.do === 'todoist').ops;
+  const dash = rec.next.find((s) => s.do === 'dashboard');
+  assert.ok(dash.files.some((f) => /positions-2026-10-14\.json$/.test(f)));
+  const half = await callTool('review_next', { folder, record: { todoist: 'synced' } }, later);
+  assert.strictEqual(half.stage, 'record');
+  assert.deepStrictEqual(half.gate.needs, ['dashboard']);
+  const done = await callTool('review_next', { folder, record: { dashboard: 'updated' } }, later);
   assert.strictEqual(done.stage, 'closed', done.text);
   assert.strictEqual(done.tasks.find((t) => t.id === icici.id).outcome, 'confirmed');
-  assert.match(done.text, /Run closed · 1 done, 1 deferred, 0 blocked/);
-  const ops = done.next.find((s) => s.do === 'todoist').ops;
+  assert.match(done.text, /Run closed · 1 done, 1 deferred, 0 blocked · log, journal, bundle, Todoist, dashboard updated/);
   assert.deepStrictEqual(ops.find((o) => o.external_id === `pc:${icici.id}`).op, 'complete');
   assert.strictEqual(ops.find((o) => o.external_id === `pc:${hdfc.id}`).due, '2026-10-20');
   const journal = fs.readFileSync(path.join(folder, 'portfolio-copilot', 'journal.jsonl'), 'utf8').trim().split('\n');
@@ -121,7 +130,8 @@ test('a deferred task is not proposed again before defer_until, and task ids are
   const first = p.tasks[0];
   for (const t of p.tasks) await callTool('task_decide', { folder, task: t.id, decision: t === first ? 'deferred' : 'declined', defer_until: '2026-10-20' }, ctx);
   // Close the run: nothing approved, so execute and verify pass straight to record.
-  const closed = await callTool('review_next', { folder }, ctx);
+  await callTool('review_next', { folder }, ctx);
+  const closed = await callTool('review_next', { folder, record: { todoist: 'synced', dashboard: 'updated' } }, ctx);
   assert.strictEqual(closed.stage, 'closed', closed.text);
   const nextDay = ctxAt('2026-10-15T05:00:00Z', fakeBrokers({ kite: { data: fixture('kite-book.json') } }));
   const q = await toPropose(folder, nextDay);
@@ -162,7 +172,10 @@ test('unattended stops before propose and waits; end of day skips research, prop
   assert.strictEqual(back.next[0].do, 'ask');
   const b = setup();
   const eod = await callTool('review_start', { folder: b.folder, tools: TOOLS, kind: 'eod' }, b.ctx);
-  assert.strictEqual(eod.stage, 'closed', eod.text);
+  assert.strictEqual(eod.stage, 'record', eod.text);
+  const skipped = await callTool('review_next', { folder: b.folder, run: '2026-10-14-eod', record: { todoist: 'skipped', dashboard: 'updated' } }, b.ctx);
+  assert.strictEqual(skipped.stage, 'closed');
+  assert.match(skipped.text, /not updated \(you said skip\): todoist/);
   assert.deepStrictEqual(Object.keys(review.load(b.folder, '2026-10-14-eod').stages), ['connect', 'pull', 'evaluate', 'record']);
 });
 
@@ -208,6 +221,20 @@ test('verify checks each expect kind against the audit row', () => {
   assert.ok(review.check({ kind: 'gtt_stop', max_stop: 80 }, row({ stop: 79 })));
   assert.ok(review.check({ kind: 'gtt_target', target: 260 }, row({ target: 259 })));
   assert.ok(review.check({ kind: 'none' }, undefined));
+});
+
+test('each option shows its drift effect and says when tax is not computed', async () => {
+  const { folder, ctx } = setup();
+  const p = await toPropose(folder, ctx);
+  assert.match(p.text, /Effect: none on allocation; no sale, no tax/);
+  const P = require('../core/lib/profile');
+  const effects = require('../core/lib/effects');
+  const snapshotLib = require('../core/lib/snapshot');
+  const prof = P.merge(P.DEFAULTS, { allocation: { targets: { india_equity: 80 } } });
+  const snap = { taken_at: T0, fx: {}, brokers: { kite: { holdings: [{ symbol: 'A', type: 'equity', qty: 10, ltp: 100, value: 1000, currency: 'INR' }], cash: 0 } } };
+  const e = effects.forOption({ sell: { symbol: 'A', qty: 3 } }, { snap, c: snapshotLib.consolidate(snap, prof), profile: prof });
+  assert.deepStrictEqual(e.allocation.map((a) => [a.bucket, a.before_pct, a.after_pct]), [['india_equity', 100, 70], ['cash', 0, 30]]);
+  assert.match(effects.line(e), /india equity 100% → 70% \(target 80%\).*tax not computed: load your tradebook/);
 });
 
 test('task_decide is refused outside propose and execute; a decision is never an order', async () => {

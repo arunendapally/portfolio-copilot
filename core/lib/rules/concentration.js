@@ -33,17 +33,17 @@ function evaluate({ snap, profile, c, edition }) {
   const L = profile.limits;
   const at = snap.taken_at;
   const out = [];
-  const card = (kind, symbol, rule, title, value, pct, limit, base, denom) => {
+  const card = (kind, symbol, rule, title, value, pct, limit, base, denom, sellable = false) => {
     const excess = round(value - (limit / 100) * denom, 0);
     out.push(tasks.make({
       kind, symbol, rule_ref: rule, bucket: Math.floor(pct),
       title, measurements: [{ name: 'share_pct', value: pct, base, as_of: at }, { name: 'limit_pct', value: limit, base }, { name: 'excess_inr', value: excess, base: `value above ${limit}% of ${base}` }],
-      options: [{ id: 'do', label: `Bring it back to ${limit}% (about ${excess} INR to reduce or to dilute with new money)` }, { id: 'nothing', label: 'Keep it above the limit' }],
+      options: [{ id: 'do', label: `Bring it back to ${limit}% (about ${excess} INR to reduce or to dilute with new money)`, ...(sellable ? { sell: { symbol, value: excess } } : {}) }, { id: 'nothing', label: 'Keep it above the limit' }],
       executor: 'investor', urgency: 'this_week', expect: { kind: 'none' },
     }, { edition }));
   };
   for (const p of c.positions.filter((x) => x.type === 'equity' && x.pct_of_book > L.single_stock_pct)) {
-    card('limit_stock', p.symbol, 'limits.single_stock_pct', `${p.symbol} is above your single-stock limit`, p.value, p.pct_of_book, L.single_stock_pct, 'whole book (holdings plus cash)', c.totals.book);
+    card('limit_stock', p.symbol, 'limits.single_stock_pct', `${p.symbol} is above your single-stock limit`, p.value, p.pct_of_book, L.single_stock_pct, 'whole book (holdings plus cash)', c.totals.book, true);
   }
   for (const s of sectorExposure(snap, profile, c).filter((x) => x.pct !== null && x.pct > L.sector_pct)) {
     card('limit_sector', s.sector, 'limits.sector_pct', `${s.sector} is above your sector limit`, s.value, s.pct, L.sector_pct, s.base, s.denom);
