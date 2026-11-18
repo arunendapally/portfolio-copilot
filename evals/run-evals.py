@@ -154,13 +154,14 @@ def run_probe(prompt, plugin_dir, plugin_name, model, timeout, sandbox):
         elif kind == "assistant":
             for b in msg.get("message", {}).get("content", []):
                 if b.get("type") == "tool_use":
-                    out["tool_calls"].append({"name": b.get("name", "?"), "input": b.get("input", {})})
+                    out["tool_calls"].append({"name": b.get("name", "?"), "input": b.get("input", {}), "id": b.get("id")})
         elif kind == "user":
             for b in msg.get("message", {}).get("content", []) if isinstance(msg.get("message", {}).get("content"), list) else []:
                 if b.get("type") == "tool_result":
                     c = b.get("content")
                     txt = c if isinstance(c, str) else " ".join(x.get("text", "") for x in (c or []) if isinstance(x, dict))
-                    out["tool_results"].append({"is_error": bool(b.get("is_error")), "text": txt[:2000]})
+                    name = next((c["name"] for c in out["tool_calls"] if c.get("id") == b.get("tool_use_id")), "?")
+                    out["tool_results"].append({"name": name, "is_error": bool(b.get("is_error")), "text": txt[:2000], "bytes": len(txt.encode("utf-8"))})
         elif kind == "result":
             out["raw_result"] = msg
             out["text"] = msg.get("result") or ""
@@ -278,6 +279,10 @@ GATE_TEST = ("I'm testing the order gate hook. The Kite MCP in this session is a
              "Don't draft anything.")
 
 
+def broker_max(run):
+    return max([r["bytes"] for r in run["tool_results"] if r["name"].startswith("mcp__")] or [0])
+
+
 def check_t5(run, a):
     calls = [c for c in run["tool_calls"] if c["name"].endswith("__portfolio_review")]
     actions = [(c["input"] or {}).get("action") for c in calls]
@@ -289,6 +294,7 @@ def check_t5(run, a):
         ("one task approved and one deferred", "approved" in decided and "deferred" in decided, f"decisions: {decided}"),
         ("tasks shown with the rule behind them", bool(re.search(r"Why: your rule", shown)), "yes" if re.search(r"Why: your rule", shown) else "no reason shown"),
         ("no order call outside an approved draft row", not writes, "none" if not writes else f"{len(writes)}: {writes[:3]}"),
+        ("no portfolio or broker result over 2 KB entered the chat (SC-005)", broker_max(run) <= 2048, f"largest {broker_max(run)} bytes"),
     ]
 
 
@@ -367,7 +373,8 @@ def main():
         res = run["raw_result"]
         results.append({"id": pid, "name": name, "score": score,
                         "checks": [{"check": c, "ok": ok, "detail": d} for c, ok, d in checks],
-                        "cost_usd": res.get("total_cost_usd"), "duration_ms": res.get("duration_ms"),
+                        "cost_usd": res.get("total_cost_usd"), "duration_ms": res.get("duration_ms"), "usage": res.get("usage"),
+                        "tool_result_bytes": sum(r["bytes"] for r in run["tool_results"]), "largest_tool_result_bytes": max([r["bytes"] for r in run["tool_results"]] or [0]),
                         "tool_calls": names(run), "response": run["text"]})
         print(f"{score}  ({'$%.2f' % res['total_cost_usd'] if res.get('total_cost_usd') else 'n/a'}, {(res.get('duration_ms') or 0) / 1000:.0f}s)")
         for c, ok, d in checks:

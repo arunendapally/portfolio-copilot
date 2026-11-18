@@ -229,7 +229,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 
 ## Phase 11: Polish & Cross-Cutting
 
-- [ ] T100 [P] Add a v0.8 to v1.0 addendum to `docs/specs/architecture-review.md` (tool map, run state machine, local engine)
+- [x] T100 [P] Add a v0.8 to v1.0 addendum to `docs/specs/architecture-review.md` (tool map, run state machine, local engine)
 - [ ] T101 Re-run the Constitution Check table in plan.md at each release and record pass or justified exception
 - [ ] T102 Run [quickstart.md](quickstart.md) end to end on fixtures before each release
 - [ ] T103 Measure and record SC-004 and SC-005 token use on the fixture review with and without the local engine

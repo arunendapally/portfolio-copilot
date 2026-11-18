@@ -91,3 +91,17 @@ Priority order. Each item has a check.
 - **Simple:** one connector per broker, about 6 skills, one state folder, one place for each rule.
 - **Integrated:** every skill reads the same normalized snapshot; brokers, GTTs, verdicts and trades are joined in code, not by the model.
 - **Fast:** no proxy cold start, no 70K payloads in context, no 300 KB of prose at session start. Target: daily check under 60 s and under 30K tokens after login.
+
+## Addendum: v0.8 to v1.0 (spec 002, November 2026)
+
+What changed after the v0.7 rework, and why.
+
+**Broker tool map** (`core/lib/brokers/toolmap.js`). Kite renamed its MCP tools on 11-Nov-2026 and the gate, which matched verbs in tool names, went blind. Now one file maps every (broker, tool, mode) to a kind (read, write, session) and a capability. The order gate denies every write without an approved draft row and every tool it does not know on an order-capable broker. Capture, drafts and `pc doctor` all ask the map. A rename is one file plus its tests.
+
+**The review run** (`core/lib/review.js`, `tasks.js`, `decisions.js`, `rules/`). "review" is a state machine persisted per day: connect, pull, research, evaluate, propose, execute, verify, record. Each stage has a gate in code; a failed gate returns what it needs (`next`) and leaves the stage where it is, so the run resumes. Rules are one evaluator per investor decision (GTT gaps, profit lock, tripwires, limits, drift, plan path, loss tolerance, tax budget); tasks have stable ids from the situation, a fixed priority and a cap of five. A task approval authorises a draft, never an order. Every option carries its effect on allocation and, with lots loaded, its tax. Record closes the run only after log, journal, bundle, Todoist and the dashboard are updated.
+
+**One state everywhere** (`bundle.js`). A cloud chat works on a bundle exported from the computer and writes back only what changed, refusing files changed at the source meanwhile.
+
+**Local engine** (`local/`, constitution 2.0.0). A read-only process on the investor's computer: Kite through the free Personal plan of Kite Connect (one redirect login a day), IBKR through the Flex Web Service, Kotak left in chat. Collectors write the same capture records the chat hook writes, so everything downstream is unchanged. Four MCP tools return summaries under 2 KB; broker reads a review needs are done by the engine, and only the investor's steps reach the model. The model is left with research and wording.
+
+**Measured** (fixture book, eval T5 and `tests/local-engine.test.js`): see research R10.

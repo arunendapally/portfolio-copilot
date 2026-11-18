@@ -157,3 +157,17 @@ test('technicals appear only once there are enough closes, dated', () => {
   assert.strictEqual(r.as_of, series[59].date);
   assert.deepStrictEqual(t.compute(series.slice(0, 5)).dma50, null);
 });
+
+test('over MCP, a review reply is one text block under 2 KB, with the steps that fit and how many follow', async () => {
+  const { folder } = setup();
+  const server = makeServer({ folder, deps: deps(kiteData()), ctx });
+  await server.call('portfolio_review', { action: 'start' });
+  await server.call('portfolio_review', { action: 'research', corporate_actions: [] });
+  const r = await server.handle({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'portfolio_review', arguments: { action: 'next' } } });
+  assert.deepStrictEqual(Object.keys(r.result), ['content']);
+  const text = r.result.content[0].text;
+  assert.ok(Buffer.byteLength(text) <= MAX_TEXT, `${Buffer.byteLength(text)} bytes`);
+  const steps = JSON.parse(text.slice(text.indexOf('\n[') + 1));
+  assert.ok(steps.length >= 1 && steps.every((s) => s.do === 'ask'));
+  assert.match(text, /more after these/);
+});

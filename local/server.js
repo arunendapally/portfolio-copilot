@@ -81,7 +81,23 @@ function makeServer({ folder, deps = {}, ctx = makeContext() } = {}) {
       await collect.runAll(folder, { brokers: f.reads, deps, ctx });
       r = await callTool('review_next', { folder, run: r.run }, ctx);
     }
-    return { text: clip(r.text), next: r.next || [], stage: r.stage, run: r.run, gate: r.gate };
+    // One text block of at most 2 KB: the summary, then as many next steps as fit. The run hands
+    // out the rest once these are done, so nothing is lost.
+    const steps = r.next || [];
+    const fit = [];
+    let room = MAX_TEXT - 700;
+    for (const st of steps) {
+      const b = Buffer.byteLength(JSON.stringify(st));
+      if (fit.length && b > room) break;
+      fit.push(st);
+      room -= b;
+    }
+    const more = steps.length - fit.length;
+    const tail = fit.length ? `
+Next (do these, then call portfolio_review action next${more ? `; ${more} more after these` : ''}):
+${JSON.stringify(fit)}` : '';
+    const body = clip(r.text).slice(0, Math.max(300, MAX_TEXT - Buffer.byteLength(tail) - 20));
+    return { text: clip(body + tail), next: fit, more, stage: r.stage, run: r.run, gate: r.gate };
   }
 
   async function status(args) {
@@ -146,7 +162,11 @@ function makeServer({ folder, deps = {}, ctx = makeContext() } = {}) {
     const ok = (result) => ({ jsonrpc: '2.0', id: msg.id, result });
     if (msg.method === 'initialize') return ok({ protocolVersion: (msg.params && msg.params.protocolVersion) || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'portfolio-copilot-local', version: require('../core/lib/version').manifest().version } });
     if (msg.method === 'tools/list') return ok({ tools: TOOLS });
-    if (msg.method === 'tools/call') return ok(await call(msg.params && msg.params.name, (msg.params && msg.params.arguments) || {}));
+    if (msg.method === 'tools/call') {
+      // Only the text goes to the model (at most 2 KB); the structured copy is for tests.
+      const r = await call(msg.params && msg.params.name, (msg.params && msg.params.arguments) || {});
+      return ok({ content: r.content, ...(r.isError ? { isError: true } : {}) });
+    }
     if (msg.method === 'ping') return ok({});
     return { jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: `unknown method ${msg.method}` } };
   }
