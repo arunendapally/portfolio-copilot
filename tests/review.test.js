@@ -244,3 +244,107 @@ test('task_decide is refused outside propose and execute; a decision is never an
   assert.strictEqual(r.ok, false);
   assert.strictEqual(s.stage, 'research');
 });
+
+// Edits the saved run, as a later rule or a broker limit would leave it.
+function editRun(folder, id, fn) {
+  const f = review.runFile(folder, id);
+  const run = JSON.parse(fs.readFileSync(f, 'utf8'));
+  fn(run);
+  fs.writeFileSync(f, JSON.stringify(run));
+}
+
+async function approveOnly(folder, ctx, re) {
+  const p = await toPropose(folder, ctx);
+  const pick = byTitle(p, re);
+  for (const t of p.tasks) await callTool('task_decide', { folder, task: t.id, decision: t === pick ? 'approved' : 'declined' }, ctx);
+  return { p, pick };
+}
+
+test('two approved plugin tasks for one symbol share one draft, and both execute from its rows', async () => {
+  const { folder, ctx } = setup();
+  const { pick } = await approveOnly(folder, ctx, /ICICIBANK/);
+  editRun(folder, '2026-10-14-full', (run) => run.tasks.push({ ...run.tasks.find((t) => t.id === pick.id), id: 't_0dd1', kind: 'profit_lock_arm', title: 'Arm the profit lock on ICICIBANK' }));
+  const e = await callTool('review_next', { folder }, ctx);
+  assert.strictEqual(e.stage, 'execute');
+  const a = e.tasks.find((t) => t.id === pick.id);
+  const b = e.tasks.find((t) => t.id === 't_0dd1');
+  assert.ok(a.draft_code && a.draft_code === b.draft_code, `${a.draft_code} vs ${b.draft_code}`);
+  assert.strictEqual(e.next.filter((s) => s.do === 'ask').length, 1, 'one Yes/No for the one draft');
+  assert.strictEqual(fs.readdirSync(drafts.draftsDir(folder)).length, 1);
+  drafts.approve(folder, a.draft_code, new Date(T0));
+  drafts.load(folder, a.draft_code).rows.forEach((_, i) => drafts.claimRow(folder, a.draft_code, i));
+  const book = fixture('kite-book.json');
+  book.gtts.find((g) => g.condition.tradingsymbol === 'ICICIBANK').orders[0].quantity = 69;
+  const later = ctxAt('2026-10-14T05:10:00Z', fakeBrokers({ kite: { data: book } }));
+  const rec = await callTool('review_next', { folder }, later);
+  assert.strictEqual(rec.stage, 'record', rec.text);
+  assert.deepStrictEqual([pick.id, 't_0dd1'].map((id) => rec.tasks.find((t) => t.id === id).outcome), ['confirmed', 'confirmed']);
+});
+
+async function toNotConfirmed(folder, ctx) {
+  const { pick } = await approveOnly(folder, ctx, /ICICIBANK/);
+  const e = await callTool('review_next', { folder }, ctx);
+  const code = e.next.find((s) => s.do === 'ask').question.questions[0].header;
+  drafts.approve(folder, code, new Date(T0));
+  drafts.load(folder, code).rows.forEach((_, i) => drafts.claimRow(folder, code, i));
+  const at = ctxAt('2026-10-14T05:10:00Z', fakeBrokers({ kite: { data: fixture('kite-book.json') } }));
+  const r = await callTool('review_next', { folder }, at);
+  assert.match(r.gate.reason, /not confirmed/);
+  return { pick, at };
+}
+
+test('a not-confirmed change stays in verify: a newer read re-checks it, and only could_not lets the run go on', async () => {
+  const { folder, ctx } = setup();
+  const { pick, at } = await toNotConfirmed(folder, ctx);
+  const again = await callTool('review_next', { folder }, at);
+  assert.strictEqual(again.stage, 'verify', 'the run did not close past an unconfirmed change');
+  assert.match(again.gate.reason, /fresh read/);
+  const still = await callTool('review_next', { folder }, ctxAt('2026-10-14T05:20:00Z', fakeBrokers({ kite: { data: fixture('kite-book.json') } })));
+  assert.strictEqual(still.stage, 'verify');
+  assert.match(still.gate.reason, /not confirmed/);
+  const d = await callTool('task_done', { folder, task: pick.id, result: 'could_not', note: 'Kite refused the GTT' }, ctx);
+  assert.strictEqual(d.task.outcome, 'blocked', d.text);
+  assert.strictEqual(d.task.note, 'Kite refused the GTT');
+  const on = await callTool('review_next', { folder }, ctxAt('2026-10-14T05:21:00Z', fakeBrokers({ kite: { data: fixture('kite-book.json') } })));
+  assert.strictEqual(on.stage, 'record', on.text);
+});
+
+test('a not-confirmed change is confirmed by a newer read that shows it; task_done on a plugin task needs not_confirmed and could_not', async () => {
+  const { folder, ctx } = setup();
+  const { pick } = await toNotConfirmed(folder, ctx);
+  assert.strictEqual((await callTool('task_done', { folder, task: pick.id, result: 'done' }, ctx)).ok, false);
+  const book = fixture('kite-book.json');
+  book.gtts.find((g) => g.condition.tradingsymbol === 'ICICIBANK').orders[0].quantity = 69;
+  const r = await callTool('review_next', { folder }, ctxAt('2026-10-14T05:20:00Z', fakeBrokers({ kite: { data: book } })));
+  assert.strictEqual(r.stage, 'record', r.text);
+  assert.strictEqual(r.tasks.find((t) => t.id === pick.id).outcome, 'confirmed');
+});
+
+test('a blocked task queues a gap and carries steps the investor can do by hand', async () => {
+  const { folder, ctx } = setup();
+  const gap = require('../core/lib/gap');
+  const { pick } = await approveOnly(folder, ctx, /ICICIBANK/);
+  editRun(folder, '2026-10-14-full', (run) => { run.tasks.find((t) => t.id === pick.id).not_executable = 'no GTT write tool in this chat'; });
+  const e = await callTool('review_next', { folder }, ctx);
+  const t = e.tasks.find((x) => x.id === pick.id);
+  assert.strictEqual(t.outcome, 'blocked');
+  assert.ok(Array.isArray(t.manual_steps) && /^1\. /.test(t.manual_steps[0]), JSON.stringify(t.manual_steps));
+  const pending = JSON.parse(fs.readFileSync(gap.pendingPath(), 'utf8'));
+  assert.strictEqual(pending.length, 1);
+  assert.match(pending[0].attempted, /ICICIBANK/);
+  assert.match(pending[0].missing, /no GTT write tool in this chat/);
+  assert.match(e.text, /By hand: 1\. /);
+});
+
+test('without run, the review tools use today\'s open run of any kind', async () => {
+  const { folder, ctx } = setup();
+  const s = await callTool('review_start', { folder, tools: TOOLS, kind: 'friday' }, ctx);
+  assert.strictEqual(s.run, '2026-10-14-friday');
+  assert.ok((await callTool('research_submit', { folder, corporate_actions: [] }, ctx)).ok);
+  const p = await callTool('review_next', { folder }, ctx);
+  assert.strictEqual(p.run, '2026-10-14-friday');
+  assert.strictEqual(p.stage, 'propose');
+  const d = await callTool('task_decide', { folder, task: p.tasks[0].id, decision: 'declined' }, ctx);
+  assert.ok(d.ok, d.text);
+  assert.strictEqual((await callTool('review_status', { folder }, ctx)).run.id, '2026-10-14-friday');
+});

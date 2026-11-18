@@ -58,3 +58,24 @@ test('a decision whose situation is gone reads back as no longer due', () => {
   const r = journal.readback(folder, { olderThanDays: 28, now: new Date('2026-11-16T05:00:00Z'), current: [] });
   assert.match(r[0].text, /Then: share pct 20\. Now: no longer due\./);
 });
+
+test('a decision matching the investor\'s answer to the task question is journaled via question; others via typed', async () => {
+  const { folder } = tmpEnv();
+  writeProfile(folder, { ...fixture('profile.json'), brokers: { kite: { enabled: true }, kotak: { enabled: false } } });
+  const ctx = ctxAt('2026-10-14T05:00:00Z', fakeBrokers({ kite: { data: fixture('kite-book.json') } }));
+  await callTool('review_start', { folder, tools: TOOLS }, ctx);
+  await callTool('research_submit', { folder, corporate_actions: [] }, ctx);
+  const p = await callTool('review_next', { folder }, ctx);
+  const [a, b] = p.tasks;
+  const q = (t) => p.next.find((s) => s.question.questions[0].header === t.id).question.questions[0];
+  const approve = require('../hooks/approve');
+  // The investor clicked Decline on a's question and Approve on b's; the model then types declined for both.
+  approve.run({ tool_name: 'AskUserQuestion', tool_input: { questions: [q(a), q(b)] }, tool_response: { questions: [q(a), q(b)], answers: { [q(a).question]: 'Decline', [q(b).question]: 'Approve' } } }, ctx.now());
+  for (const t of p.tasks) assert.ok((await callTool('task_decide', { folder, task: t.id, decision: 'declined' }, ctx)).ok);
+  await callTool('review_next', { folder }, ctx);
+  await callTool('review_next', { folder, record: { todoist: 'synced', dashboard: 'updated' } }, ctx);
+  const rows = journal.lines(folder);
+  assert.strictEqual(rows.find((r) => r.id === a.id).via, 'question');
+  assert.strictEqual(rows.find((r) => r.id === b.id).via, 'typed', 'the answer said Approve, the decision says declined');
+  assert.ok(rows.filter((r) => r.id !== a.id).every((r) => r.via === 'typed'));
+});

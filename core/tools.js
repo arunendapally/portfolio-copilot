@@ -612,7 +612,8 @@ function reviewDeps(args, ctx) {
     record: args.record,
   };
 }
-const runId = (args, ctx) => args.run || `${istDate(ctx.now())}-full`;
+// Without run: today's open run of any kind, else today's full run.
+const runId = (args, ctx) => args.run || review.current(args.folder, ctx.now());
 
 async function reviewStart(args, ctx) {
   const tools = Array.isArray(args.tools) ? args.tools.map(String) : [];
@@ -635,23 +636,26 @@ async function reviewStatus(args, ctx) {
 }
 
 async function taskDecide(args, ctx) {
-  const r = review.decide(args.folder, runId(args, ctx), args, ctx.now());
-  if (!r.ok) return { ...r, text: r.error };
-  return { ok: true, task: r.task, text: `${r.task.title}: ${r.task.decision}.${r.task.decision === 'approved' ? ' This authorises a draft, not an order.' : ''} Call review_next when every task is decided.` };
+  const id = runId(args, ctx);
+  const r = review.decide(args.folder, id, args, ctx.now());
+  if (!r.ok) return { ...r, run: id, text: r.error };
+  return { ok: true, run: id, task: r.task, text: `${r.task.title}: ${r.task.decision}.${r.task.decision === 'approved' ? ' This authorises a draft, not an order.' : ''} Call review_next when every task is decided.` };
 }
 
 async function taskDone(args, ctx) {
-  const r = review.done(args.folder, runId(args, ctx), args, ctx.now());
-  if (!r.ok) return { ...r, text: r.error };
-  return { ok: true, task: r.task, text: `${r.task.title}: ${r.task.outcome}. A fresh read will verify it.` };
+  const id = runId(args, ctx);
+  const r = review.done(args.folder, id, args, ctx.now());
+  if (!r.ok) return { ...r, run: id, text: r.error };
+  return { ok: true, run: id, task: r.task, text: `${r.task.title}: ${r.task.outcome}. A fresh read will verify it.` };
 }
 
 async function researchSubmit(args, ctx) {
-  const r = review.submitResearch(args.folder, runId(args, ctx), { findings: args.findings || [], corporate_actions: args.corporate_actions }, ctx.now());
-  if (!r.ok) return { ...r, text: r.error };
+  const id = runId(args, ctx);
+  const r = review.submitResearch(args.folder, id, { findings: args.findings || [], corporate_actions: args.corporate_actions }, ctx.now());
+  if (!r.ok) return { ...r, run: id, text: r.error };
   const L = [`Accepted ${r.accepted.length} finding(s).${Array.isArray(args.corporate_actions) ? ` Corporate-action check recorded (${args.corporate_actions.length} found).` : ''}`];
   for (const x of r.rejected) L.push(`Rejected ${(x.finding && x.finding.symbol) || '?'} ${(x.finding && x.finding.metric) || ''}: ${x.reasons.join('; ')}`);
-  return { ok: true, ...r, text: L.join('\n') };
+  return { ok: true, run: id, ...r, text: L.join('\n') };
 }
 
 // Rows for orders the plan builders do not draft (IBKR instructions, cancel or modify an open order).
@@ -713,7 +717,7 @@ const TOOLS = [
   { name: 'review_next', handler: reviewNext, description: 'Run the current review stage once. Returns the gate, next steps and text. Loop: do next, call review_next, until stage is closed. At record, pass record: { todoist: synced | skipped, dashboard: updated | skipped } once done.', props: { run: { type: 'string' }, corporate_actions: { type: 'array', items: { type: 'object' } }, record: { type: 'object', properties: { todoist: { type: 'string', enum: ['synced', 'skipped'] }, dashboard: { type: 'string', enum: ['updated', 'skipped'] } } } } },
   { name: 'review_status', handler: reviewStatus, description: 'Where the review run stands: stage, gate, each task with its decision and outcome. Read-only.', props: { run: { type: 'string' } } },
   { name: 'task_decide', handler: taskDecide, description: "Record the investor's answer to a task question (Approve, Defer, Decline). Approving authorises a draft, never an order.", props: { run: { type: 'string' }, task: { type: 'string' }, decision: { type: 'string', enum: ['approved', 'deferred', 'declined'] }, reason: { type: 'string' }, defer_until: { type: 'string' }, option: { type: 'string' } }, required: ['task', 'decision'] },
-  { name: 'task_done', handler: taskDone, description: 'After the investor says done on a task they carry out themselves. result: done, could_not or skipped. A fresh read still verifies it.', props: { run: { type: 'string' }, task: { type: 'string' }, result: { type: 'string', enum: ['done', 'could_not', 'skipped'] }, note: { type: 'string' } }, required: ['task', 'result'] },
+  { name: 'task_done', handler: taskDone, description: 'After the investor says done on a task they carry out themselves. result: done, could_not or skipped. A fresh read still verifies it. On a plugin task the fresh read did not confirm, only could_not (with a note), when the investor says it could not be done.', props: { run: { type: 'string' }, task: { type: 'string' }, result: { type: 'string', enum: ['done', 'could_not', 'skipped'] }, note: { type: 'string' } }, required: ['task', 'result'] },
   { name: 'research_submit', handler: researchSubmit, description: 'Submit research findings for the review brief: symbol, metric, value, period, source_url, source_quote, accessed, status (found, not_found, blocked_source). Pass corporate_actions (an array, empty when none) once checked.', props: { run: { type: 'string' }, findings: { type: 'array', items: { type: 'object' } }, corporate_actions: { type: 'array', items: { type: 'object' } } } },
   { name: 'lots_build', handler: lotsBuild, description: "Build tax lots first-in first-out from the investor's tradebook and fund statement (CSV only) and reconcile them to what is held. Sell options then show lots, holding periods, gains and the exemption left.", props: { tradebook_csv: { type: 'string' }, mf_statement_csv: { type: 'string' } } },
   { name: 'export', handler: exportCmd, description: 'Write the dashboard files (positions-<date>.json, cash-<date>.json) from the latest snapshot. format: dashboard; out: a folder (default the state folder).', props: { format: { type: 'string', enum: ['dashboard'] }, out: { type: 'string' } } },

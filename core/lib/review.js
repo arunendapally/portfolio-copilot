@@ -21,6 +21,8 @@ const marksLib = require('./marks');
 const effects = require('./effects');
 const lotsLib = require('./lots');
 const lossTolerance = require('./rules/loss_tolerance');
+const gap = require('./gap');
+const approvals = require('./approvals');
 const { istStamp, istDate } = require('./format');
 
 const STAGES = {
@@ -243,8 +245,17 @@ async function stage(folder, run, now, deps) {
     case 'execute': {
       const next = [];
       const needs = [];
+      const block = (t, reason) => {
+        t.outcome = 'blocked';
+        t.manual_steps = t.manual_steps || manual.forTask(t);
+        gap.queuePending({ title: `Review task blocked: ${t.kind}${t.symbol ? ` ${t.symbol}` : ''}`, attempted: `${t.title} (review ${run.id})`, missing: reason }, now);
+      };
+      // One draft per symbol per run: every approved plugin task for that symbol shares it.
+      const drafted = {};
+      for (const x of run.tasks) if (x.executor === 'plugin' && x.symbol && x.draft_code) drafted[x.symbol] = { ok: true, code: x.draft_code };
+      const asked = new Set();
       for (const t of run.tasks.filter((x) => x.decision === 'approved' && !x.outcome)) {
-        if (t.not_executable || t.executor === 'blocked') { t.outcome = 'blocked'; continue; }
+        if (t.not_executable || t.executor === 'blocked') { block(t, t.not_executable || 'no executor for this task in this edition or chat'); continue; }
         if (t.executor === 'investor') {
           t.manual_steps = t.manual_steps || manual.forTask(t);
           needs.push(t.id);
@@ -252,8 +263,9 @@ async function stage(folder, run, now, deps) {
           continue;
         }
         if (t.draft_code === null) {
-          const d = await deps.draft(folder, t);
-          if (!d.ok) { t.outcome = 'blocked'; t.blocked_reason = d.text; continue; }
+          const d = (t.symbol && drafted[t.symbol]) || await deps.draft(folder, t);
+          if (t.symbol) drafted[t.symbol] = d;
+          if (!d.ok) { t.blocked_reason = d.text; block(t, `draft refused: ${d.text}`); continue; }
           if (!d.code) { t.outcome = 'executed'; t.note = 'no change needed'; continue; }
           t.draft_code = d.code;
         }
@@ -261,6 +273,8 @@ async function stage(folder, run, now, deps) {
         const used = d.rows.every((_, i) => drafts.rowUsed(folder, d.code, i));
         if (used) { t.outcome = 'executed'; t.executed_at = now.toISOString(); continue; }
         needs.push(t.id);
+        if (asked.has(d.code)) continue;
+        asked.add(d.code);
         next.push({ do: 'ask', task: t.id, question: { questions: [{ header: d.code, multiSelect: false, question: `Place draft ${d.code} for ${t.symbol} (${d.rows.length} call(s), shown above)?`, options: [{ label: `Yes, place ${d.code}`, description: 'Make exactly these calls' }, { label: 'No, not now', description: 'Nothing is placed' }] }] }, then: 'calls' });
         for (const [i, r] of d.rows.entries()) if (!drafts.rowUsed(folder, d.code, i)) next.push({ do: 'call', task: t.id, tool: r.tool, args: r.args, only_if: `Yes, place ${d.code}`, why: r.reason || t.title });
       }
@@ -274,11 +288,14 @@ async function stage(folder, run, now, deps) {
         t.outcome = 'confirmed';
         t.verified_at = now.toISOString();
       }
-      const touched = run.tasks.filter((t) => ['executed', 'handed_over'].includes(t.outcome));
+      // A plugin change a check did not confirm stays in scope until a newer read confirms it or
+      // the investor says could_not (task_done); the run never closes past it.
+      const touched = run.tasks.filter((t) => ['executed', 'handed_over'].includes(t.outcome) || (t.outcome === 'not_confirmed' && t.executor === 'plugin'));
       if (!touched.length) return pass();
       const since = new Date(run.stages.execute.at || run.started_at);
+      const checked = st.checked_at ? new Date(st.checked_at) : null;
       const caps = ['holdings', 'gtts'];
-      const stale = caps.filter((c) => { const r = session.read('kite', c); return !r || !r.ok || new Date(r.at) < since; });
+      const stale = caps.filter((c) => { const r = session.read('kite', c); return !r || !r.ok || new Date(r.at) < since || (checked && new Date(r.at) <= checked); });
       if (stale.length) {
         const gen = toolmap.generation('kite', run.tools.filter((n) => toolmap.resolve(n, {}).broker === 'kite'));
         const calls = toolmap.readCalls('kite', gen).filter((c) => stale.includes(c.cap));
@@ -293,8 +310,9 @@ async function stage(folder, run, now, deps) {
         t.outcome = ok ? 'confirmed' : 'not_confirmed';
         t.verified_at = now.toISOString();
       }
+      st.checked_at = now.toISOString();
       const bad = touched.filter((t) => t.outcome === 'not_confirmed' && t.executor === 'plugin');
-      if (bad.length) return wait('executed but not confirmed by the fresh read', bad.map((t) => `${t.symbol}: ${t.title}`), []);
+      if (bad.length) return wait('executed but not confirmed by the fresh read; a newer read re-checks it, or task_done could_not records that it was not done', bad.map((t) => `${t.symbol}: ${t.title}`), []);
       return pass();
     }
     case 'record': {
@@ -337,11 +355,14 @@ function summaryLine(run) {
   return `${n((t) => t.outcome === 'confirmed')} done, ${n((t) => t.decision === 'deferred')} deferred, ${n((t) => t.outcome === 'blocked')} blocked`;
 }
 
+// What the investor can do by hand for a task the run could not carry out.
+const blockedLine = (t) => (t.outcome === 'blocked' && t.manual_steps ? `Blocked${t.not_executable || t.blocked_reason ? `: ${t.not_executable || t.blocked_reason}` : ''}. By hand: ${t.manual_steps.join(' ')}` : '');
+
 function proposeText(run) {
   const L = run.tasks.map((t, i) => {
     const m = t.why.measurements.map((x) => (x.name === 'finding' ? String(x.value) : `${x.name.replace(/_/g, ' ')} ${x.value} (base: ${x.base})`)).join('; ');
     const at = t.why.measurements.find((x) => x.as_of);
-    return `${i + 1}. ${t.title}  · ${t.executor} · ${t.urgency.replace('_', ' ')}${t.not_executable ? ` · ${t.not_executable}` : ''}\n   Why: your rule ${t.why.rule_ref}: ${m}${at ? ` (${istStamp(new Date(at.as_of))})` : ''}\n   Options: ${t.options.map((o) => o.label.toLowerCase()).join(' · ')}${t.options[0].effects ? `\n   ${effects.line(t.options[0].effects)}` : ''}${t.decision ? `\n   Decided: ${t.decision}` : ''}`;
+    return `${i + 1}. ${t.title}  · ${t.executor} · ${t.urgency.replace('_', ' ')}${t.not_executable ? ` · ${t.not_executable}` : ''}\n   Why: your rule ${t.why.rule_ref}: ${m}${at ? ` (${istStamp(new Date(at.as_of))})` : ''}\n   Options: ${t.options.map((o) => o.label.toLowerCase()).join(' · ')}${t.options[0].effects ? `\n   ${effects.line(t.options[0].effects)}` : ''}${t.decision ? `\n   Decided: ${t.decision}` : ''}${blockedLine(t) ? `\n   ${blockedLine(t)}` : ''}`;
   });
   if (run.also_due) L.push(`Also due: ${run.also_due} (shown next run)`);
   const notSet = (run.stages.evaluate && run.stages.evaluate.not_set) || [];
@@ -395,6 +416,7 @@ async function next(folder, runId, now, deps) {
 function render(run, gate, texts, notes) {
   const L = [`**Review ${run.id}** · stage: ${run.stage}`, ...notes, ...texts];
   if (['propose', 'execute', 'verify'].includes(run.stage)) L.push(proposeText(run));
+  else for (const t of run.tasks) if (blockedLine(t)) L.push(`- ${t.title}: ${blockedLine(t)}`);
   if (!gate.pass) L.push(`Waiting: ${gate.reason}${gate.needs && gate.needs.length ? ` (${gate.needs.slice(0, 8).join('; ')})` : ''}`);
   if (run.stage === 'closed') L.push(run.note ? `Run closed · ${run.note}` : `Run closed · ${summaryLine(run)} · log, journal, bundle${run.note_skipped && run.note_skipped.includes('todoist') ? '' : ', Todoist'}${run.note_skipped && run.note_skipped.includes('dashboard') ? '' : ', dashboard'} updated${run.note_skipped ? ` · not updated (you said skip): ${run.note_skipped.join(', ')}` : ''}`);
   return L.join('\n');
@@ -408,7 +430,11 @@ function decide(folder, runId, { task, decision, reason, defer_until, option }, 
   if (!t) return { ok: false, error: `no task ${task} in ${runId}` };
   if (!['approved', 'deferred', 'declined'].includes(decision)) return { ok: false, error: 'decision: approved | deferred | declined' };
   if (decision === 'deferred' && !/^\d{4}-\d{2}-\d{2}$/.test(String(defer_until || ''))) return { ok: false, error: 'defer_until (YYYY-MM-DD) required for deferred' };
-  Object.assign(t, { decision, reason: reason || null, decided_at: now.toISOString(), defer_until: decision === 'deferred' ? defer_until : null, decision_option: option || (decision === 'approved' ? 'do' : 'nothing') });
+  // 'question' when the approval hook saw the investor click this same answer during this run; a
+  // typed decision is allowed (the order gate still guards orders) and journaled as such.
+  const ans = approvals.answer(t.id);
+  const via = ans && ans.decision === decision && ans.at >= run.started_at ? 'question' : 'typed';
+  Object.assign(t, { decision, reason: reason || null, decided_at: now.toISOString(), defer_until: decision === 'deferred' ? defer_until : null, decision_option: option || (decision === 'approved' ? 'do' : 'nothing'), via });
   save(folder, run);
   return { ok: true, task: t };
 }
@@ -418,7 +444,9 @@ function done(folder, runId, { task, result, note }, now) {
   if (!run) throw new Error(`no run ${runId}`);
   const t = run.tasks.find((x) => x.id === task);
   if (!t) return { ok: false, error: `no task ${task}` };
-  if (t.executor !== 'investor') return { ok: false, error: 'task_done is for tasks the investor carries out; plugin tasks are confirmed from the draft and a fresh read' };
+  // The way out of a plugin change the fresh read did not confirm: the investor says it could not be done.
+  const waiver = t.executor === 'plugin' && t.outcome === 'not_confirmed' && result === 'could_not';
+  if (t.executor !== 'investor' && !waiver) return { ok: false, error: 'task_done is for tasks the investor carries out; plugin tasks are confirmed from the draft and a fresh read (or, once not confirmed, task_done could_not)' };
   if (!['done', 'could_not', 'skipped'].includes(result)) return { ok: false, error: 'result: done | could_not | skipped' };
   t.outcome = result === 'done' ? 'handed_over' : 'blocked';
   t.note = note || null;
@@ -427,4 +455,14 @@ function done(folder, runId, { task, result, note }, now) {
   return { ok: true, task: t };
 }
 
-module.exports = { STAGES, ruleInput, start, next, load, decide, done, submitResearch, validateFinding, check, brief, runFile };
+// The run a call without `run` means: today's most recently started run that is not closed, of
+// any kind; else today's full run.
+function current(folder, now) {
+  const date = istDate(now);
+  let names = [];
+  try { names = fs.readdirSync(runsDir(folder)).filter((f) => f.startsWith(`${date}-`) && f.endsWith('.json')); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  const open = names.map((f) => load(folder, f.slice(0, -5))).filter((r) => r && !r.closed_at).sort((a, b) => (a.started_at < b.started_at ? 1 : -1));
+  return open.length ? open[0].id : `${date}-full`;
+}
+
+module.exports = { STAGES, ruleInput, start, next, load, decide, done, submitResearch, validateFinding, check, brief, runFile, current };

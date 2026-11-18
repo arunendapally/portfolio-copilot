@@ -171,3 +171,22 @@ test('over MCP, a review reply is one text block under 2 KB, with the steps that
   assert.ok(steps.length >= 1 && steps.every((s) => s.do === 'ask'));
   assert.match(text, /more after these/);
 });
+
+test('portfolio_review takes option, unattended and tools, and its replies name the run', async () => {
+  const { folder } = setup();
+  const server = makeServer({ folder, deps: deps(kiteData()), ctx });
+  const props = server.TOOLS.find((t) => t.name === 'portfolio_review').inputSchema.properties;
+  assert.strictEqual(props.option.type, 'string');
+  assert.strictEqual(props.unattended.type, 'boolean');
+  assert.deepStrictEqual(props.tools, { type: 'array', items: { type: 'string' } });
+  await server.call('portfolio_review', { action: 'start', kind: 'friday', unattended: true });
+  const r = await server.call('portfolio_review', { action: 'research', corporate_actions: [] });
+  assert.match(r.content[0].text, /2026-11-16-friday/);
+  const n = await server.call('portfolio_review', { action: 'next' });
+  assert.strictEqual(n.structuredContent.stage, 'propose', n.content[0].text);
+  assert.match(n.structuredContent.gate.reason, /unattended/);
+  const run = JSON.parse(fs.readFileSync(require('../core/lib/review').runFile(folder, n.structuredContent.run), 'utf8'));
+  const d = await server.call('portfolio_review', { action: 'decide', task: run.tasks[0].id, decision: 'approved', option: 'do' });
+  assert.match(d.content[0].text, /2026-11-16-friday/);
+  assert.ok(Buffer.byteLength(d.content[0].text) <= MAX_TEXT);
+});
