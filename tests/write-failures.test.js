@@ -11,24 +11,36 @@ const { callTool } = require('../core/tools');
 const ctx = { edition: 'full', now: () => new Date('2026-11-16T05:00:00Z') };
 const pc = (folder, ...p) => path.join(folder, 'portfolio-copilot', ...p);
 
-function readOnly(file, text) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, text);
-  fs.chmodSync(file, 0o444);
+// A staged copy (30-Oct) accepted writes and kept nothing. Simulate that on every platform: the
+// write calls return normally and the files do not change. (A read-only file is not portable:
+// on Linux the profile's write-then-rename still succeeds.)
+async function withLostWrites(fn) {
+  const saved = { writeFileSync: fs.writeFileSync, appendFileSync: fs.appendFileSync, renameSync: fs.renameSync };
+  fs.writeFileSync = () => {};
+  fs.appendFileSync = () => {};
+  fs.renameSync = () => {};
+  try { return await fn(); } finally { Object.assign(fs, saved); }
 }
 
-test('log_append, report_gap and profile_update return ok: false on a read-only target', async () => {
+test('log_append, report_gap and profile_update return ok: false when a write does not stick', async () => {
   const { folder } = tmpEnv();
   writeProfile(folder, { schema_version: 2 });
-  readOnly(pc(folder, 'log.md'), '# Portfolio log\n\n## Start here\nx\n');
+  fs.writeFileSync(pc(folder, 'log.md'), '# Portfolio log\n\n## Start here\nx\n');
+  const log = await withLostWrites(() => callTool('log_append', { folder, text: 'entry' }, ctx));
+  assert.strictEqual(log.ok, false, log.text);
+  assert.match(log.text, /did not stick/);
+  const gap = await withLostWrites(() => callTool('report_gap', { folder, title: 't', missing: 'm' }, { ...ctx, github: {} }));
+  assert.strictEqual(gap.ok, false, gap.text);
+  const prof = await withLostWrites(() => callTool('profile_update', { folder, path: 'review.max_tasks', value: 4 }, ctx));
+  assert.strictEqual(prof.ok, false, prof.text);
+});
+
+test('a write the system refuses also fails the command', async () => {
+  const { folder } = tmpEnv();
+  writeProfile(folder, { schema_version: 2 });
+  fs.mkdirSync(pc(folder, 'log.md'), { recursive: true }); // a directory where the log file should be
   const log = await callTool('log_append', { folder, text: 'entry' }, ctx);
   assert.strictEqual(log.ok, false, log.text);
-  readOnly(pc(folder, 'feedback.md'), '# Feedback log\n');
-  const gap = await callTool('report_gap', { folder, title: 't', missing: 'm' }, { ...ctx, github: {} });
-  assert.strictEqual(gap.ok, false, gap.text);
-  fs.chmodSync(pc(folder, 'profile.json'), 0o444);
-  const prof = await callTool('profile_update', { folder, path: 'review.max_tasks', value: 4 }, ctx);
-  assert.strictEqual(prof.ok, false, prof.text);
 });
 
 test('log_append writes to profile.log.path when set, append-only', async () => {
