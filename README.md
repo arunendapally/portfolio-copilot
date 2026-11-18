@@ -35,6 +35,9 @@ Then say **"get started"** in a new chat.
 | "risk check" / "review my MFs" / "basket for ₹1L" | Concentration with its base, rate sensitivity, fund screen, basket rows to enter |
 | "crash mode" | Which stops fire, which would force-sell names you keep, which stage of your own deployment plan is reached |
 | "analyze <stock>" | Sourced fundamentals for a stock you hold or name |
+| "what is due" | What your own rules flag today (GTT gaps, tripwires, limits, drift, plan path), outside a review. Saves nothing |
+| "load my tradebook" | Tax lots built from your tradebook and fund statement (CSV), reconciled to what you hold |
+| "update the dashboard" | Positions and cash files for your dashboard, from the latest snapshot |
 
 ## How it works
 
@@ -47,7 +50,7 @@ Skills (6, thin)                       when to run what, what to show, what to a
 ```
 
 - **Numbers come from code.** The model never parses broker payloads or does portfolio arithmetic, so the same data gives the same answer every time.
-- **One login per broker, yours.** The plugin has no broker client and no server, so there is no second session to expire. Status is reported per broker: live, needs login (with the broker MCP's own login), not connected, or outage.
+- **One login per broker, yours.** The plugin has no broker client and no server, except the optional local engine, so there is no second session to expire. Status is reported per broker: live, needs login (with the broker MCP's own login), not connected, or outage.
 - **Your rules, in one place.** `portfolio-copilot/profile.json` in your working folder holds your thresholds, GTT policy, where your cash buffer lives, allocation targets, staged deployment plan and per-stock verdicts. Snapshots and a small rotating log sit next to it. Broker session ids stay in `~/.portfolio-copilot/`.
 
 ### Default GTT policy (change any of it in your profile)
@@ -78,6 +81,7 @@ The plugin works on the broker MCPs you already have, in a plain claude.ai chat 
    - A `PostToolUse` hook records an approval only from your own click ("Yes, place D7K2") in an inline question listing the draft. The approval is bound to a hash of the draft.
    - A `PreToolUse` hook lets a broker write call through only if its arguments match a row of an approved draft exactly, and only once per row. Anything else is blocked, as are approval questions sent with their answers already filled in. Fails closed. Drafts and approvals live in the same chat as the calls, so there is nothing to approve across machines.
    - The lite edition's gate denies every broker write.
+   - Approvals and used-row markers are kept outside your investor folder, in the per-machine folder `~/.portfolio-copilot/`, sealed with a key only the hooks read. A state guard hook blocks file and shell tools from writing drafts and from touching that per-machine folder.
    - Limit: if a Kite MCP delete fails, the skill deletes the approved ids in Kite web in your logged-in tab. A hook cannot see browser clicks, so that step is checked by the skill (planned count) and by the audit that follows.
 2. **Always-on house rules** injected at session start.
 3. **No stale data presented as live**: every figure carries its time; carried data is labelled with how many runs it has gone unverified.
@@ -115,7 +119,7 @@ node scripts/build.js
 python evals/run-evals.py
 ```
 
-Specs (Spec Kit) are in [`specs/001-v05-rebuild/`](specs/001-v05-rebuild/), the architecture review in [`docs/specs/architecture-review.md`](docs/specs/architecture-review.md), evals in [`evals/README.md`](evals/README.md), and the release checklist in [`docs/release.md`](docs/release.md). `editions/lite/` is generated; do not edit it.
+Specs (Spec Kit) are in [`specs/001-v05-rebuild/`](specs/001-v05-rebuild/) and [`specs/002-guided-review/`](specs/002-guided-review/), the architecture review in [`docs/specs/architecture-review.md`](docs/specs/architecture-review.md), evals in [`evals/README.md`](evals/README.md), and the release checklist in [`docs/release.md`](docs/release.md). `editions/lite/` is generated; do not edit it.
 
 ## License
 

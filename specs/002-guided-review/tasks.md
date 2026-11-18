@@ -77,7 +77,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 - [x] T022 [US1] Queue unfiled gaps in `~/.portfolio-copilot/gaps-pending.json` in `core/lib/gap.js`; add `report_gap --flush` (FR-057)
 - [x] T023 [US1] Rewrite `skills/check`, `skills/gtt`, `skills/risk`, `skills/crash` in capability language with no broker tool names; exact calls come from `pc doctor` and draft output (simplified 14-Nov from build-time markers); keep each skill under sixty lines
 - [x] T024 [US1] Extend eval T2 in `evals/run-evals.py`: run it against a fake broker MCP exposing generation-2 Kite tools, and add a prompt that asks for a made-up Kite tool; both must be denied
-- [ ] T025 [US1] Release v0.7.4: version in `.claude-plugin/plugin.json` and `package.json`, `CHANGELOG.md`, README "Brokers" (tools matched by capability; drop the Kite-web delete fallback only if T004 showed delete works), `node scripts/build.js`, `claude plugin validate --strict`, `npm test`, evals T0 to T2 on full and T0 on lite. Open the PR; push and upload only on the investor's go
+- [ ] T025 [US1] Release v0.7.4: version in `.claude-plugin/plugin.json` and `package.json`, `CHANGELOG.md`, README "Brokers" (tools matched by capability; drop the Kite-web delete fallback only if T004 showed delete works), `node scripts/build.js`, `claude plugin validate --strict`, `npm test`, evals T0 to T2 on full and T0 on lite. Open the PR; push and upload only on the investor's go (prepared; tag and upload by the investor)
 
 **Checkpoint**: SC-001, SC-002 and SC-012 pass. Ship before anything else in this file.
 
@@ -150,7 +150,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 - [x] T057 [US3] In `hooks/order-gate.js`, also deny an AskUserQuestion whose header is a task id (`t_…`) when its answers are pre-filled; test in `tests/gate-toolmap.test.js`
 - [x] T058 [US3] Rewrite `skills/check/SKILL.md` around the review loop (say "review", call `review_start`, do each `next`, call `review_next` until closed; task questions use "Approve", "Defer", "Decline", never "Yes, place"); cover end of day, Friday and unattended in one short section; under 45 lines
 - [x] T059 [US3] Add eval T5 (guided review) to `evals/run-evals.py` on the fake broker: two tasks proposed with reasons, one approved and drafted, the Yes click simulated, one deferred, run closed; assert no order call happened outside the approved row
-- [x] T060 [US3] Release v0.8.0 (US2, US3, US6): version, CHANGELOG, README "What you can say" (review, end of day, Friday), build, validate, tests, evals T0 to T2 and T5. Push and upload on the investor's go
+- [x] T060 [US3] Release v0.8.0 (US2, US3, US6): version, CHANGELOG, README "What you can say" (review, end of day, Friday), build, validate, tests, evals T0 to T2 and T5. Push and upload on the investor's go (prepared; tag and upload by the investor)
 
 **Checkpoint**: SC-004, SC-006, SC-007 measured on the fixture run and recorded in the PR.
 
@@ -169,7 +169,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 - [x] T065 [US4] Apply `classes` (FR-032): default funds core, stocks play; per-symbol override from the profile
 - [x] T066 [US4] Add `profit_lock_dryrun` to `core/tools.js` (contracts/pc-commands.md)
 - [ ] T067 [Investor] [US4] Choose the profit-lock values. Provided: `core/bin/backtest-profit-lock.js` (in core so it ships with the plugin; the spec said scripts/) that reads a tradebook CSV path and daily closes from an argument and prints, per candidate value set, how many trades would have been stopped, booked or kept and the result; it writes nothing to the repo. The investor runs it on their own data, reviews it with the dry run, and saves the values with `profile_update`. Do not commit any output
-- [x] T068 [US4] Create `core/lib/rules/reentry.js`: a sale by a trailing stop adds the symbol to `reentry` with its cool-off; `core/lib/audit.js` flags a buy inside the cool-off
+- [x] T068 [US4] Re-entry: a sale by a trailing stop adds the symbol to `reentry` with its cool-off (the list lives in `core/lib/marks.js`); `core/lib/audit.js` flags a buy inside the cool-off. There is no `core/lib/rules/reentry.js`
 - [x] T069 [US4] Add policy rule 8 (profit lock) to `skills/gtt/SKILL.md` and the README "Default GTT policy" section, stating that it is off until the investor sets every value
 
 ---
@@ -210,7 +210,7 @@ Single project at the repository root: `core/`, `hooks/`, `skills/`, `tests/`, `
 - [x] T088 [US7] Create `local/collectors/kotak.js` per the T081 choice (or document that Kotak stays in chat)
 - [x] T089 [US7] Create `local/collectors/ibkr.js` per the T081 choice
 - [x] T090 [US7] Create `local/collect.js` (on demand and `--daily HH:MM`, one retry per hour, login needs recorded)
-- [x] T091 [US7] Create `local/technicals.js` and the `history` capability; write `snapshot.technicals` with dates (FR-052)
+- [x] T091 [US7] `core/lib/technicals.js` keeps daily closes at each refresh and writes `snapshot.technicals` with dates (FR-052). There is no `local/technicals.js` and no collector `history` capability yet
 - [x] T092 [US7] Create `local/server.js` with the four tools and the `next` filtering in contracts/local-engine.md
 - [x] T093 [US7] `skills/check/SKILL.md`: call `portfolio_status` first; use the local tools when it answers, fall back to v0.8 behaviour on any error
 - [x] T094 [US7] `scripts/build.js` excludes `local/` from the lite edition; README section "Local engine (optional)" with setup steps

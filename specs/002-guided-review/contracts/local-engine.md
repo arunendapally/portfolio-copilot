@@ -12,12 +12,13 @@ local/
 ├── collect.js      # runs collectors on demand and once per trading day after login
 ├── collectors/
 │   ├── index.js    # interface below
+│   ├── fake.js     # test collector
 │   ├── kite.js
 │   ├── kotak.js
 │   └── ibkr.js
-├── export.js       # wraps the `export` command
-└── technicals.js   # daily closes -> dma50, dma200, rsi14, sup20, hi52, dated
 ```
+
+There is no `local/export.js` or `local/technicals.js`. Export lives in `core/lib/export.js` (the `export` command) and technicals in `core/lib/technicals.js`, so both work without the local engine.
 
 `local/` is excluded from the lite edition by `scripts/build.js`.
 
@@ -29,9 +30,10 @@ module.exports = {
   status(): Promise<{ state: 'ready'|'needs_login'|'error', detail, login?: { url?, steps[] } }>,
   login(input?): Promise<{ state, detail }>,           // the one manual step per day, if any
   pull(caps: string[]): Promise<{ written: string[], partial: string[], errors: [] }>,
-  history?(symbols: string[], days: number): Promise<{ written: string[] }>,
 };
 ```
+
+No collector has `history()` yet. The engine keeps its own daily closes: each `refresh` adds the day's close per held symbol (`core/lib/technicals.js`), and an average or RSI appears once there are enough closes.
 
 `pull` writes the same `~/.portfolio-copilot/captured/<broker>/<cap>.json` records the capture hook writes (contracts/hooks.md), with `tool` set to `local:<broker>:<endpoint>`. Everything downstream is unchanged. A collector never writes into the investor folder.
 
@@ -39,13 +41,13 @@ Secrets (tokens, keys) live in `~/.portfolio-copilot/secrets/<broker>.json`, mod
 
 ## MCP tools exposed to the model
 
-All results are summaries; each response is under 2 KB of text. No raw payload is returned.
+All results are summaries. Each reply is one text block of at most 2 KB: the summary, then as many `next` steps as fit, then a count of the rest (`N more after these`). The run hands out the rest once those are done. No raw payload is returned.
 
 | Tool | Input | Result |
 |---|---|---|
-| `portfolio_status` | none | per broker: state, data time; `All connected` line or the manual steps |
+| `portfolio_status` | `login?`: `{ broker, request_token }` to finish the daily Kite login | per broker: state, data time; `All connected` line or the manual steps |
 | `portfolio_refresh` | `brokers?` | runs collectors now, then `refresh`; returns the check summary text |
-| `portfolio_review` | `action`: `start | next | status | decide | done | research`, plus that action's arguments | the `review_*` / `task_*` / `research_submit` result `text` and `next` |
+| `portfolio_review` | `action`: `start | next | status | decide | done | research`, plus that action's arguments | the `review_*` / `task_*` / `research_submit` result `text` and `next`; `start` pulls every enabled broker first |
 | `portfolio_query` | `q`: `holding <SYM> | allocation | guardrails | gtt <SYM> | journal | decisions | export` | the matching engine text |
 
 `next` steps of kind `call` that name broker read tools are executed by the server itself when a collector covers that capability, so the model only sees steps it must do (ask, manual, research, todoist, files). Broker write steps (from approved drafts) are passed through to the model unchanged: execution stays in chat behind the order gate, or with the investor.

@@ -21,7 +21,7 @@ Stops protect against a broken thesis, not a market-wide fall.
 This policy lives in the portfolio engine; do not restate or improvise thresholds.
 
 ## Steps
-1. If today's Kite data is not live, read it with the Kite MCP and run `pc broker_status` and `pc refresh` first (see the check skill). Otherwise findings are unverified and say so.
+1. If today's Kite data is not live, run `pc connect` until `ready` and then `pc refresh` first (see the check skill's "Quick check"). Otherwise findings are unverified and say so.
 2. Optional: search held symbols for upcoming bonus/split/demerger; pass them as `corporate_actions`.
 3. Call `gtt_audit`. Show its text.
 4. If the investor wants fixes: for every hold name with a `stop_too_tight` finding, run the analyze skill first and classify it (policy 5). Then call `draft_gtt_plan` with `symbols` set to only the names to widen, plus any quantity or ETF/exit fixes. Show the full plan text. New GTTs are placed before old ones are deleted.

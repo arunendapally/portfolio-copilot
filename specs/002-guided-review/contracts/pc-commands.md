@@ -13,6 +13,9 @@ Existing commands keep their arguments. Changes to them are listed at the end.
   - `{ "do": "research", "brief": [ … ], "then": "research_submit" }` — look things up, submit findings.
   - `{ "do": "todoist", "ops": [ … ] }` — apply with the Todoist tools if present; skip silently if not.
   - `{ "do": "files", "op": "writeback", "files": [ … ] }` — copy files to the investor's computer through the device link.
+  - `{ "do": "dashboard", "files": [ … ], "then": "review_next with record.dashboard = updated (or skipped)" }`: load the dashboard files the record stage wrote, then report back.
+- Optional step fields: `task` (the task id the step belongs to); `only_if` (on a `call`: make it only when the investor picked that exact answer, for example `Yes, place D7`); `then: "calls"` (on an `ask`: the answer gates the `call` steps that follow, not an engine command).
+- At execute, an approved plugin task gives one `ask` with `then: "calls"` naming the draft code, then one `call` per unused draft row with `only_if: "Yes, place <code>"` (code: `core/lib/review.js`, stage `execute`).
 - `text` is at most 40 lines. Longer detail goes in fields, not text.
 - Times are ISO strings; amounts are INR unless a currency is named; every percentage in `text` names its base.
 
@@ -26,7 +29,7 @@ Returns `{ ok, brokers: [{ broker, enabled, read_path, write_path, generation, u
 
 ## connect (US2)
 
-Args: `tools` (array, required), `skip` (array of broker names), `unattended` (bool).
+Args: `tools` (array, required), `skip` (array of broker names), `unattended` (bool), `hook_plugin` and `hook_version` (strings from the session-start context; a version or edition mismatch is reported).
 
 Returns:
 
@@ -52,7 +55,7 @@ Creates `runs/<date>-<kind>.json` or returns the existing one for today (resume)
 
 ## review_next (US3)
 
-Args: `run` (id, optional; default today's `full`).
+Args: `run` (id, optional; default today's `full`), `corporate_actions` (array, passed to the GTT draft at execute), `record` (`{ todoist: synced | skipped, dashboard: updated | skipped }`, at the record stage once those are done).
 
 Performs the current stage once and returns:
 
@@ -76,7 +79,8 @@ Stage text formats:
      Effect: none on allocation; locks the position at cost
   ```
   followed by `Also due: N (shown tomorrow)` and `Not set: profit lock, drift bands` when relevant.
-- closed: `Run closed · 2 done, 1 deferred, 0 blocked · log, Todoist and files written` or the list of what failed.
+- record: writes the journal, log, bundle and dashboard files once, then waits with a `todoist` step and a `dashboard` step until `record` reports both.
+- closed: `Run closed · N done, N deferred, N blocked · log, journal, bundle, Todoist, dashboard updated`. When the investor skipped one, it drops from that list and the line ends `· not updated (you said skip): todoist` (or `dashboard`, or both).
 
 ## task_decide (US3)
 
@@ -92,7 +96,7 @@ For investor-executed tasks after "done". Sets `outcome: handed_over`; verificat
 
 ## research_submit (US3, US5)
 
-Args: `run`, `findings` (array of Finding, see data-model section 6).
+Args: `run`, `findings` (array of Finding, see data-model section 6), `corporate_actions` (array of `{ symbol, kind: bonus | split | demerger | dividend, ratio, price_factor, ex_date, confirmed }`; pass `[]` when none found). The research gate stays shut until the corporate-action check is recorded.
 
 Validation: `symbol` held or named in the brief; `metric` from the list below; `value` a number; `period` non-empty; `source_url` http(s); `accessed` a date not after today; for `not_found` and `blocked_source`, `value` must be absent. Returns accepted and rejected findings with reasons.
 
@@ -116,13 +120,13 @@ Args: `run` (optional). Returns the run record summarised in `text` (stage, gate
 
 ## state_export / state_import / state_writeback (US6)
 
-- `state_export` args: `out` (file path). Writes the bundle (data-model section 8). Returns size and file list.
+- `state_export` args: `out` (file path, required), `source` (label stored in the bundle, default `pc`). Writes the bundle (data-model section 8). Returns size and file list.
 - `state_import` args: `bundle` (file path), `into` (folder). Restores files; refuses if `into` holds newer copies unless `force`.
-- `state_writeback` args: `bundle` (the original bundle path). Returns `next: [{ do: "files", op: "writeback", files: [{ path, content_b64 }] }]` for files changed since the bundle, and `conflicts` for source files whose hash no longer matches. Never writes anything itself.
+- `state_writeback` args: `bundle` (the original bundle path, required), `source_hashes` (object: path to sha256 of the computer copy). Returns `next: [{ do: "files", op: "writeback", files: [{ path, content_b64 }] }]` for files changed since the bundle, and `conflicts` for source files whose hash no longer matches. Never writes anything itself.
 
 ## profit_lock_dryrun (US4)
 
-Args: `arm_gain_pct`, `book_gain_pct`, `trail_pct` (numbers, required), `scope` (`play | all_stocks`).
+Args: `arm_gain_pct`, `book_gain_pct`, `trail_pct` (numbers, required; 0 < arm < book, trail > 0), `scope` (`play | all_stocks`, default `play`).
 
 Returns a table of holdings that would be `armed`, `book`, `trailing` or `idle`, with gain over cost, current stop vs cost, and the stop the rule would propose. Saves nothing.
 
@@ -138,15 +142,15 @@ Returns decided tasks older than the threshold with the measurements then and no
 
 ## export (US7, usable without the local engine)
 
-Args: `format` (`dashboard`), `out` (folder).
+Args: `format` (`dashboard`, the only one), `out` (folder; default `dashboard/` in the state folder). Needs a snapshot; run `refresh` first.
 
 Writes `positions-<date>.json` and `cash-<date>.json` in the shape the investor's dashboard reads (fields: key, broker, sym, name, type, kind, bucket, core, qty, avg, ltp, prevClose, fx, gttQty, gttStop, gttTarget, settling, dma50, dma200, rsi, sup20, hi52, asof). Missing technicals are null, never estimated.
 
 ## lots_build (US8)
 
-Args: `tradebook_csv`, `mf_statement_csv` (paths; CSV only, no spreadsheet parsing).
+Args: `tradebook_csv` and/or `mf_statement_csv` (paths; at least one; CSV only, no spreadsheet parsing).
 
-Builds `lots.json` and reports reconciliation per symbol.
+Builds `lots.json` first-in first-out and reports reconciliation per symbol against the latest snapshot, realised short-term and long-term gains for the year, and any problems. Tax on a sell shows only once `tax.*` rates with `as_of` are saved.
 
 ## Changes to existing commands
 

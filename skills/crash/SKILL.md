@@ -7,7 +7,7 @@ description: Calm crash mode for sharp market falls. Use for "crash mode", "mark
 
 Goal: no panic selling, no blind dip buying. Follow the investor's own written plan.
 
-1. Make sure today's data is live (check skill steps 1-2).
+1. Make sure today's data is live (the check skill's "Quick check").
 2. Call `crash_check` (it reads the index level from Kite; pass `index_level` if Kite is down and you have a dated level).
 3. Show its text: which stops fire at -10% and -20%, which stops would force-sell names the investor intends to keep, the stage of the saved deployment plan reached, and that stage's basket draft if any.
 4. Classify the fall with sources: structural (credit event, war, policy shock) or sentiment/technical. Structural means preserve cash and reassess at close.

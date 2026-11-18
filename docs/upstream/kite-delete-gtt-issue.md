@@ -1,6 +1,6 @@
 # Draft issue for zerodha/kite-mcp-server
 
-> Status: draft, not posted. Arun posts it. Checked 15-Oct-2026 against `main` @ 5e044dc
+> Status: draft, not posted. The investor posts it. Checked 15-Oct-2026 against `main` @ 5e044dc
 > (10-Jul-2026); no existing issue found on 14-Oct.
 >
 > Read before posting: in `mcp/common.go`, `ValidateRequired` returns "is required" only when

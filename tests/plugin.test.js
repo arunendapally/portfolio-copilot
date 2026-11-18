@@ -106,8 +106,21 @@ test('repo contains no personal data', () => {
   const ignored = read('.gitignore');
   for (const p of ['portfolio-copilot/', 'portfolio-profile.md', 'portfolio-snapshots/', 'dist/']) assert.ok(ignored.includes(p), `${p} not ignored`);
   const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
-  const fixtures = walk(path.join(__dirname, 'fixtures')).map((f) => fs.readFileSync(f, 'utf8')).join('\n');
-  assert.doesNotMatch(fixtures, /JIR116|arun|@gmail/i);
+  // sha256 of the owner's broker id, first name and mail domain (lowercase), so the strings
+  // themselves are not in the repo. Every 4 to 6 character piece of every word is checked.
+  const banned = new Set([
+    'ce59d141f455a62241bc17e05b5e16286deb83159cdb389a71541adb34dcd495',
+    'b52c75123406063a2abf0a89cc0c554a182388cb5545d37c6da9313aa539d93b',
+    '576ba7c2e4abb7184ca409154dbbbd5306c1a80747fbce4148ea6271fd21e776',
+  ]);
+  const sha = (s) => require('crypto').createHash('sha256').update(s).digest('hex');
+  for (const f of walk(path.join(__dirname, 'fixtures'))) {
+    for (const word of fs.readFileSync(f, 'utf8').toLowerCase().match(/[a-z0-9]+/g) || []) {
+      for (let n = 4; n <= 6; n++) for (let i = 0; i + n <= word.length; i++) {
+        assert.ok(!banned.has(sha(word.slice(i, i + n))), `${path.relative(ROOT, f)} contains personal data`);
+      }
+    }
+  }
 });
 
 test('editions/lite is generated from the current source and is lite', () => {

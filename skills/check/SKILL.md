@@ -7,7 +7,7 @@ description: The guided daily review across all brokers, and portfolio checks. U
 
 All numbers come from the portfolio engine, a plain script (the session context gives its exact `node .../pc.js COMMAND` line; `pc` below). Show its text as is; never recompute. Broker data comes from the brokers' own MCP tools: you call them and a hook saves what they return, so you never retype a broker number.
 
-Local engine first: if a `portfolio_status` tool is available, call it. If it answers, use `portfolio_review` (action start, next, decide, done, research, with the same arguments as below), `portfolio_refresh` and `portfolio_query` instead of `pc` and the broker reads; its `next` holds only your steps. Pass a Kite request token it asks for through `portfolio_status` with `login`. On any error from it, carry on with `pc` as below.
+Local engine first: if a `portfolio_status` tool is available, call it. If it answers, use `portfolio_review` (action start, next, status, decide, done, research; each takes its `pc` command's arguments, so decide takes task, decision, reason, defer_until, option), `portfolio_refresh` and `portfolio_query` instead of `pc` and the broker reads; its `next` holds only your steps. Pass a Kite request token it asks for through `portfolio_status` with `login`. On any error from it, carry on with `pc` as below.
 
 ## The review loop ("review", "daily briefing", "work through my to-dos")
 Run `pc review_start` with `--folder` = the investor's folder, `tools` = every broker MCP tool name you can see (full names), and `kind`: `full` (default), `eod` for "end of day", `friday` for "Friday review". Then repeat until `stage` is `closed`:
