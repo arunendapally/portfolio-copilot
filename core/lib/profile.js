@@ -57,6 +57,10 @@ const DEFAULTS = Object.freeze({
   loss_tolerance: { amount_inr: null, from: null, to: null, measure: null },
   tax: { as_of: null, ltcg_exemption_inr: null, ltcg_pct: null, stcg_pct: null, fy_start_month: 4 },
   valuation_overrides: {},
+  // watchlist: names the investor follows (screen output or their own list, never a recommendation); screens: saved Screener queries.
+  watchlist: { symbols: [], screens: [] },
+  // charges: the investor's own brokerage rates (see core/lib/charges.js for the shape); null uses an unverified default.
+  charges: null,
   log: { path: null },
   review: { max_tasks: 5, readback_after_days: 28 },
 });
@@ -177,6 +181,13 @@ function validateV2(p, errs, num) {
   if (m !== null && !LOSS_MEASURES.includes(m)) errs.push(`loss_tolerance.measure: ${LOSS_MEASURES.join(' | ')} | null`);
   const t = p.tax;
   if (['ltcg_exemption_inr', 'ltcg_pct', 'stcg_pct'].some((k) => t[k] !== null) && !t.as_of) errs.push('tax.as_of: required once any tax value is set');
+  const w = p.watchlist;
+  if (!w || !Array.isArray(w.symbols) || !Array.isArray(w.screens)) errs.push('watchlist: { symbols: [], screens: [] }');
+  else {
+    w.symbols.forEach((x, i) => { if (!x || typeof x.symbol !== 'string' || !x.symbol) errs.push(`watchlist.symbols[${i}].symbol: required`); });
+    w.screens.forEach((x, i) => { if (!x || typeof x.name !== 'string' || !x.name) errs.push(`watchlist.screens[${i}].name: required`); });
+  }
+  if (p.charges !== null && !(isObj(p.charges) && isObj(p.charges.intraday) && isObj(p.charges.delivery) && p.charges.as_of && p.charges.source)) errs.push('charges: null, or { as_of, source, intraday, delivery } (see core/lib/charges.js)');
   const lp = p.log.path;
   if (lp !== null && (typeof lp !== 'string' || !lp || /[\\/:]/.test(lp) || lp === '.' || lp === '..')) errs.push('log.path: a file name inside the investor folder, or null');
 }

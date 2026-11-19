@@ -144,7 +144,7 @@ Returns decided tasks older than the threshold with the measurements then and no
 
 Args: `format` (`dashboard`, the only one), `out` (folder; default `dashboard/` in the state folder). Needs a snapshot; run `refresh` first.
 
-Writes `positions-<date>.json` and `cash-<date>.json` in the shape the investor's dashboard reads (fields: key, broker, sym, name, type, kind, bucket, core, qty, avg, ltp, prevClose, fx, gttQty, gttStop, gttTarget, settling, dma50, dma200, rsi, sup20, hi52, asof). Missing technicals are null, never estimated.
+Writes `positions-<date>.json`, `cash-<date>.json` and `watchlist-<date>.json` (v1.1: names, saved screens, setup and R:R) in the shape the investor's dashboard reads (fields: key, broker, sym, name, type, kind, bucket, core, qty, avg, ltp, prevClose, fx, gttQty, gttStop, gttTarget, settling, dma50, dma200, rsi, sup20, hi52, asof, setup, rr). Missing technicals are null, never estimated.
 
 ## lots_build (US8)
 
