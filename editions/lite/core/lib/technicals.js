@@ -77,4 +77,4 @@ function merge(folder, symbol, rows) {
   return store.symbols[symbol].length;
 }
 
-module.exports = { load, update, compute, rsi, merge, addCloses };
+module.exports = { load, update, compute, rsi, merge, addCloses, forSnapshot };
