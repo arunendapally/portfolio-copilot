@@ -32,37 +32,26 @@ Trap: a fallback that turns a missing input into an empty or null value (args.ho
 
 Bug 1: core/tools.js:56 brokerStatus adds the caller's tools to the captured tool names, and keeps from_captures only when none were passed (so a missing read is still reported); the tool description names the new tools argument. Toolmap, doctor and capture are unchanged: they already map the grouped tools.
 Bug 2: core/tools.js:127 takes rows from holdings or positions (bare array, or an object wrapping them; normalize.js:21 items() now also unwraps positions) and refuses any other shape, naming the keys it got; core/tools.js:142 refuses cash that is given but is not a number; core/tools.js:152 says when no cash was given. Holdings with no cash still ingest, as before.
-Bug 3: core/lib/export.js:15 maps broker, type, kind and bucket to the dashboard labels (unknown codes fall back to sentence case) and writes asof with istStamp; key stays the engine id (kite:SYMBOL), as the dashboard file has it. normalize.js:36 kiteHoldings keeps close_price as prev_close, and export.js:37 prefers it over the previous snapshot's ltp. marks.js:39 now gets prev_close too (it already read it).
+Bug 3: core/lib/export.js:15 maps broker, type, kind and bucket to the dashboard labels (unknown codes fall back to sentence case) and writes asof with istStamp; key stays the engine id (kite:SYMBOL), as the dashboard file has it. normalize.js:36 kiteHoldings keeps close_price as prev_close (0, which Kite sends when it has no close, becomes null), and export.js:37 prefers it over the previous snapshot's ltp. marks.js:39 now gets prev_close too (it already read it).
 Left alone: the dashboard's hand-written kind detail ("Fund (Gold)", "ETF (USD)") and the liquid-fund "Cash" bucket, which the engine has no data for; the session-start hook text; the .plugin bundles (built at release). editions/lite regenerated with node scripts/build.js.
 
 ## Test results
 
-Repro: tests/engine-bugs-nov18.test.js 6 of 6 red on the base (93d3c3f, node --test), 6 of 6 green on this commit
-Suite: 280 passed, 0 failed, 0 skipped (npm test; baseline 274 on 2bd000b plus the 6 new)
+Repro: tests/engine-bugs-nov18.test.js 6 of 6 red on the base (93d3c3f, node --test), 7 of 7 green on this commit (the 7th is the pre-review close_price guard, red without it)
+Suite: 281 passed, 0 failed, 0 skipped (npm test; baseline 274 on 2bd000b plus the 7 new)
 Changed existing test: tests/export.test.js cash broker expectation "kite" to "Kite", the intended schema change
 Gate: sdlc gate could not run, because .ai-sdlc/config.json has no gateCommand and only a person may set it (sdlc gate engine-bugs-nov18 output); npm test was run by hand instead
 Removed, skipped or quarantined: none
 
 ## Pre-review
 
-<!-- Written by the pre-reviewer agent before any human looks. Keep each line prefix exactly as shown: the gate reads them. Example:
-Risk: medium, because it changes code (src/stock/events.ts) and touches no high-risk path
+Risk: medium, because it changes code (core/tools.js, core/lib/export.js, core/lib/brokers/normalize.js) and touches no high-risk path
 Open findings: 0
-Look here first: src/stock/events.ts:31 (one UPDATE over every saved row: is the item index enough at 3 M rows?)
-Lenses run: correctness, data, tests
-Revert: git revert of the merge commit; no data to back out
-Checked mechanically: checklist 1 to 9, 13 to 16; the repro fails on the base; no secrets
-Could not check: the UPDATE time at production volume
-
-Risk: never below the floor the change sets; the gate refuses a lower label.
-  low     only *.md, *.txt, docs/ and specs/ files (a file on a high path stays high)
-  medium  any other change, behind a flag or not, including copy inside code files
-  high    auth, payments or migrations folders, infra/, terraform/, .github/, CODEOWNERS, .claude/agents/, .claude/hooks/, .mcp.json,
-          a .sql or Prisma schema that drops, renames or alters, and any path in the repo's highRiskPaths or askPaths
-Open findings: open blocker, major and minor rows in specs/<feature>/review.md. Must be 0; open nits may stay, named: "Open findings: 0 (nits left open: F5)".
-Look here first: two or three file:line places that need human judgement, each with the question to decide. Never a place you already proved.
-Lenses run: the lenses that ran, by name. An empty ledger is valid; this line says what was looked at.
-Revert: the one step that undoes this (git revert of the merge, a flag off), and whether data must be backed out first. -->
+Look here first: core/lib/export.js:15 (is changing the export to display labels right for every reader, or does anything else read the old codes? Only the dashboard was found); core/tools.js:142 (an IBKR ingest with cash in a non-numeric form is now refused outright: acceptable, or should it save holdings and warn?); core/tools.js:58 (broker_status with tools runs the tool-based read check, so a chat missing a Kite read now shows tools_changed instead of a capture-based status)
+Lenses run: tech-lead self-review (correctness, tests) against the code review checklist. The pre-reviewer agent was started but ended without recording any finding or report, so its lenses did not run
+Revert: git revert of the merge commit; no data to back out (export files are rewritten on the next export)
+Checked mechanically: checklist 1, 5, 9, 13, 14 (close_price guard mutation-tested: red without it), 21, 22, 24; the 6 repro tests fail on the base; no secrets in the diff
+Could not check: a live Kite, IBKR or dashboard round trip (no live broker reads from Claude Code); sdlc gate (no gateCommand configured)
 
 ## Not verified
 

@@ -78,3 +78,8 @@ test('export prevClose for a Kite stock is Kite close_price, not the last snapsh
   const r = exportLib.rows(snap, prev, P.merge(P.DEFAULTS, {}), null);
   assert.strictEqual(r.positions.find((p) => p.sym === 'ALPHA').prevClose, alpha.close_price);
 });
+
+test('a Kite close_price of 0 (no close yet) is no previous close, not a price of 0', () => {
+  const [h] = norm.kiteHoldings({ data: [{ tradingsymbol: 'NEWLIST', quantity: 1, last_price: 100, average_price: 90, close_price: 0 }] }, P.merge(P.DEFAULTS, {}));
+  assert.strictEqual(h.prev_close, null);
+});
