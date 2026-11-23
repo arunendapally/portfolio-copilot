@@ -53,11 +53,13 @@ async function connect(args, ctx) {
   return { ...r, text: [`**Connect** · ${istStamp(ctx.now())}`, ...(warn ? [warn] : []), r.text].join('\n') };
 }
 
-// Alias of connect, with the broker tools seen in this chat's captures.
+// Alias of connect, with the broker tools seen in this chat's captures plus any the caller names
+// (before the first read nothing is captured, and the grouped Kite tools would look absent).
 async function brokerStatus(args, ctx) {
   const caps = [...session.CAPTURED, 'session'];
-  const seen = ['kite', 'kotak', 'ibkr'].flatMap((b) => caps.map((c) => session.read(b, c)).filter(Boolean).map((r) => r.tool));
-  const r = await connect({ ...args, tools: seen.length ? [...new Set(seen)] : ['none'], from_captures: true }, ctx);
+  const given = Array.isArray(args.tools) ? args.tools.map(String) : [];
+  const seen = [...given, ...['kite', 'kotak', 'ibkr'].flatMap((b) => caps.map((c) => session.read(b, c)).filter(Boolean).map((r) => r.tool))];
+  const r = await connect({ ...args, tools: seen.length ? [...new Set(seen)] : ['none'], from_captures: !given.length }, ctx);
   return { ok: true, brokers: r.brokers, ready: r.ready, next: r.next, manual: r.manual, text: r.text };
 }
 
@@ -125,7 +127,10 @@ async function ingest(args, ctx) {
     const parsed = norm.kotakHoldings(fs.readFileSync(args.csv_path, 'utf8'), profile);
     holdings = parsed.map((h) => ({ ...h, broker, currency: args.currency || 'INR' }));
   } else {
-    const rows = args.holdings || [];
+    // IBKR's read is named for positions, so its rows may come as positions, bare or wrapped.
+    const given = args.holdings ?? args.positions;
+    const rows = Array.isArray(given) ? given : given && typeof given === 'object' ? norm.items(given) : null;
+    if (!rows || (!rows.length && !Array.isArray(given))) return { ok: false, error: 'no holdings rows', text: `Nothing ingested: pass the rows as holdings or positions (got: ${Object.keys(args).filter((k) => k !== 'folder').join(', ') || 'nothing'}).` };
     // IBKR's positions read names the instrument contract_description, not symbol.
     const symOf = (h) => String(h.symbol ?? h.contract_description ?? h.ticker ?? h.tradingsymbol ?? '').trim();
     const bad = rows.map((h, i) => (symOf(h) ? null : i)).filter((i) => i !== null);
@@ -138,6 +143,7 @@ async function ingest(args, ctx) {
       return { broker, symbol: symOf(h).toUpperCase(), exchange: h.exchange || null, type: h.type || (args.currency && args.currency !== 'INR' ? 'foreign' : 'equity'), qty, avg, ltp, value, pnl: norm.num(h.pnl ?? h.unrealized_pnl) ?? (value !== null && avg !== null ? value - qty * avg : null), day_change: norm.num(h.day_change ?? h.daily_pnl), currency: h.currency || args.currency || 'INR' };
     }).filter((h) => h.qty);
   }
+  if (args.cash !== undefined && args.cash !== null && norm.num(args.cash) === null) return { ok: false, error: 'cash is not a number', text: `Nothing ingested: cash must be one number in ${args.currency || 'INR'} (from the balances read), got ${JSON.stringify(args.cash).slice(0, 80)}.` };
   const snap = todaySnapshot(args.folder, now);
   snap.taken_at = now.toISOString();
   snap.brokers[broker] = { status: 'live', as_of: now.toISOString(), holdings, gtts: [], orders: [], cash: norm.num(args.cash), cash_currency: args.currency || 'INR', source: args.source || (args.csv_path ? 'statement import' : 'connector') };
@@ -147,7 +153,7 @@ async function ingest(args, ctx) {
     snap.fx[args.currency] = { rate: Number(args.fx_rate), source: args.fx_source || 'not stated', as_of: now.toISOString() };
   }
   state.saveSnapshot(args.folder, istDate(now), snap);
-  return { ok: true, broker, holdings: holdings.length, text: `Ingested ${holdings.length} ${broker} holdings${args.currency && args.currency !== 'INR' ? ` (${args.currency} at ${args.fx_rate} INR, ${args.fx_source || 'source not stated'})` : ''}.` };
+  return { ok: true, broker, holdings: holdings.length, text: `Ingested ${holdings.length} ${broker} holdings${args.currency && args.currency !== 'INR' ? ` (${args.currency} at ${args.fx_rate} INR, ${args.fx_source || 'source not stated'})` : ''}.${args.cash === undefined || args.cash === null ? ` No cash given, so ${broker} cash shows n/a.` : ''}` };
 }
 
 function brokerLine(name, b, unverified) {
@@ -863,7 +869,7 @@ async function draftOrders(args, ctx) {
 // ---------------------------------------------------------------------------------------
 
 const TOOLS = [
-  { name: 'broker_status', handler: brokerStatus, description: 'Alias of connect, using the broker tools captured in this chat. Prefer connect with the tool names you can see. Pass hook_plugin and hook_version from the session-start context so a version or edition mismatch is reported.', props: { hook_plugin: { type: 'string' }, hook_version: { type: 'string' } } },
+  { name: 'broker_status', handler: brokerStatus, description: 'Alias of connect, using the broker tools captured in this chat plus tools (every broker MCP tool name you can see; pass them before the first read). Pass hook_plugin and hook_version from the session-start context so a version or edition mismatch is reported.', props: { tools: { type: 'array', items: { type: 'string' } }, hook_plugin: { type: 'string' }, hook_version: { type: 'string' } } },
   { name: 'connect', handler: connect, description: 'Connect every enabled broker before any work. Pass tools: every broker MCP tool name you can see. Returns next (the exact broker calls to make, in order), manual (every human step for all brokers at once: ask once) and ready. Repeat: do next, ask manual, call connect again, until ready; then show text. skip: brokers to leave out. unattended: true for scheduled runs (never asks for a login).', props: { tools: { type: 'array', items: { type: 'string' } }, skip: { type: 'array', items: { type: 'string' } }, unattended: { type: 'boolean' }, hook_plugin: { type: 'string' }, hook_version: { type: 'string' } }, required: ['tools'] },
   { name: 'refresh', handler: refresh, description: "Build today's snapshot from the broker reads captured in this chat (call the broker MCP read tools first), and return the consolidated portfolio check (totals, cash, alerts, trade audit, changes since last snapshot).", props: { brokers: { type: 'array', items: { type: 'string' } } } },
   { name: 'ingest', handler: ingest, description: "Add holdings from a broker core does not connect to (IBKR connector output, or a holdings CSV statement) to today's snapshot. Foreign currency needs fx_rate and fx_source.", props: { broker: { type: 'string' }, holdings: { type: 'array', items: { type: 'object' } }, csv_path: { type: 'string' }, cash: { type: 'number' }, currency: { type: 'string' }, fx_rate: { type: 'number' }, fx_source: { type: 'string' }, source: { type: 'string' } }, required: ['broker'] },

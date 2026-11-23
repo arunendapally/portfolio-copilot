@@ -18,7 +18,7 @@ function isEtf(symbol, profile) {
 function items(payload) {
   if (Array.isArray(payload)) return payload;
   if (payload && typeof payload === 'object') {
-    for (const k of ['data', 'items', 'holdings', 'results']) if (Array.isArray(payload[k])) return payload[k];
+    for (const k of ['data', 'items', 'holdings', 'positions', 'results']) if (Array.isArray(payload[k])) return payload[k];
   }
   return [];
 }
@@ -33,7 +33,7 @@ function kiteHoldings(payload, profile) {
       broker: 'kite', symbol, exchange: h.exchange || 'NSE', isin: h.isin || null,
       // An INF ISIN is a fund unit (ETF), whatever the symbol is called (issue #32).
       type: isEtf(symbol, profile) || /^INF/i.test(h.isin || '') ? 'etf' : 'equity',
-      qty, avg, ltp,
+      qty, avg, ltp, prev_close: num(h.close_price),
       value: ltp !== null ? qty * ltp : null,
       pnl: ltp !== null && avg !== null ? qty * (ltp - avg) : num(h.pnl),
       day_change: num(h.day_change) !== null ? num(h.day_change) * qty : null,
