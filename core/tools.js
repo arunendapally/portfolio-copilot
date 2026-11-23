@@ -30,6 +30,10 @@ const profitLock = require('./lib/rules/profit_lock');
 const exportLib = require('./lib/export');
 const lotsLib = require('./lib/lots');
 const technicals = require('./lib/technicals');
+const setupsLib = require('./lib/setups');
+const deployLib = require('./lib/deploy');
+const intraday = require('./lib/intraday');
+const lossTolerance = require('./lib/rules/loss_tolerance');
 const path = require('path');
 const session = require('./lib/session');
 const { istStamp, istDate, inr, pct, table } = require('./lib/format');
@@ -322,6 +326,12 @@ async function draftBasket(args, ctx) {
   if (b.conflicts.length) L.push(`⚠️ ${b.conflicts.join('; ')}`);
   L.push(table(['Symbol', 'Exch', 'Qty', 'LIMIT', 'Amount', 'Basis'], b.rows.map((r) => [r.symbol, r.exchange, r.qty, r.limit_price, inr(r.amount), r.basis])));
   L.push(`Total ${inr(b.total)}${b.cash_left !== null ? ` · Kite cash after ${inr(b.cash_left)}` : ''}`);
+  if (args.format === 'kite_json') {
+    const f = path.join(state.stateDir(args.folder), 'baskets', `basket-${d.code}.json`);
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, JSON.stringify(basket.kiteJson(b.rows), null, 2));
+    L.push(`Kite import file: ${f} (format unverified: if Kite rejects it, say so and send one exported basket so the format can be fixed). Import in Kite web: Orders > Baskets > New basket > import the file, review each row, then Execute yourself.`);
+  }
   if (b.missing_prices.length) L.push(`No live price for: ${b.missing_prices.join(', ')} (not included). Call the Kite MCP ${toolmap.show(toolmap.ltpCall('kite', gen, b.missing_prices.map((x) => `NSE:${x}`)))} and draft again.`);
   L.push(ctx.edition === 'lite'
     ? '\nEnter in Kite web: Orders > Baskets > New basket, add each row with type LIMIT at the price shown. Review and press Execute yourself.'
@@ -523,6 +533,12 @@ function guardrails(snap, c, profile, prev) {
     ['Largest fund house', fh ? `${fh.house} ${pct(fh.pct_of_mf)}` : '-', `${L.fund_house_pct}%`, 'mutual fund holdings'],
     ['Closest stop', stop ? `${stop.symbol} ${stop.stop_distance_pct}% below` : '-', `${profile.gtt_policy.min_stop_distance_pct}% minimum`, 'last price'],
   ];
+  if (!lossTolerance.notSet(profile).length) {
+    const plays = snapshotLib.allHoldings(snap).filter((h) => lossTolerance.classOf(h, profile) === 'play' && typeof h.pnl_inr === 'number');
+    const open = plays.filter((h) => h.pnl_inr < 0).reduce((a, h) => a - h.pnl_inr, 0);
+    const play = plays.reduce((a, h) => a + h.pnl_inr, 0);
+    rows.push(['Play losses (open)', `${inr(open)} (play P&L ${inr(play)})`, `${inr(profile.loss_tolerance.amount_inr)} ${profile.loss_tolerance.measure}`, 'open play positions; realised needs your tradebook (lots_build)']);
+  }
   return `\n**Guardrails**\n${table(['Check', 'Now', 'Limit', 'Base'], rows)}`;
 }
 
@@ -595,6 +611,159 @@ async function exportCmd(args, ctx) {
   const out = args.out || path.join(state.stateDir(args.folder), 'dashboard');
   const r = exportLib.write(args.folder, out, snap, state.previousSnapshot(args.folder, istDate(new Date(snap.taken_at))), profile);
   return { ok: true, ...r, text: `Dashboard files written (${r.positions} positions, data ${istStamp(new Date(snap.taken_at))}): ${r.files.join(', ')}. Load them into the dashboard.` };
+}
+
+// Setups, watchlist, deployment split, intraday and retro (issues #34 to #38).
+function priceMap(folder, symbols) {
+  return pricesFor(symbols, state.latestSnapshot(folder));
+}
+
+function setupRows(folder, symbols) {
+  const prices = priceMap(folder, symbols);
+  const techs = technicals.forSnapshot(technicals.load(folder));
+  return setupsLib.rows(symbols.map((symbol) => ({ symbol, ltp: prices[symbol] })), techs);
+}
+
+function setupTable(rows) {
+  const f = (n) => (n === null || n === undefined ? '-' : n);
+  return table(['Symbol', 'LTP', 'Setup', 'R:R', '50d', '200d', 'RSI', '20d low', '52w high', 'Closes', 'As of'], rows.map((r) => [r.symbol, f(r.ltp), r.setup, f(r.rr), f(r.dma50), f(r.dma200), f(r.rsi), f(r.sup20), f(r.hi52), r.closes, f(r.as_of)]));
+}
+
+async function setupsCmd(args) {
+  const { profile } = profiles.load(args.folder);
+  const snap = state.latestSnapshot(args.folder);
+  const held = snap ? snapshotLib.allHoldings(snap).filter((h) => h.type !== 'mf' && !h.frozen).map((h) => h.symbol) : [];
+  const symbols = (args.symbols && args.symbols.length ? args.symbols : [...held, ...profile.watchlist.symbols.map((x) => x.symbol)]).map((s) => s.toUpperCase());
+  const uniq = [...new Set(symbols)];
+  if (!uniq.length) return { ok: false, error: 'no symbols', text: 'No holdings, no watchlist and no symbols given.' };
+  const rows = setupRows(args.folder, uniq);
+  const note = 'Setups come from the engine\'s own daily closes: each refresh adds one, so a new name shows "Short history" until it has 50. Seed history with closes_seed (daily closes from the broker\'s historical data). A setup describes the chart, never a call to buy or sell.';
+  return { ok: true, rows, text: `**Setups** (rules in core/lib/setups.js: below the 200-day (50-day if none) is Downtrend; above it but below the 50-day is a Dip; more than ${setupsLib.STRETCH_ABOVE_DMA50_PCT}% above the 50-day or RSI at or over ${setupsLib.STRETCH_RSI} is Stretched; else In uptrend)\n${setupTable(rows)}\n${note}` };
+}
+
+async function closesSeed(args) {
+  const sym = (args.symbol || '').toUpperCase();
+  const rows = args.rows;
+  if (!sym || !Array.isArray(rows) || !rows.length) return { ok: false, error: 'symbol and rows required', text: 'Pass symbol and rows: [{ date: "YYYY-MM-DD", close: number }] (daily closes from the broker\'s historical data).' };
+  const bad = rows.find((r) => !/^\d{4}-\d{2}-\d{2}$/.test(r.date) || typeof r.close !== 'number' || !(r.close > 0));
+  if (bad) return { ok: false, error: 'bad row', text: `Every row needs date YYYY-MM-DD and a close above 0; got ${JSON.stringify(bad)}.` };
+  const n = technicals.merge(args.folder, sym, rows);
+  return { ok: true, symbol: sym, closes: n, text: `${sym}: ${n} daily closes stored (latest ${rows.map((r) => r.date).sort().pop()}).` };
+}
+
+async function watchlistCmd(args, ctx) {
+  const { profile } = profiles.load(args.folder);
+  const w = JSON.parse(JSON.stringify(profile.watchlist));
+  const day = istDate(ctx.now());
+  const action = args.action || 'list';
+  const sym = (args.symbol || '').toUpperCase();
+  let changed = true;
+  if (action === 'add') {
+    if (!sym) return { ok: false, error: 'symbol required', text: 'Pass symbol.' };
+    const cur = w.symbols.find((x) => x.symbol === sym);
+    if (cur) Object.assign(cur, args.note !== undefined ? { note: args.note } : {});
+    else w.symbols.push({ symbol: sym, added: day, source: args.source || 'investor', ...(args.note ? { note: args.note } : {}) });
+  } else if (action === 'remove') {
+    w.symbols = w.symbols.filter((x) => x.symbol !== sym);
+  } else if (action === 'save_screen') {
+    if (!args.name || !(args.url || args.query)) return { ok: false, error: 'name and url or query required', text: 'Pass name and the screen\'s url or query text.' };
+    const rest = w.screens.filter((x) => x.name !== args.name);
+    const old = w.screens.find((x) => x.name === args.name) || {};
+    w.screens = [...rest, { ...old, name: args.name, ...(args.url ? { url: args.url } : {}), ...(args.query ? { query: args.query } : {}) }];
+  } else if (action === 'remove_screen') {
+    w.screens = w.screens.filter((x) => x.name !== args.name);
+  } else if (action === 'record_results') {
+    const scr = w.screens.find((x) => x.name === args.name);
+    if (!scr || !Array.isArray(args.symbols)) return { ok: false, error: 'saved screen name and symbols required', text: 'Pass name (a saved screen) and symbols (its results).' };
+    const syms = args.symbols.map((x) => String(x).toUpperCase());
+    scr.last_run = day;
+    scr.last_results = syms;
+    for (const s of syms) if (!w.symbols.some((x) => x.symbol === s)) w.symbols.push({ symbol: s, added: day, source: `screen:${scr.name}` });
+  } else if (action === 'list') {
+    changed = false;
+  } else return { ok: false, error: `unknown action ${action}`, text: 'action: list, add, remove, save_screen, remove_screen or record_results.' };
+  if (changed) {
+    const r = profiles.update(args.folder, 'watchlist', w);
+    if (r && r.errors && r.errors.length) return { ok: false, error: r.errors.join('; '), text: `Not saved: ${r.errors.join('; ')}` };
+  }
+  const L = [`**Watchlist** · ${w.symbols.length} names · ${w.screens.length} saved screens · ${istStamp(ctx.now())}`, 'Names the investor follows or a screen returned: screen output, not recommendations.'];
+  if (w.symbols.length) L.push(setupTable(setupRows(args.folder, w.symbols.map((x) => x.symbol))));
+  if (w.screens.length) L.push(table(['Screen', 'Where', 'Last run', 'Results'], w.screens.map((x) => [x.name, x.url || x.query, x.last_run || 'never', (x.last_results || []).length])));
+  return { ok: true, watchlist: w, text: L.join('\n') };
+}
+
+async function deployCmd(args, ctx) {
+  const { profile } = profiles.load(args.folder);
+  const snap = state.latestSnapshot(args.folder);
+  const kite = snap && snap.brokers.kite;
+  const cash = typeof args.cash === 'number' ? args.cash : kite ? kite.cash : null;
+  if (typeof cash !== 'number') return { ok: false, error: 'cash required', text: 'No Kite cash in the snapshot. Pass cash, or run refresh first.' };
+  const destinations = args.destinations || profile.deployment_plan.destinations;
+  if (!destinations || !destinations.length) return { ok: false, error: 'no destinations', text: 'No destinations given and none saved in deployment_plan.destinations.' };
+  let gap = typeof args.global_gap_inr === 'number' ? args.global_gap_inr : 0;
+  if (typeof args.global_gap_inr !== 'number' && snap) {
+    const c = snapshotLib.consolidate(snap, profile);
+    const g = c.allocation.find((a) => a.bucket === 'global_equity');
+    if (g && g.target_pct !== null && g.drift_pp < 0) gap = (-g.drift_pp / 100) * c.totals.book;
+  }
+  const syms = destinations.map((d) => d.symbol.toUpperCase());
+  const dest = destinations.map((d) => ({ ...d, symbol: d.symbol.toUpperCase() }));
+  const rows = setupRows(args.folder, syms);
+  const setups = Object.fromEntries(rows.map((r) => [r.symbol, r.closes ? r.setup : null]));
+  const sup20 = Object.fromEntries(rows.filter((r) => r.sup20 !== null).map((r) => [r.symbol, r.sup20]));
+  const r = deployLib.split({ cash, keep_cash: args.keep_cash || 0, global_gap_inr: gap, destinations: dest, valuations: args.valuations || {}, setups, sup20, stage_metals: args.stage_metals !== false, dip_days: args.dip_days, today: istDate(ctx.now()) });
+  const L = [`**Deployment split** · cash ${inr(cash)} · keep ${inr(r.keep_cash)} · ${istStamp(ctx.now())}`];
+  L.push(`Global gap ${inr(gap)}: ${inr(r.to_global)} goes first as a transfer to the global broker (a bank wire, not an order here). Then ${inr(r.rest)} across your destinations.`);
+  L.push(table(['Symbol', 'Setup', 'Planned', 'Now', 'Held back', 'Why'], r.rows.map((x) => [x.symbol, x.setup || 'no setup data', inr(x.planned), inr(x.amount_now), inr(x.held_back), x.why.join('; ')])));
+  L.push(`Invest now ${inr(r.invest_now)} · held back ${inr(r.held_back)} · cash after ${inr(r.cash_after)}`);
+  if (r.dip_limits.length) L.push(`Dip limits to consider (proposals, each with a deadline; none is placed): ${r.dip_limits.map((x) => `${x.symbol} ${x.qty} at ${x.price} until ${x.valid_until}`).join('; ')}`);
+  if (r.invest_now > 0) L.push(`Next: draft_basket with amount ${r.invest_now} and destinations ${JSON.stringify(r.destinations)}.`);
+  return { ok: true, ...r, amount: r.invest_now, text: L.join('\n') };
+}
+
+async function intradayPlan(args, ctx) {
+  const { profile } = profiles.load(args.folder);
+  const p = intraday.plan({ candles: args.candles, side: args.side, risk_inr: args.risk_inr, product: args.product, entry: args.entry, target_r: args.target_r }, profile);
+  if (!p.ok) return { ok: false, error: p.error, text: `No plan: ${p.error}.` };
+  const sym = (args.symbol || '').toUpperCase();
+  const call = args.log && sym ? intraday.logCall(args.folder, sym, p, ctx.now(), istDate(ctx.now())) : null;
+  const f = (n) => (n === null ? '-' : n);
+  const L = [`**Intraday plan** ${sym} ${p.side} ${p.product} · ${p.levels.candles} candles · opening range ${f(p.levels.or_low)}-${f(p.levels.or_high)} · VWAP ${f(p.levels.vwap)} · 20 EMA ${f(p.levels.ema20)}`,
+    table(['Entry', 'Stop (structure)', 'Target', 'Qty', 'Risk', 'Reward', 'Charges at target', 'Net R:R'], [[p.entry, p.stop, p.target, p.qty, inr(p.risk_gross), inr(p.reward_gross), `${inr(p.charges_at_target)} (${p.charges_per_share}/share)`, p.net_rr]])];
+  if (p.default_rates) L.push(`Charges use a built-in default rate (${p.rates_source}): save your own as profile.charges (with as_of and source) and check them against the broker's calculator.`);
+  L.push(call ? `Logged as ${call.id} for the retro. Watch it with intraday_watch.` : 'Not logged. Pass log: true with symbol to log it for the retro.');
+  L.push('A plan from the candles given: levels, not a prediction.');
+  return { ok: true, plan: p, call, text: L.join('\n') };
+}
+
+async function intradayWatch(args, ctx) {
+  const rows = intraday.watch(args.folder, istDate(ctx.now()), args.prices || {});
+  if (!rows.length) return { ok: true, calls: [], text: 'No intraday calls logged today.' };
+  return { ok: true, calls: rows, text: `**Intraday calls today** · ${istStamp(ctx.now())}\n${table(['Id', 'Symbol', 'Side', 'Entry', 'Stop', 'Target', 'LTP', 'State'], rows.map((r) => [r.id, r.symbol, r.side, r.entry, r.stop, r.target, r.ltp ?? '-', r.state]))}` };
+}
+
+async function retroCmd(args, ctx) {
+  const { profile } = profiles.load(args.folder);
+  const day = args.date || istDate(ctx.now());
+  const r = intraday.retro(args.folder, day, args.candles || {}, profile);
+  if (!r.calls) return { ok: true, ...r, text: `No intraday calls logged for ${day}.` };
+  const L = [`**Retro ${day}** · ${r.calls} calls · won ${r.won} · lost ${r.lost} · net after charges ${inr(r.net)} (charges ${inr(r.charges)})`,
+    table(['Id', 'Symbol', 'Side', 'Entry', 'Stop', 'Target', 'Outcome', 'Exit', 'Net'], r.results.map((x) => [x.id, x.symbol, x.side, x.entry, x.stop, x.target, x.outcome, x.exit ?? '-', x.net ?? '-']))];
+  L.push('Replay rule: the candles after the call; a candle that touches both stop and target counts as stopped.');
+  if (!lossTolerance.notSet(profile).length) L.push(`Losses on these calls ${inr(r.losses)} against your tolerance ${inr(profile.loss_tolerance.amount_inr)} (${profile.loss_tolerance.measure}${profile.loss_tolerance.from ? `, from ${profile.loss_tolerance.from}` : ''}); the tolerance is for its own window, so add earlier play losses before comparing.`);
+  if (r.default_rates) L.push('Charges use a built-in default rate: save your own as profile.charges.');
+  return { ok: true, ...r, text: L.join('\n') };
+}
+
+// End of session (issue #41): one dated entry for the next chat to start from.
+async function closeSession(args, ctx) {
+  const { profile, exists } = profiles.load(args.folder);
+  if (!exists) return { ok: false, error: 'no profile', text: `Not saved: no profile.json at ${profiles.profilePath(args.folder)}. This looks like an uploaded copy or the wrong folder. Point folder at the real investor folder on the computer, then close the session.` };
+  const sections = [['Decisions', args.decisions], ['Strategies', args.strategies], ['Trades', args.trades], ['Tools built', args.tools]];
+  const body = sections.filter(([, v]) => Array.isArray(v) && v.length).map(([k, v]) => `**${k}**\n${v.map((x) => `- ${x}`).join('\n')}`).join('\n\n');
+  if (!body && !args.start_here) return { ok: false, error: 'nothing to save', text: 'Pass decisions, strategies, trades, tools or start_here.' };
+  const r = log.append(args.folder, { text: `Session summary\n\n${body}`.trim(), startHere: args.start_here, path: profile.log && profile.log.path }, ctx.now());
+  return { ok: true, ...r, text: `Session saved to ${r.path}${args.start_here ? ' (Start here rewritten)' : ''}. Copy the Start here block into the claude.ai Project's current-state doc so the next chat starts from it; nothing here reaches the Project by itself.` };
 }
 
 // Guided review (US3): one run, stage by stage, gates in code.
@@ -701,7 +870,7 @@ const TOOLS = [
   { name: 'check', handler: check, description: 'Re-render the consolidated portfolio check from the latest snapshot without pulling brokers.', props: {} },
   { name: 'gtt_audit', handler: gttAudit, description: "Audit Kite GTTs against the investor's policy: per-symbol quantity gaps, policy violations, crash test, outliers, orphans, cancelled GTTs, corporate-action re-scoring.", props: { corporate_actions: { type: 'array', items: { type: 'object', properties: { symbol: { type: 'string' }, kind: { type: 'string', enum: ['bonus', 'split', 'demerger', 'dividend'] }, ratio: { type: 'string' }, price_factor: { type: 'number' }, ex_date: { type: 'string' }, confirmed: { type: 'boolean' } } } } } },
   { name: 'draft_gtt_plan', handler: draftGttPlan, description: 'Draft GTT changes that bring the book in line with policy. New GTTs are placed before old ones are deleted. Returns a draft code.', props: { symbols: { type: 'array', items: { type: 'string' } }, corporate_actions: { type: 'array', items: { type: 'object' } } } },
-  { name: 'draft_basket', handler: draftBasket, description: 'Draft basket rows (symbol, qty, LIMIT price) for an amount or a saved deployment stage, for manual entry in Kite web.', props: { amount: { type: 'number' }, stage: { type: 'number' }, destinations: { type: 'array', items: { type: 'object' } } } },
+  { name: 'draft_basket', handler: draftBasket, description: 'Draft basket rows (symbol, qty, LIMIT price) for an amount or a saved deployment stage, for manual entry in Kite web.', props: { amount: { type: 'number' }, stage: { type: 'number' }, destinations: { type: 'array', items: { type: 'object' } }, format: { type: 'string', enum: ['kite_json'], description: 'Also write a file Kite web can import as a basket.' } } },
   { name: 'crash_check', handler: crashCheck, description: "Crash mode: stops that would fire, stops that would force-sell hold names, and which stage of the investor's saved deployment plan the index has reached (drafts that stage's basket).", props: { index_level: { type: 'number' } } },
   { name: 'rate_map', handler: rateMap, description: 'Group holdings by interest-rate sensitivity (default map plus profile overrides).', props: {} },
   { name: 'profile_get', handler: profileGet, description: "Read the investor's profile (or a dotted path in it).", props: { path: { type: 'string' } } },
@@ -720,12 +889,20 @@ const TOOLS = [
   { name: 'task_done', handler: taskDone, description: 'After the investor says done on a task they carry out themselves. result: done, could_not or skipped. A fresh read still verifies it. On a plugin task the fresh read did not confirm, only could_not (with a note), when the investor says it could not be done.', props: { run: { type: 'string' }, task: { type: 'string' }, result: { type: 'string', enum: ['done', 'could_not', 'skipped'] }, note: { type: 'string' } }, required: ['task', 'result'] },
   { name: 'research_submit', handler: researchSubmit, description: 'Submit research findings for the review brief: symbol, metric, value, period, source_url, source_quote, accessed, status (found, not_found, blocked_source). Pass corporate_actions (an array, empty when none) once checked.', props: { run: { type: 'string' }, findings: { type: 'array', items: { type: 'object' } }, corporate_actions: { type: 'array', items: { type: 'object' } } } },
   { name: 'lots_build', handler: lotsBuild, description: "Build tax lots first-in first-out from the investor's tradebook and fund statement (CSV only) and reconcile them to what is held. Sell options then show lots, holding periods, gains and the exemption left.", props: { tradebook_csv: { type: 'string' }, mf_statement_csv: { type: 'string' } } },
-  { name: 'export', handler: exportCmd, description: 'Write the dashboard files (positions-<date>.json, cash-<date>.json) from the latest snapshot. format: dashboard; out: a folder (default the state folder).', props: { format: { type: 'string', enum: ['dashboard'] }, out: { type: 'string' } } },
+  { name: 'export', handler: exportCmd, description: 'Write the dashboard files (positions-<date>.json with setup and R:R, cash-<date>.json, watchlist-<date>.json) from the latest snapshot. format: dashboard; out: a folder (default the state folder).', props: { format: { type: 'string', enum: ['dashboard'] }, out: { type: 'string' } } },
   { name: 'profit_lock_dryrun', handler: profitLockDryrun, description: 'What the profit lock would arm, book or trail today at the thresholds given (arm_gain_pct, book_gain_pct, trail_pct; scope play or all_stocks). Saves nothing.', props: { arm_gain_pct: { type: 'number' }, book_gain_pct: { type: 'number' }, trail_pct: { type: 'number' }, scope: { type: 'string', enum: ['play', 'all_stocks'] } }, required: ['arm_gain_pct', 'book_gain_pct', 'trail_pct'] },
   { name: 'decisions', handler: decisionsCmd, description: "What is due under the investor's own rules (GTT gaps, tripwires, limits, drift, plan path, loss tolerance), outside a review. Saves nothing.", props: {} },
   { name: 'journal_readback', handler: journalReadback, description: 'Decisions older than older_than_days (default from the profile) beside what the same rules measure now.', props: { older_than_days: { type: 'number' } } },
   { name: 'log_append', handler: logAppend, description: 'Append a dated entry to the log and optionally rewrite the "Start here" block. Older months archive automatically.', props: { text: { type: 'string' }, start_here: { type: 'string' } } },
   { name: 'draft_orders', handler: draftOrders, description: 'Draft explicit broker order calls (an IBKR order instruction, cancel or modify an open Kite order) so the order gate can allow exactly those calls once the investor clicks Yes. Each row gives broker (kite or ibkr), op (place, modify, cancel) and the order arguments; the engine names the broker tool.', props: { label: { type: 'string' }, rows: { type: 'array', items: { type: 'object', properties: { broker: { type: 'string' }, op: { type: 'string' }, tool: { type: 'string' }, args: { type: 'object' }, symbol: { type: 'string' }, reason: { type: 'string' } } } } }, required: ['rows'] },
+  { name: 'setups', handler: setupsCmd, description: 'Technical setup per holding and watchlist name (In uptrend, Dip in uptrend, Stretched, Downtrend, Short history) with R:R, from the engine own daily closes. A description of the chart, never a call to buy or sell.', props: { symbols: { type: 'array', items: { type: 'string' } } } },
+  { name: 'closes_seed', handler: closesSeed, description: "Add daily closes for one symbol (from the broker's historical data) so its setup does not wait 50 refreshes. rows: [{ date: YYYY-MM-DD, close }].", props: { symbol: { type: 'string' }, rows: { type: 'array', items: { type: 'object', properties: { date: { type: 'string' }, close: { type: 'number' } } } } }, required: ['symbol', 'rows'] },
+  { name: 'watchlist', handler: watchlistCmd, description: 'The investor watchlist and saved screens, kept in the profile. action: list, add, remove (symbol), save_screen (name, url or query), remove_screen (name), record_results (name, symbols: what the screen returned, run by the investor browser). Screen output, never recommendations. Lists each name with its setup.', props: { action: { type: 'string', enum: ['list', 'add', 'remove', 'save_screen', 'remove_screen', 'record_results'] }, symbol: { type: 'string' }, note: { type: 'string' }, source: { type: 'string' }, name: { type: 'string' }, url: { type: 'string' }, query: { type: 'string' }, symbols: { type: 'array', items: { type: 'string' } } } },
+  { name: 'deploy', handler: deployCmd, description: 'Split broker cash by the global gap, the saved destination weights, index valuation (valuations: { SYMBOL: { pe, median_pe } }) and setup; metals in halves; returns the amount and destinations for draft_basket, plus optional dip limits with a deadline (proposals only). keep_cash stays untouched. Places nothing.', props: { cash: { type: 'number' }, keep_cash: { type: 'number' }, global_gap_inr: { type: 'number' }, destinations: { type: 'array', items: { type: 'object' } }, valuations: { type: 'object' }, stage_metals: { type: 'boolean' }, dip_days: { type: 'number' } } },
+  { name: 'intraday_plan', handler: intradayPlan, description: 'Levels from 5-minute candles the caller read from the broker (t ISO time, o, h, l, c, v): opening range, VWAP, 20 EMA, a stop below structure, the quantity that makes a stop cost risk_inr, charges netted, net R:R. log: true with symbol saves the call for the retro. Not a prediction.', props: { symbol: { type: 'string' }, candles: { type: 'array', items: { type: 'object' } }, side: { type: 'string', enum: ['long', 'short'] }, risk_inr: { type: 'number' }, product: { type: 'string', enum: ['MIS', 'CNC'] }, entry: { type: 'number' }, target_r: { type: 'number' }, log: { type: 'boolean' } }, required: ['candles', 'risk_inr'] },
+  { name: 'intraday_watch', handler: intradayWatch, description: "Today's logged intraday calls against the latest prices (prices: { SYMBOL: ltp }): open, stop hit or target hit. Call it every N minutes while the investor trades.", props: { prices: { type: 'object' } } },
+  { name: 'retro', handler: retroCmd, description: "Replay a day's logged intraday calls against the candles that followed (candles: { SYMBOL: [5-minute candles] }): outcome and net after charges per call, with the total against the loss tolerance. date defaults to today.", props: { date: { type: 'string' }, candles: { type: 'object' } } },
+  { name: 'close_session', handler: closeSession, description: 'End of session: append a dated summary (decisions, strategies, trades, tools: arrays of short lines) to the log and optionally rewrite the Start here block. Refuses when the folder has no profile.json (an uploaded copy or the wrong folder).', props: { decisions: { type: 'array', items: { type: 'string' } }, strategies: { type: 'array', items: { type: 'string' } }, trades: { type: 'array', items: { type: 'string' } }, tools: { type: 'array', items: { type: 'string' } }, start_here: { type: 'string' } } },
 ];
 
 function listTools(edition) {
@@ -742,7 +919,7 @@ function makeContext(overrides = {}) {
 
 // Tools that need no "profile missing" warning: they manage the profile themselves or never read it.
 // Every other tool computes from the profile, so it gets the warning (issues #28, #32).
-const PROFILE_TOOLS = new Set(['profile_get', 'profile_update', 'report_gap', 'log_append', 'state_export', 'state_import', 'state_writeback']);
+const PROFILE_TOOLS = new Set(['profile_get', 'profile_update', 'report_gap', 'log_append', 'state_export', 'state_import', 'state_writeback', 'close_session']);
 // Drafting on defaults produced wrong orders (issues #28, #32): these refuse without a real profile (FR-040).
 const NEEDS_PROFILE = new Set(['draft_gtt_plan', 'draft_basket', 'draft_orders', 'review_start', 'task_done']);
 

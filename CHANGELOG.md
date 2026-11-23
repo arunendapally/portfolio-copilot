@@ -2,6 +2,24 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: see [docs/release.md](docs/release.md).
 
+## [1.1.0] - 2026-11-19
+
+The issue backlog (#23, #33 to #41): setups, a watchlist, a deployment split, Kite basket files, intraday plans and a retro. Every figure comes from the investor's own data or reads; the new commands describe charts and levels and never suggest a security.
+
+### Added
+- `setups` (#34): In uptrend, Dip in uptrend, Stretched, Downtrend or Short history per holding and watchlist name, with R:R (room to the 52-week high over room to the 20-day low), from the engine's own daily closes. `closes_seed` loads daily closes from a broker's historical data so a name does not wait 50 refreshes.
+- `watchlist` (#35): names and saved screens kept in `profile.watchlist`; `record_results` stores what a screen returned (screen output, not recommendations) and every name shows its setup. Run by the investor's browser; the plugin never scrapes.
+- `deploy` (#38): broker cash split by the global gap, the saved destination weights, index valuation (`valuations`) and setup; gold and silver in halves; a Stretched or Downtrend name takes half now; the held-back part stays cash; optional dip limits at the 20-day low with a deadline, as proposals only. Returns the amount and destinations for `draft_basket`.
+- `draft_basket` with `format: kite_json` (#39) writes a file for Kite web's basket import. The format is unverified until an import is confirmed.
+- `intraday_plan`, `intraday_watch` (#36): opening range, VWAP and 20 EMA from 5-minute candles, a stop below structure, quantity sized to a per-trade risk, charges netted, net R:R; calls are logged and watched against prices. Charge rates come from `profile.charges` (with date and source); the built-in default is flagged as unverified wherever it is used.
+- `retro` (#37): replays a day's logged calls against the candles that followed (a candle touching both stop and target counts as stopped) with net after charges and the losses against the loss tolerance.
+- `close_session` (#41): a dated session summary and an optional new Start here block in the log; refuses a folder with no profile.json.
+- The check shows open play losses against the loss tolerance (#40); the dashboard export carries `setup` and `rr` per position and a `watchlist-<date>.json` file (#33).
+
+### Notes
+- #23 (daily use from the chat through the brokers' own MCPs) shipped in 0.7.0 and is covered by the 1.0.0 review loop.
+- #35's screener and #36's active watching are guided by the `analyze` skill; the plugin holds the data and the arithmetic, the chat does the browsing and the polling.
+
 ## [1.0.0] - 2026-11-18
 
 Keep the gains, decide by your own rules, see the tax, and let a local engine do the reading (spec 002, US4, US5, US7, US8).

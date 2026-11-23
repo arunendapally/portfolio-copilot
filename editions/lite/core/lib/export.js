@@ -9,6 +9,9 @@ const snapshotLib = require('./snapshot');
 const gtt = require('./gtt');
 const marksLib = require('./marks');
 const { istDate } = require('./format');
+const setupsLib = require('./setups');
+const technicals = require('./technicals');
+const inputs = require('./inputs');
 
 const TECH = ['dma50', 'dma200', 'rsi', 'sup20', 'hi52'];
 
@@ -32,6 +35,7 @@ function rows(snap, prev, profile, marks) {
         gttQty: g ? (g.issues.some((i) => i.code === 'no_gtt') ? 0 : g.qty - ((g.issues.find((i) => i.code === 'qty_short') || {}).gap || 0)) : null,
         gttStop: g ? g.stop : null, gttTarget: g ? g.target : null,
         settling: h.day_qty || 0,
+        setup: setupsLib.classify(tech, h.ltp), rr: setupsLib.rr(tech, h.ltp),
         ...Object.fromEntries(TECH.map((k) => [k, typeof tech[k] === 'number' ? tech[k] : null])),
         asof: h.price_as_of || b.as_of || snap.taken_at,
         lock: marks && marks.symbols[h.symbol] ? marks.symbols[h.symbol].stage : null,
@@ -46,7 +50,20 @@ function write(folder, out, snap, prev, profile) {
   const date = istDate(new Date(snap.taken_at));
   const r = rows(snap, prev, profile, marksLib.load(folder));
   fs.mkdirSync(out, { recursive: true });
-  const files = [[`positions-${date}.json`, r.positions], [`cash-${date}.json`, { cash: r.cash, totals: r.totals }]].map(([name, data]) => {
+  // Watchlist names (profile.watchlist) with their setups; a price the snapshot lacks comes from a captured quote, else null.
+  const held = new Map();
+  for (const b of Object.values(snap.brokers || {})) for (const h of b.holdings || []) if (typeof h.ltp === 'number' && !held.has(h.symbol)) held.set(h.symbol, h.ltp);
+  const quotes = inputs.ltp();
+  const techs = technicals.forSnapshot(technicals.load(folder));
+  const w = profile.watchlist || { symbols: [], screens: [] };
+  const watch = {
+    names: w.symbols.map((x) => {
+      const ltp = held.has(x.symbol) ? held.get(x.symbol) : typeof quotes[`NSE:${x.symbol}`] === 'number' ? quotes[`NSE:${x.symbol}`] : null;
+      return { ...setupsLib.rows([{ symbol: x.symbol, ltp }], techs)[0], added: x.added, source: x.source, note: x.note || null };
+    }),
+    screens: w.screens.map((x) => ({ name: x.name, last_run: x.last_run || null, results: (x.last_results || []).length })),
+  };
+  const files = [[`positions-${date}.json`, r.positions], [`cash-${date}.json`, { cash: r.cash, totals: r.totals }], [`watchlist-${date}.json`, watch]].map(([name, data]) => {
     const p = path.join(out, name);
     const text = JSON.stringify(data, null, 2);
     fs.writeFileSync(p, text);

@@ -29,4 +29,14 @@ function build({ amount, destinations, prices, cash, profile }) {
   return { rows, total, cash_left: cashLeft, conflicts, missing_prices: missing };
 }
 
-module.exports = { build, LIMIT_BUFFER_PCT };
+// Kite's basket import file (issue #39). The shape follows a basket exported from Kite web
+// (instrument + params); no sample was available to check it against, so the draft says
+// "unverified" until the investor confirms an import works.
+function kiteJson(rows) {
+  return rows.filter((r) => r.qty > 0).map((r) => ({
+    instrument: { exchange: r.exchange || 'NSE', tradingsymbol: r.symbol },
+    params: { transaction_type: 'BUY', order_type: 'LIMIT', product: 'CNC', validity: 'DAY', quantity: r.qty, price: r.limit_price },
+  }));
+}
+
+module.exports = { build, kiteJson, LIMIT_BUFFER_PCT };

@@ -1,6 +1,6 @@
 ---
 name: check
-description: The guided daily review across all brokers, and portfolio checks. Use for "review", "daily review", "work through my to-dos", "do my open actions", "check my portfolio", "daily briefing", "morning briefing", "open session", "portfolio check", "pull my portfolio", "mid-day check", "end of day", "EOD analysis", "Friday review", "macro brief", "import my holdings", or any portfolio question that needs live numbers. Also the scheduled daily run.
+description: The guided daily review across all brokers, and portfolio checks. Use for "review", "daily review", "work through my to-dos", "do my open actions", "check my portfolio", "daily briefing", "morning briefing", "open session", "portfolio check", "pull my portfolio", "mid-day check", "end of day", "EOD analysis", "Friday review", "macro brief", "import my holdings", "close the session", "update my dashboard", or any portfolio question that needs live numbers. Also the scheduled daily run.
 ---
 
 # Review and check
@@ -36,6 +36,9 @@ Search: US close, Asian session, GIFT Nifty or Nifty, Brent, USD/INR, today's In
 - The folder is reachable: use it as `--folder`.
 - A chat linked to the PC that cannot run Node there: on the PC `pc state_export --out <file>`; copy it in; `pc state_import --bundle <file> --into <scratch>`; use `<scratch>`. Before ending, `pc state_writeback --bundle <file>` with `source_hashes` of the PC copies; copy back every file it lists; report `conflicts` and never overwrite them.
 - Not linked: ask for `profile.json` (kept in the claude.ai Project); say plainly "the profile is a copy" and hand changed files back.
+
+## Dashboard and closing a session
+"Update my dashboard": `pc export --format dashboard` writes positions (with setup and R:R), cash and watchlist files; load them into the dashboard artifact. At the end of a session call `close_session` (decisions, strategies, trades, tools; `start_here` rewrites the Start here block), then paste the Start here block into the claude.ai Project's current-state doc. It refuses a folder with no profile.json: an uploaded copy; use the real folder.
 
 ## Gaps
 When a tool says "not supported" or errors with no fallback, call `report_gap` (title, attempted, missing, error), never with quantities, prices or P&L. If no issue was filed and a GitHub MCP is connected, file it yourself with label `gap` in `arunendapally/portfolio-copilot` (comment on an open one with the same title).
