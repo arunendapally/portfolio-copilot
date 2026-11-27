@@ -1,0 +1,104 @@
+{
+  "feature": "engine-bugs-nov18",
+  "lane": "bug",
+  "stage": 5,
+  "branch": "bug/engine-bugs-nov18",
+  "createdAt": "2026-11-23T13:09:34.038Z",
+  "stages": {
+    "4": {
+      "enteredAt": "2026-11-23T13:09:34.038Z",
+      "leftAt": "2026-11-23T13:36:40.875Z"
+    },
+    "5": {
+      "enteredAt": "2026-11-23T13:36:40.875Z",
+      "leftAt": "2026-11-23T13:36:48.508Z"
+    }
+  },
+  "gates": {
+    "4": {
+      "status": "approved",
+      "by": "checks: checks (repro red, gate green, small diff)",
+      "requestedAt": "2026-11-23T13:36:39.837Z",
+      "approvedAt": "2026-11-23T13:36:39.837Z",
+      "auto": true,
+      "fingerprint": "70b19541cf257888"
+    },
+    "5": {
+      "status": "approved",
+      "by": "checks: checks (gate green, review clean)",
+      "requestedAt": "2026-11-23T13:36:47.283Z",
+      "approvedAt": "2026-11-23T13:36:47.283Z",
+      "auto": true,
+      "fingerprint": "70b19541cf257888"
+    }
+  },
+  "retries": {},
+  "kinds": [],
+  "updatedAt": "2026-11-23T13:36:48.508Z",
+  "lastPacketHead": "e47c0c2",
+  "ledgerIds": [
+    "F1"
+  ],
+  "gateRuns": {
+    "4": {
+      "ok": true,
+      "count": 281,
+      "at": "2026-11-23T13:36:34.883Z",
+      "tree": "a0a10fa320fc1add",
+      "runs": 1,
+      "runtime": "v24.19.0"
+    }
+  },
+  "baseline": 281,
+  "baselineRuntime": "v24.19.0",
+  "proofBase": "2bd000b4c793a6679c8dac771e57495b7a022d77",
+  "sizeChecked": 84,
+  "proof": {
+    "ok": true,
+    "problems": [],
+    "base": "2bd000b",
+    "files": {
+      "tests/engine-bugs-nov18.test.js": "e573c45e90f83d32"
+    },
+    "acs": [
+      "the repro"
+    ],
+    "perTest": false,
+    "at": "2026-11-23T13:35:56.388Z"
+  },
+  "lock": {
+    "files": {
+      "tests/engine-bugs-nov18.test.js": "e573c45e90f83d32"
+    },
+    "at": "2026-11-23T13:35:56.388Z"
+  },
+  "riskTier": "medium",
+  "reviewedSha": "e47c0c27fb0c65f5000f46092fc7563202c9e56b",
+  "reviewedFiles": [
+    "changelog.d/engine-bugs-nov18.md",
+    "core/lib/brokers/normalize.js",
+    "core/lib/export.js",
+    "core/tools.js",
+    "editions/lite/core/lib/brokers/normalize.js",
+    "editions/lite/core/lib/export.js",
+    "editions/lite/core/tools.js",
+    "specs/engine-bugs-nov18/bug.md",
+    "specs/engine-bugs-nov18/review-packet.md",
+    "specs/engine-bugs-nov18/review.md",
+    "specs/engine-bugs-nov18/state.json",
+    "tests/engine-bugs-nov18.test.js",
+    "tests/export.test.js"
+  ],
+  "reviewedHashes": {
+    "changelog.d/engine-bugs-nov18.md": "1e17e3e170db089b",
+    "core/lib/brokers/normalize.js": "0f9b2502845c9ab7",
+    "core/lib/export.js": "08ba1593d16a2b5b",
+    "core/tools.js": "c4521c4b2626e434",
+    "editions/lite/core/lib/brokers/normalize.js": "0f9b2502845c9ab7",
+    "editions/lite/core/lib/export.js": "08ba1593d16a2b5b",
+    "editions/lite/core/tools.js": "c4521c4b2626e434",
+    "tests/engine-bugs-nov18.test.js": "e573c45e90f83d32",
+    "tests/export.test.js": "cce8a3e5e5a767b7"
+  },
+  "closedAt": "2026-11-23T13:36:48.508Z"
+}

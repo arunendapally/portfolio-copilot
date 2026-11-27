@@ -26,7 +26,7 @@ test('export writes positions and cash in the dashboard shape, technicals null w
   assert.strictEqual(icici.gttQty, 46);
   assert.strictEqual(icici.gttStop, 900);
   const cash = JSON.parse(fs.readFileSync(path.join(out, 'cash-2026-10-14.json'), 'utf8'));
-  assert.strictEqual(cash.cash[0].broker, 'kite');
+  assert.strictEqual(cash.cash[0].broker, 'Kite');
 });
 
 test('a technical the snapshot carries is passed through with its value', () => {
