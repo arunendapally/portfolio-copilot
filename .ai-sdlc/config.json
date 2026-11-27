@@ -1,0 +1,4 @@
+{
+  "gateCommand": "npm test",
+  "proofCommand": "node --test {files}"
+}
